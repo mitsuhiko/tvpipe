@@ -751,7 +751,7 @@ impl ShareHandle {
 
 /// The input side of [`ShareServer::start`].
 pub struct ShareInputOptions {
-    /// Frame rate for timing when the SPS has none.
+    /// Negotiated frame rate, used instead of the browser's SPS timing.
     pub fps: crate::util::ratio::Ratio,
     /// The PCM the page sends (s16le), if any.
     pub audio: Option<RawAudioSpec>,
@@ -846,7 +846,11 @@ impl ShareInput {
                 return Err(Error::closed("share: stopped before the first keyframe"));
             }
         }
+        // Keep the negotiated rate: Firefox's SPS can report its microsecond
+        // clock as 1,000,000 fps. Actual frame timing comes from the page's PTS.
+        let fps = self.info.video.fps;
         self.info = self.st.stream_info()?;
+        self.info.video.fps = fps;
         if let Some(sar) = square_pixels(&self.info.video.avcc) {
             warn!(
                 "share: the browser's H.264 says pixels are {}:{}, not square; \
@@ -937,8 +941,13 @@ impl ShareInput {
             Kind::Audio if !self.st.started() => return Ok(()),
             Kind::H264Config if p.payload.first() == Some(&slrw::CONFIG_AVCC) => {
                 debug!("share: avcC {}", crate::util::hex::encode(&p.payload[1..]));
-                let cfg = h264::AvcConfig::parse(&p.payload[1..])?;
+                let mut cfg = h264::AvcConfig::parse(&p.payload[1..])?;
                 self.length_size = cfg.length_size as usize;
+                if repair_firefox_avcc(&mut cfg) {
+                    debug!("share: repaired duplicated Firefox H.264 parameter-set headers");
+                    p.payload.truncate(1);
+                    p.payload.extend_from_slice(&cfg.to_bytes()?);
+                }
             }
             Kind::H264 => {
                 let now = Instant::now();
@@ -962,6 +971,30 @@ impl ShareInput {
         }
         self.st.handle(p)
     }
+}
+
+/// Repair duplicated SPS/PPS headers (observed in Firefox 160) at the browser boundary.
+/// Require matching profile/level bytes and a valid corrected SPS.
+fn repair_firefox_avcc(cfg: &mut h264::AvcConfig) -> bool {
+    let ([sps], [pps]) = (cfg.sps.as_mut_slice(), cfg.pps.as_mut_slice()) else {
+        return false;
+    };
+    let prefix = [
+        0x67,
+        0x67,
+        cfg.profile_idc,
+        cfg.profile_compatibility,
+        cfg.level_idc,
+    ];
+    if !sps.starts_with(&prefix)
+        || !pps.starts_with(&[0x68, 0x68])
+        || h264::parse_sps(&sps[1..]).is_err()
+    {
+        return false;
+    }
+    sps.remove(0);
+    pps.remove(0);
+    true
 }
 
 /// The sample aspect ratio of an avcC's SPS when it is not square

@@ -26,6 +26,8 @@ pub(crate) struct PageScript {
     pub send_ended: bool,
     /// Replace the first video record with this message.
     pub bad_record: Option<Vec<u8>>,
+    /// Duplicate the avcC's SPS/PPS NAL headers as Firefox 160 does.
+    pub duplicate_parameter_set_headers: bool,
     /// Come as a browser over the tunnel would: this `Host`, and
     /// `https://HOST` as `Origin`.
     pub public_host: Option<String>,
@@ -40,6 +42,7 @@ impl Default for PageScript {
             audio: true,
             send_ended: true,
             bad_record: None,
+            duplicate_parameter_set_headers: false,
             public_host: None,
         }
     }
@@ -212,8 +215,15 @@ fn stream(
         ..h264enc::Config::default()
     })
     .unwrap();
+    let mut avcc = enc.avcc();
+    if script.duplicate_parameter_set_headers {
+        let mut cfg = h264::AvcConfig::parse(&avcc).unwrap();
+        cfg.sps[0].insert(0, 0x67);
+        cfg.pps[0].insert(0, 0x68);
+        avcc = cfg.to_bytes().unwrap();
+    }
     let mut cfg = vec![slrw::CONFIG_AVCC];
-    cfg.extend_from_slice(&enc.avcc());
+    cfg.extend_from_slice(&avcc);
     tx.send_binary(&protocol::record(Kind::H264Config, clock(), &cfg))
         .unwrap();
     let start = Instant::now();
@@ -316,11 +326,15 @@ fn streams_video_and_pcm_until_the_share_ends() {
     let cap = server.wait_capture(&never()).unwrap();
     assert_eq!((cap.width, cap.height, cap.audio), (640, 360, true));
     assert_eq!(cap.surface.as_deref(), Some("browser"));
-    let mut input = server
-        .start(&plan(320, 180, 15, true), input_opts(true), never())
-        .unwrap();
+    // The source's SPS says 30 fps; retain the negotiated rate instead.
+    let mut p = plan(320, 180, 15, true);
+    p.fps = 15.0;
+    let mut opts = input_opts(true);
+    opts.fps = Ratio::integer(15);
+    let mut input = server.start(&p, opts, never()).unwrap();
     let info = input.info().clone();
     assert_eq!((info.video.width, info.video.height), (320, 180));
+    assert_eq!(info.video.fps, Ratio::integer(15));
     assert_eq!(info.audio.len(), 1);
     assert!(
         input.describe().contains("Chrome 131"),
@@ -348,6 +362,37 @@ fn streams_video_and_pcm_until_the_share_ends() {
     assert_eq!(seen.plan.unwrap().get("width").unwrap().as_u32(), Some(320));
     // The page ended the share itself: it gets no `end`, just the close.
     assert!(seen.closed && seen.end.is_none());
+}
+
+#[test]
+fn streams_with_duplicated_parameter_set_headers() {
+    let server = ShareServer::bind(0).unwrap();
+    server.configure(&config(&[]));
+    let page = spawn_page(
+        server.ws_url(),
+        PageScript {
+            frames: 2,
+            audio: false,
+            duplicate_parameter_set_headers: true,
+            ..PageScript::default()
+        },
+    );
+    server.wait_capture(&never()).unwrap();
+    let mut input = server
+        .start(&plan(160, 96, 30, false), input_opts(false), never())
+        .unwrap();
+    let info = input.info();
+    assert_eq!((info.video.width, info.video.height), (160, 96));
+    assert_eq!(info.video.fps, Ratio::integer(30));
+    let cfg = h264::AvcConfig::parse(&info.video.avcc).unwrap();
+    let sps = h264::parse_sps(&cfg.sps[0]).unwrap();
+    assert_eq!((sps.width, sps.height, cfg.length_size), (160, 96, 4));
+    let frames = drain(&mut input);
+    assert_eq!(frames.len(), 2);
+    assert!(frames[0].keyframe && !frames[1].keyframe);
+    assert!(frames[1].pts > frames[0].pts);
+    Box::new(input).finish(true).unwrap();
+    assert_eq!(page.join().unwrap().frames_sent, 2);
 }
 
 #[test]
@@ -697,6 +742,53 @@ fn square_pixel_check() {
     .to_bytes()
     .unwrap();
     assert_eq!(square_pixels(&cfg), Some((4, 3)));
+}
+
+// Captured from Firefox 160 on Linux, WebCodecs avc1.42E028, 1920x1080.
+const FIREFOX_AVCC: &str =
+    "0142c02803010019676742c028d900780227e5840000030004007a12003c60c9200100056868cb8cb2";
+
+#[test]
+fn repairs_firefox_avcc_without_weakening_sps_validation() {
+    let raw = crate::util::hex::decode(FIREFOX_AVCC).unwrap();
+    let mut cfg = h264::AvcConfig::parse(&raw).unwrap();
+    assert!(h264::parse_sps(&cfg.sps[0]).is_err());
+    assert!(repair_firefox_avcc(&mut cfg));
+    let fixed = cfg.to_bytes().unwrap();
+    assert_eq!(
+        crate::util::hex::encode(&fixed),
+        "0142c028ffe100186742c028d900780227e5840000030004007a12003c60c92001000468cb8cb2"
+    );
+    let parsed = h264::AvcConfig::parse(&fixed).unwrap();
+    let sps = h264::parse_sps(&parsed.sps[0]).unwrap();
+    assert_eq!((sps.width, sps.height, parsed.length_size), (1920, 1080, 4));
+    assert_eq!(sps.fps, Some(Ratio::integer(1_000_000)));
+    assert!(!repair_firefox_avcc(&mut cfg));
+    assert_eq!(cfg.to_bytes().unwrap(), fixed);
+}
+
+#[test]
+fn avcc_repair_requires_the_complete_signature_and_a_valid_sps() {
+    let raw = crate::util::hex::decode(FIREFOX_AVCC).unwrap();
+    let original = h264::AvcConfig::parse(&raw).unwrap();
+    let mut mismatch = original.clone();
+    mismatch.profile_idc ^= 1;
+    let mut truncated = original.clone();
+    truncated.sps[0].truncate(5);
+    let mut normal_pps = original.clone();
+    normal_pps.pps[0].remove(0);
+    // A PPS can legitimately begin 68 68: a valid SPS must keep it intact.
+    let mut normal_sps = original.clone();
+    normal_sps.sps[0].remove(0);
+    let mut empty = original.clone();
+    empty.sps.clear();
+    let mut multiple = original.clone();
+    multiple.sps.push(original.sps[0].clone());
+    for mut cfg in [mismatch, truncated, normal_pps, normal_sps, empty, multiple] {
+        let before = cfg.clone();
+        assert!(!repair_firefox_avcc(&mut cfg));
+        assert_eq!(cfg, before);
+    }
 }
 
 #[test]
