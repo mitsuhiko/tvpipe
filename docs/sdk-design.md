@@ -171,7 +171,7 @@ interface StreamSession extends Session {
 ### Pairing from code
 
 - `pair(target, { onPin })`: runs `tvpipe --machine pair TARGET`; on the
-  `pin-required` event the SDK awaits `onPin({ name, address })` and sends
+  `pin-required` event the SDK awaits `onPin({ name, address, password })` and sends
   the PIN back; a rejected or aborted `onPin` cancels pairing. `pin:
   "1234"` is for receivers with a fixed PIN (`--pin`).
 - `play`/`testPattern`/`share`/`stream` with `onPin`: when the session
@@ -212,7 +212,7 @@ types and fields; new fields and types do not bump the protocol.
 | `started` | the input is open, frames flow | `route` (`passthrough`/`ffmpeg`/`builtin`/`encoded`/`browser`), `video` (`codec`, `width`, `height`, `fps`, `bitrate_kbps`), `audio` (array of `{codec, sample_rate, channels}`), `latency_ms` |
 | `keyframe` | a receiver needs an IDR (encoded SLRW, control flag set) | — |
 | `stats` | every second while streaming | `elapsed_ms`, `video_frames`, `audio_frames`, `receivers` (`name`, `pushed`, `dropped`, `dropped_full`, `dropped_waiting`) |
-| `pin-required` | `pair` needs the TV's PIN | `name`, `address` |
+| `pin-required` | `pair` needs the TV's PIN, or its AirPlay password | `name`, `address`, `password` |
 | `paired` | `pair` succeeded | `name`, `id`, `file` (the credentials path) |
 | `end` | the session is over | `reason` (`eof`, `stopped`, `receivers-gone`), `receivers` (`name`, `end`: `stopped`/`ended`/`failed`, `error`, the stats) |
 | `error` | the command fails | `kind` (`io`, `auth`, `not-found`, `unsupported`, `usage`, `process`, …), `code` (optional, stable: `pairing-required`, `ffmpeg-missing`, `no-receiver`), `message`, `device` (when about one receiver) |
@@ -220,7 +220,7 @@ types and fields; new fields and types do not bump the protocol.
 In machine mode the keyframe back channel (`keyframe\n` on stdout, see
 `docs/slrw.md`) becomes the `keyframe` event; nothing else is written to
 stdout. `discover --json` is unchanged (it already is machine output) apart
-from the new `paired` field.
+from the new `paired`, `password_pin` and `home_only` fields.
 
 ### Commands: stdin, SLRW framing
 

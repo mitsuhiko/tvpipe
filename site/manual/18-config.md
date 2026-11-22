@@ -20,7 +20,7 @@ tvpipe has no configuration file. It keeps a few files, a cache of downloaded ga
 
 | File | Contents |
 |---|---|
-| `credentials.txt` | Apple TV pairings. Keep it private. |
+| `credentials.txt` | AirPlay pairings. Keep it private. |
 | `player-token` | The secret part of the player page address. |
 | `opentunnel/` | This computer's OpenTunnel tunnel and certificate, made on the first `--tunnel=opentunnel`. Keep it private. |
 

@@ -628,7 +628,8 @@ blocked `recv`, socket timeouts per handle, PowerShell pipes) are handled in por
 
 ## Known Gaps
 
-- **Untested hardware:** LG and Samsung AirPlay, and the legacy AirPlay
+- **Untested hardware:** Samsung AirPlay, LG models other than the one in
+  `docs/airplay-mirroring.md` §10, and the legacy AirPlay
   pairing and media profile (including the no-FairPlay variant, which
   sends random `shk`/`shiv` and audio in the clear).
 - **Cast:** testing on real hardware is in progress.

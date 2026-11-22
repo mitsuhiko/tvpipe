@@ -59,6 +59,8 @@ pub struct Recorded {
     pub strays: usize,
     pub event_replies: usize,
     pub teardown: bool,
+    /// The body of every TEARDOWN (`None`: no body).
+    pub teardown_bodies: Vec<Option<Plist>>,
 }
 
 /// How the fake behaves.
@@ -95,6 +97,14 @@ pub struct Behaviour {
     pub legacy_no_fairplay: bool,
     /// Never answer `POST /feedback` (a wedged receiver).
     pub hang_feedback: bool,
+    /// Answer a TEARDOWN that names streams with 400.
+    pub refuse_stream_teardown: bool,
+    /// Never answer TEARDOWN (the connection stays open).
+    pub hang_teardown: bool,
+    /// Answer `/fp-setup` with 403 (default: 404, no FairPlay).
+    pub forbid_fp_setup: bool,
+    /// `statusFlags` of `/info` (default 0x644).
+    pub status_flags: u64,
     /// Advertise FairPlay (feature 14). The fake cannot do it, so both
     /// `/fp-setup` requests get 404 (a FairPlay build goes on without).
     pub fairplay_bit: bool,
@@ -138,6 +148,10 @@ impl Default for Behaviour {
             raw_pairing: None,
             legacy_no_fairplay: false,
             hang_feedback: false,
+            refuse_stream_teardown: false,
+            hang_teardown: false,
+            forbid_fp_setup: false,
+            status_flags: 0x644,
             fairplay_bit: false,
             display: Display::default(),
         }
@@ -249,8 +263,8 @@ fn reply(req: &Request, status: u16, body: Option<Plist>) -> Response {
     r
 }
 
-fn info(display: Option<Display>, fairplay: bool) -> Plist {
-    let features = if fairplay {
+fn info(display: Option<Display>, behaviour: &Behaviour) -> Plist {
+    let features = if behaviour.fairplay_bit {
         FEATURES | 1 << 14
     } else {
         FEATURES
@@ -261,6 +275,7 @@ fn info(display: Option<Display>, fairplay: bool) -> Plist {
         .with("deviceID", "AA:BB:CC:00:00:0A")
         .with("features", features as i64)
         .with("sourceVersion", "960.13.1")
+        .with("statusFlags", behaviour.status_flags as i64)
         .with("initialVolume", 0.0)
         .with(
             "supportedFormats",
@@ -299,6 +314,20 @@ fn serve(stream: TcpStream, ctx: &Arc<Ctx>) -> crate::error::Result<()> {
         }
         if req.method == "TEARDOWN" {
             ctx.rec.lock().unwrap().teardown = true;
+            let body = (!req.body.is_empty())
+                .then(|| Plist::from_bytes(&req.body).ok())
+                .flatten();
+            let streams = body.as_ref().is_some_and(|b| b.get("streams").is_some());
+            let refused = streams && ctx.behaviour.refuse_stream_teardown;
+            ctx.rec.lock().unwrap().teardown_bodies.push(body);
+            if refused {
+                conn.send_response(&reply(&req, 400, None))?;
+                continue;
+            }
+            if ctx.behaviour.hang_teardown {
+                thread::sleep(Duration::from_secs(8));
+                return Ok(());
+            }
             ctx.close_data.store(true, Ordering::Release);
             if ctx.behaviour.teardown_eof {
                 return Ok(());
@@ -340,7 +369,7 @@ fn handle(req: &Request, ctx: &Arc<Ctx>) -> Response {
                 ctx.session
                     .load(Ordering::Acquire)
                     .then_some(ctx.behaviour.display),
-                ctx.behaviour.fairplay_bit,
+                &ctx.behaviour,
             )),
         ),
         "RECORD" => {
@@ -354,6 +383,9 @@ fn handle(req: &Request, ctx: &Arc<Ctx>) -> Response {
             Some(Plist::dict().with("streams", Plist::array(Vec::<Plist>::new()))),
         ),
         "TEARDOWN" | "SET_PARAMETER" => reply(req, 200, None),
+        "POST" if req.target == "/fp-setup" && ctx.behaviour.forbid_fp_setup => {
+            reply(req, 403, None)
+        }
         "POST" if req.target == "/pair-setup" || req.target == "/pair-verify" => {
             let mut raw = ctx.raw.lock().unwrap();
             let out = raw.as_mut().and_then(|r| {
@@ -479,10 +511,7 @@ fn run_events<S: Read + std::io::Write>(conn: &mut Conn<S>, ctx: &Ctx) {
     {
         let body = Plist::dict()
             .with("type", "updateInfo")
-            .with(
-                "value",
-                info(Some(ctx.behaviour.display), ctx.behaviour.fairplay_bit),
-            )
+            .with("value", info(Some(ctx.behaviour.display), &ctx.behaviour))
             .to_bytes();
         let req = Request::new("POST", "/command", crate::net::http::Version::Rtsp10)
             .header("CSeq", "1")

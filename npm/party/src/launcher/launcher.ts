@@ -12,6 +12,7 @@
 import { displayLag, Flasher, MAX_LAG_MS } from "../flashsync.ts";
 import { APP_ROW, appScreenNote, appScreens, appWay, detectDevice, screenOptions, type ScreenOption } from "../launcher-options.ts";
 import { isWeb } from "../mode.ts";
+import { pairField, pairFieldValue } from "../pair-dialog.ts";
 import { LOCAL_PREFIX, SCREEN_WINDOW } from "../screens.ts";
 import { writeWebSession } from "../session.ts";
 import { GAMES_PAGE, loadWebGames } from "../webhub.ts";
@@ -102,11 +103,13 @@ function el(tag: string, cls: string, text?: string): HTMLElement {
 function pairingText(p: PairStatus): [string, string] {
   if (p.state === "done") return ["Paired", "done"];
   if (p.state === "failed") return [`Pairing failed${p.error ? `: ${p.error}` : ""}`, "bad"];
-  if (p.state === "pin") return ["Type the code the TV shows", ""];
+  if (p.state === "pin") return [p.password ? "Type the TV's password" : "Type the code the TV shows", ""];
   return ["Pairing…", ""];
 }
 
 function render(): void {
+  // A TV for its home's members only cannot be chosen.
+  for (const d of devices) if (d.homeOnly) selected.delete(d.name);
   const list = $("devices");
   list.replaceChildren(
     ...devices.map((d) => {
@@ -121,7 +124,13 @@ function render(): void {
       const local = d.name.startsWith(LOCAL_PREFIX);
       // One line under the name: the model and the sync (rows stay low for many TVs).
       const synced = typeof d.displayMs === "number" ? `Synced with phones: ${d.displayMs} ms of its own` : "";
-      const meta = local ? appScreenNote(d.name) : browser ? "Try the game without a TV: the TV picture plays in a tab" : [d.model, synced].filter(Boolean).join(" · ");
+      const closed = d.homeOnly === true;
+      if (closed) box.disabled = true;
+      // The wording of tvpipe's `home-only` error (HOME_ACCESS in airplay/session.rs).
+      const home = closed
+        ? "Only for members of its Apple Home: in the Home app, open Home Settings > Speakers & TV and set Allow Speaker & TV Access to “Anyone On the Same Network” (or “Everyone”), then pair"
+        : "";
+      const meta = local ? appScreenNote(d.name) : browser ? "Try the game without a TV: the TV picture plays in a tab" : [d.model, synced, home].filter(Boolean).join(" · ");
       text.append(el("div", "name", browser ? (d.title ?? "A browser tab on this computer") : d.name), el("div", "meta", meta));
       const p = pairing.get(d.name);
       if (p) {
@@ -130,7 +139,7 @@ function render(): void {
       }
       const end = el("div", "end");
       end.append(el("span", "tag", KIND[d.kind] ?? d.kind));
-      if (!browser && !(d.needsPairing && pairing.get(d.name)?.state !== "done")) {
+      if (!browser && !closed && !(d.needsPairing && pairing.get(d.name)?.state !== "done")) {
         const sync = el("button", "btn small", typeof d.displayMs === "number" ? "Sync again" : "Sync") as HTMLButtonElement;
         sync.title = "Measure how far this TV is behind the phones";
         sync.onclick = (ev) => {
@@ -149,6 +158,7 @@ function render(): void {
       }
       li.append(box, text, end);
       li.onclick = () => {
+        if (d.homeOnly) return;
         if (selected.has(d.name)) selected.delete(d.name);
         else {
           // One local screen at a time: this window or the one on the cable.
@@ -206,9 +216,17 @@ async function pairChosen(names: string[]): Promise<boolean> {
   return true;
 }
 
-function openPin(device: string, error?: string): void {
+/** The open dialog asks for the TV's password (it shows no code). */
+let pinPassword = false;
+
+function openPin(device: string, error?: string, password = pinPassword): void {
   pinFor = device;
+  pinPassword = password;
   $("pin-device").textContent = device;
+  $("pin-text").textContent = password
+    ? "This TV has an AirPlay password: the one set in the Home app under Speakers & TV, in the TV's AirPlay settings, or on a Mac under AirPlay Receiver. Type it here."
+    : "The TV shows a code. Type it here.";
+  pairField($("pin-input") as HTMLInputElement, password, password ? "The TV's password" : "The code on the TV");
   const e = $("pin-error");
   e.hidden = !error;
   e.textContent = error ?? "";
@@ -758,7 +776,7 @@ async function main(): Promise<void> {
   });
   tvpipe.on("pair", (p) => {
     pairing.set(p.device, p);
-    if (p.state === "pin") openPin(p.device);
+    if (p.state === "pin") openPin(p.device, undefined, p.password === true);
     else if (pinFor === p.device && p.state !== "connecting") closePin();
     if (p.state === "done") selected.add(p.device);
     if (p.state === "done" || p.state === "failed") pairEnded(p.device, p.state === "done");
@@ -793,11 +811,11 @@ async function main(): Promise<void> {
   }
   ($("pin-form") as HTMLFormElement).onsubmit = (ev) => {
     ev.preventDefault();
-    const pin = ($("pin-input") as HTMLInputElement).value.trim();
-    if (!pinFor || !/^\d{4,8}$/.test(pin)) {
+    const pin = pairFieldValue($("pin-input") as HTMLInputElement, pinPassword);
+    if (!pinFor || pin === undefined) {
       const e = $("pin-error");
       e.hidden = false;
-      e.textContent = "The code is the digits the TV shows.";
+      e.textContent = pinPassword ? "Type the TV's password." : "The code is the digits the TV shows.";
       return;
     }
     tvpipe.pairPin(pinFor, pin).catch((err) => openPin(pinFor ?? "", (err as Error).message));

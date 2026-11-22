@@ -66,6 +66,47 @@ impl Hkp {
     }
 }
 
+/// The PIN of pair-setup: one the receiver shows, or its password.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PinKind {
+    /// Shown on the TV after `/pair-pin-start` (or a fixed one).
+    Shown,
+    /// The receiver's password.
+    Password,
+}
+
+impl PinKind {
+    /// A password with HAP pairing and no PIN flag 0x8 is the PIN (§2.1).
+    pub fn from_status(flags: u32, features: u64) -> PinKind {
+        use crate::airplay::discovery::status;
+        if flags & status::PASSWORD_REQUIRED != 0
+            && flags & status::PIN_REQUIRED == 0
+            && crate::airplay::legacy_pair::hap_capable(features)
+        {
+            PinKind::Password
+        } else {
+            PinKind::Shown
+        }
+    }
+
+    pub fn is_password(self) -> bool {
+        self == PinKind::Password
+    }
+
+    /// Whether to ask the receiver to show it (`/pair-pin-start`).
+    pub fn shows_pin(self) -> bool {
+        self == PinKind::Shown
+    }
+
+    /// A PIN is trimmed; a password loses only a trailing line ending.
+    pub fn normalize(self, text: &str) -> String {
+        match self {
+            PinKind::Shown => text.trim().to_owned(),
+            PinKind::Password => text.trim_end_matches(['\r', '\n']).to_owned(),
+        }
+    }
+}
+
 const SETUP_ENCRYPT_SALT: &[u8] = b"Pair-Setup-Encrypt-Salt";
 const SETUP_ENCRYPT_INFO: &[u8] = b"Pair-Setup-Encrypt-Info";
 const SETUP_CONTROLLER_SIGN_SALT: &[u8] = b"Pair-Setup-Controller-Sign-Salt";
@@ -87,7 +128,13 @@ fn check_status(path: &str, resp: Response) -> Result<Vec<u8>> {
     match resp.status {
         200..=299 => Ok(resp.body),
         // "Connection Authorization Required" / forbidden: pairing refused.
-        401 | 403 | 470 => Err(Error::auth(format!(
+        // 403: refused by its Apple Home's access setting (§2.1).
+        403 => Err(Error::auth(format!(
+            "pairing: {path} refused with {} {}",
+            resp.status, resp.reason
+        ))
+        .with_code("pairing-forbidden")),
+        401 | 470 => Err(Error::auth(format!(
             "pairing: {path} refused with {} {}",
             resp.status, resp.reason
         ))),
@@ -392,7 +439,7 @@ pub fn pair_setup_pin<T: Transport>(
         m2.public_key.len()
     );
     let pin = get_pin()?;
-    let pin = pin.trim();
+    let pin = pin.as_str();
     if pin.is_empty() {
         return Err(Error::usage("pairing: empty PIN"));
     }
@@ -536,6 +583,16 @@ mod tests {
             id: String::from_utf8(b.hex(&format!("{who}_id"))).unwrap(),
             key: Ed25519KeyPair::from_seed_slice(&b.hex(&format!("{who}_seed"))).unwrap(),
         }
+    }
+
+    #[test]
+    fn normalize_pin_and_password() {
+        assert_eq!(PinKind::Shown.normalize(" 1234\n"), "1234");
+        assert_eq!(
+            PinKind::Password.normalize(" pass word \r\n"),
+            " pass word "
+        );
+        assert_eq!(PinKind::Password.normalize("secret\n"), "secret");
     }
 
     #[test]

@@ -360,7 +360,11 @@ fn table(devices: &[Device]) -> String {
                     _ => "AirPlay",
                 };
                 let note = match airplay {
+                    Some(a) if a.home_only && a.paired != Some(true) && cast.is_none() => {
+                        "home members only"
+                    }
                     Some(a) if a.paired == Some(true) => "paired",
+                    Some(a) if a.password_pin && cast.is_none() => "needs pairing (password)",
                     Some(a) if a.pin && cast.is_none() => "needs pairing",
                     _ => "",
                 };
@@ -395,6 +399,30 @@ fn table(devices: &[Device]) -> String {
             out.push('\n');
         }
     }
+    let home_only = |d: &Device| {
+        d.cast.is_none()
+            && d.airplay
+                .as_ref()
+                .is_some_and(|a| a.home_only && a.paired != Some(true))
+    };
+    let closed: Vec<String> = tvs
+        .iter()
+        .filter(|d| home_only(d))
+        .map(|d| ui::render::quote(&d.name))
+        .collect();
+    if !closed.is_empty() {
+        let (takes, home, one) = if closed.len() == 1 {
+            ("takes", "its Apple Home", "it")
+        } else {
+            ("take", "their Apple Homes", "one")
+        };
+        out.push_str(&format!(
+            "\n{} only {takes} AirPlay from members of {home}. To stream to {one}:\n  {}, \
+             then pair: tvpipe pair NAME\n",
+            closed.join(", "),
+            ui::render::home_access(),
+        ));
+    }
     if !speakers.is_empty() {
         let names: Vec<&str> = speakers.iter().map(|d| d.name.as_str()).collect();
         out.push_str(&format!(
@@ -408,11 +436,12 @@ fn table(devices: &[Device]) -> String {
             names.join(", ")
         ));
     }
-    match tvs.first() {
+    match tvs.iter().find(|d| !home_only(d)) {
         Some(d) => out.push_str(&format!(
             "\nStream to one: tvpipe play FILE --to {}\n",
             ui::render::quote(&d.name)
         )),
+        None if !tvs.is_empty() => {}
         None => {
             out.push_str("\nCheck that the TV is on and on the same network as this computer.\n")
         }
@@ -427,18 +456,35 @@ fn prompt_pin(req: &events::PinRequest) -> error::Result<String> {
     if let Some(router) = machine::router() {
         return router.wait_pin();
     }
-    // Lines with echo while asking.
+    // Lines while asking; a password is not echoed.
     let _cooked = tty::Cooked::new();
-    ui::prompt(&format!("Enter the PIN shown on {}:", req.name));
+    ui::prompt(&if req.password {
+        format!(
+            "Enter the AirPlay password of {} (set in the Home app under Speakers & TV > \
+             Require Password, in the TV's AirPlay settings, or on a Mac under AirPlay \
+             Receiver; it is not shown):",
+            req.name
+        )
+    } else {
+        format!("Enter the PIN shown on {}:", req.name)
+    });
     let _ = std::io::stderr().flush();
     let mut line = String::new();
-    let read = std::io::stdin().lock().read_line(&mut line);
-    ui::answered(line.is_empty());
+    let read = {
+        let _hidden = req.password.then(tty::NoEcho::new);
+        std::io::stdin().lock().read_line(&mut line)
+    };
+    ui::answered(line.is_empty() || req.password);
     read.map_err(|e| error::Error::io("read PIN", e))?;
-    if line.is_empty() {
-        return Err(error::Error::usage("no PIN entered"));
+    let entered = line.trim_end_matches(['\r', '\n']);
+    if entered.is_empty() {
+        return Err(error::Error::usage(if req.password {
+            "no password entered"
+        } else {
+            "no PIN entered"
+        }));
     }
-    Ok(line.trim().to_owned())
+    Ok(entered.to_owned())
 }
 
 /// Asks a yes/no question on the terminal (`y` + Enter); `None` without
@@ -465,5 +511,67 @@ fn approve_in_terminal(what: &str, cancel: &dyn Fn() -> bool) -> bool {
             }
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tv(name: &str, flags: &str) -> Device {
+        Device::from_json(&format!(
+            r#"{{"name":"{name}","addresses":["192.0.2.10"],"model":"55UA84006LB","airplay":{{"instance":"{name}","host":"tv.local","port":7000,"address":"192.0.2.10:7000","mirroring":true,{flags}}}}}"#
+        ))
+        .unwrap()
+    }
+
+    /// `discover` notes home-members-only and password receivers.
+    #[test]
+    fn discover_notes_home_only_and_password() {
+        let home = tv(
+            "LG TV",
+            r#""password":false,"pin":true,"home_only":true,"paired":false"#,
+        );
+        let password = tv(
+            "Den TV",
+            r#""password":true,"password_pin":true,"pin":false,"home_only":false,"paired":false"#,
+        );
+        let text = table(&[home.clone(), password.clone()]);
+        assert!(text.contains("192.0.2.10   home members only\n"), "{text}");
+        assert!(
+            text.contains("192.0.2.10   needs pairing (password)\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("\"LG TV\" only takes AirPlay from members of its Apple Home"),
+            "{text}"
+        );
+        assert!(text.contains("\"Anyone On the Same Network\""), "{text}");
+        assert!(text.contains("then pair: tvpipe pair NAME"), "{text}");
+        assert!(!text.contains("Require Password"), "{text}");
+        assert!(text.contains("--to \"Den TV\""), "{text}");
+        assert!(
+            text.contains("To stream to it:\n  In the Home app, "),
+            "{text}"
+        );
+        assert!(!table(std::slice::from_ref(&home)).contains("Stream to one"));
+        let both = table(&[home.clone(), tv("Den TV", r#""home_only":true"#)]);
+        assert!(
+            both.contains("\"LG TV\", \"Den TV\" only take AirPlay from members of their Apple Homes. To stream to one:"),
+            "{both}"
+        );
+        let paired = tv("LG TV", r#""home_only":true,"paired":true"#);
+        let text = table(std::slice::from_ref(&paired));
+        assert!(text.contains("192.0.2.10   paired\n"), "{text}");
+        assert!(
+            text.contains("--to \"LG TV\"") && !text.contains("Apple Home"),
+            "{text}"
+        );
+        let digest = tv(
+            "Old TV",
+            r#""password":true,"password_pin":false,"pin":false,"home_only":false,"paired":false"#,
+        );
+        assert!(!table(&[digest]).contains("needs pairing"));
+        assert!(!table(&[password]).contains("Apple Home"));
     }
 }

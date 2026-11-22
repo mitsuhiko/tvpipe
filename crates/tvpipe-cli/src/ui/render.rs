@@ -729,6 +729,9 @@ impl Renderer {
                 (Some("pairing-required"), Some(d)) => {
                     format!("{d} needs pairing before it shows anything")
                 }
+                (Some("home-only"), Some(d)) => {
+                    format!("{d} only takes AirPlay from members of its Apple Home")
+                }
                 _ => sentence(&e.message),
             };
             self.fail(&text);
@@ -739,6 +742,16 @@ impl Renderer {
             }
             (Some("pairing-required"), Some(d)) => {
                 Some(format!("Pair it once with: tvpipe pair {}", quote(d)))
+            }
+            (Some("home-only"), d) => {
+                let steps = home_access();
+                Some(match d {
+                    Some(d) => format!(
+                        "{steps}; pair it if it is not yet: tvpipe pair {}",
+                        quote(d)
+                    ),
+                    None => steps,
+                })
             }
             (Some("input-not-found"), _) => Some("Check the file's name, or give a URL".into()),
             (Some("ffmpeg-missing"), _) => Some(
@@ -1145,6 +1158,12 @@ fn sentence(s: &str) -> String {
         }
         _ => s.to_owned(),
     }
+}
+
+/// The Home app's steps (`HOME_ACCESS`) as a sentence's start.
+pub fn home_access() -> String {
+    let steps = tvpipe::__cli::HOME_ACCESS;
+    format!("{}{}", steps[..1].to_uppercase(), &steps[1..])
 }
 
 /// A name as typed on the command line.

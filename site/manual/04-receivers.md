@@ -68,7 +68,7 @@ If a TV drops out while streaming, for example because it left the Wi-Fi or got 
 
 A TV where someone stopped mirroring on purpose stays off.
 
-## Pairing with an Apple TV
+## Pairing
 
 :::caution
 The pairing is a private key in `credentials.txt` in the [config directory](config.md). Do not share that file.
@@ -76,9 +76,15 @@ The pairing is a private key in `credentials.txt` in the [config directory](conf
 
 An Apple TV asks for a PIN the first time. `tvpipe pair` makes the TV show it and asks you to type it. `--pin` passes it directly.
 
+An AirPlay TV with a password shows no PIN: `discover` lists it as "needs pairing (password)", and `tvpipe pair` asks for its AirPlay password, the one set in the Home app under Speakers & TV, or in the TV's AirPlay settings. It is not shown as you type.
+
 ```sh
 $ tvpipe pair "Living Room"
 $ tvpipe unpair "Living Room"
 ```
 
 `unpair` forgets the pairing on this computer. Cast receivers need no pairing.
+
+## TVs in an Apple Home
+
+A TV in an Apple Home follows the Home's **Allow Speaker & TV Access**. With "Only People Sharing This Home" only the Home's members may stream to it: `discover` lists it as "home members only" and tvpipe stops with `home-only`. In the Home app, open Home Settings > Speakers & TV and choose "Anyone On the Same Network" (or "Everyone").

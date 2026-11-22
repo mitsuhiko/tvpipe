@@ -37,6 +37,20 @@ pub fn resolve(query: &str, timeout: Duration, interfaces: &[Ipv4Addr]) -> Resul
     device::select(&devices, query).cloned().map(Some)
 }
 
+/// The AirPlay (or RAOP) receiver advertised at `addr`: browses until it shows up.
+pub fn at(addr: std::net::SocketAddr, timeout: Duration) -> Result<Option<Device>> {
+    let here = |d: &Device| {
+        [&d.airplay, &d.raop]
+            .into_iter()
+            .flatten()
+            .any(|a| a.endpoint.port == addr.port() && a.endpoint.addrs.contains(&addr.ip()))
+    };
+    let cache = browse(timeout, &[], |cache| {
+        device::devices(cache).iter().any(here)
+    })?;
+    Ok(device::devices(&cache).into_iter().find(here))
+}
+
 fn browse(
     timeout: Duration,
     interfaces: &[Ipv4Addr],
@@ -199,10 +213,14 @@ pub struct AirPlayService {
     pub pk: Option<String>,
     /// Supports screen mirroring (video).
     pub mirroring: bool,
-    /// Needs a password (not supported).
+    /// Needs a password (the PIN of `pair` with HAP pairing; no HTTP Digest).
     pub password: bool,
+    /// Its password is the PIN of `pair`, and no PIN is shown.
+    pub password_pin: bool,
     /// Shows a PIN to pair.
     pub pin: bool,
+    /// Only members of its Apple Home may use it (`acl=1`).
+    pub home_only: bool,
     /// Whether the storage has a pairing for it (when known).
     pub paired: Option<bool>,
 }
@@ -247,7 +265,9 @@ impl DeviceInfo {
                     pk: t.pk.as_deref().map(hex::encode),
                     mirroring: t.supports_mirroring(),
                     password: t.password_required(),
+                    password_pin: t.pin_kind().is_password(),
                     pin: t.pin_required(),
+                    home_only: t.home_only(),
                     paired: store.map(|s| is_paired(d, s)),
                 }
             })
@@ -321,7 +341,9 @@ impl DeviceInfo {
                 .with_opt("pk", ap.pk.as_deref())
                 .with("mirroring", ap.mirroring)
                 .with("password", ap.password)
+                .with("password_pin", ap.password_pin)
                 .with("pin", ap.pin)
+                .with("home_only", ap.home_only)
                 .with_opt("paired", ap.paired);
             v = v.with(key, o);
         }
@@ -360,7 +382,9 @@ impl DeviceInfo {
                 pk: s(a, "pk"),
                 mirroring: flag(a, "mirroring"),
                 password: flag(a, "password"),
+                password_pin: flag(a, "password_pin"),
                 pin: flag(a, "pin"),
+                home_only: flag(a, "home_only"),
                 paired: a.get("paired").and_then(Value::as_bool),
             }))
         };

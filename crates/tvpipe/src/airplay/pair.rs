@@ -10,8 +10,9 @@ use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::Duration;
 
 use crate::airplay::credentials::{Identity, Query, Receiver, Store};
-use crate::airplay::info::get_info;
-use crate::airplay::pairing::{self, Shared};
+use crate::airplay::discovery;
+use crate::airplay::info::{get_info, Info};
+use crate::airplay::pairing::{self, PinKind, Shared};
 use crate::airplay::secure::SecureStream;
 use crate::ctx::Ctx;
 use crate::error::{Error, ErrorKind, Result};
@@ -26,6 +27,8 @@ pub const DEFAULT_PORT: u16 = 7000;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const IO_TIMEOUT: Duration = Duration::from_secs(15);
 const DISCOVER_TIMEOUT: Duration = Duration::from_secs(4);
+/// How long `pair` looks for the advertisement of a receiver given by address.
+const ADVERTISED_TIMEOUT: Duration = Duration::from_millis(1500);
 
 /// The encrypted control connection.
 pub type SecureClient = RtspClient<SecureStream<TcpStream>>;
@@ -72,6 +75,14 @@ impl Target {
             .as_ref()
             .map(|d| d.name.clone())
             .unwrap_or_else(|| self.addr.to_string())
+    }
+
+    /// Its AirPlay (else RAOP) TXT record, if discovery found it.
+    pub fn txt(&self) -> Option<&discovery::AirPlayTxt> {
+        self.device
+            .as_ref()
+            .and_then(|d| d.airplay.as_ref().or(d.raop.as_ref()))
+            .map(|a| &a.txt)
     }
 
     /// A credentials query from what discovery knows.
@@ -163,10 +174,8 @@ pub fn connect_with(addr: SocketAddr, identity: &Identity, auth: Auth) -> Result
 /// with `X-Apple-HKP: 3` (spec `airplay-mirroring.md` Appendix A).
 fn legacy_preferring(target: &Target) -> bool {
     target
-        .device
-        .as_ref()
-        .and_then(|d| d.airplay.as_ref().or(d.raop.as_ref()))
-        .and_then(|a| a.txt.features)
+        .txt()
+        .and_then(|t| t.features)
         .is_some_and(crate::airplay::legacy_pair::is_candidate)
 }
 
@@ -245,7 +254,21 @@ pub fn connect_within(target: &Target, store: &Store, io: Duration) -> Result<Co
             io,
         )
         .map_err(|e| {
-            if e.kind() == ErrorKind::Auth {
+            // An address has no advertisement: look it up to explain the refusal.
+            let looked_up =
+                (target.device.is_none() && e.kind() == ErrorKind::Auth).then(|| Target {
+                    addr: target.addr,
+                    device: advertised_at(target.addr),
+                });
+            let txt = target.txt().or(looked_up.as_ref().and_then(Target::txt));
+            let forbidden = e.code() == Some("pairing-forbidden");
+            if txt.is_some_and(|t| t.home_only()) {
+                crate::airplay::session::home_only(Some(&target.label()))
+            } else if forbidden && txt.is_some_and(|t| t.owner_only()) {
+                crate::airplay::session::owner_only(Some(&target.label()))
+            } else if forbidden && txt.is_some_and(|t| t.homekit()) {
+                crate::airplay::session::pairing_forbidden(Some(&target.label()), true)
+            } else if e.kind() == ErrorKind::Auth {
                 Error::auth(format!(
                     "{} requires pairing: run `tvpipe pair {:?}` ({})",
                     target.label(),
@@ -261,26 +284,65 @@ pub fn connect_within(target: &Target, store: &Store, io: Duration) -> Result<Co
     }
 }
 
+/// The AirPlay receiver advertised at `addr`, if discovery finds one.
+fn advertised_at(addr: SocketAddr) -> Option<Device> {
+    discover::at(addr, ADVERTISED_TIMEOUT)
+        .map_err(|e| debug!("pair: discovery: {e}"))
+        .ok()?
+}
+
+/// Whether discovery says only its Apple Home's members may use it.
+pub(crate) fn home_only(target: &Target) -> bool {
+    target.txt().is_some_and(|t| t.home_only())
+}
+
+/// [`PinKind::from_status`] from the plain `/info`, else from discovery.
+fn pin_kind(target: &Target, plain_info: Option<&Info>) -> PinKind {
+    match plain_info.and_then(|i| Some((i.status_flags?, i.features))) {
+        Some((flags, features)) => PinKind::from_status(flags as u32, features),
+        None => target.txt().map_or(PinKind::Shown, |t| t.pin_kind()),
+    }
+}
+
 /// Pairs with `target` and stores the credentials in `store`. With `pin`
 /// given, the receiver is assumed to have a fixed PIN and
 /// `/pair-pin-start` is skipped; without it, the TV shows a PIN and
-/// `get_pin` is asked for it.
+/// `get_pin` is asked for it (or for the receiver's password).
 pub fn pair_with(
     target: &Target,
     store: &mut Store,
     pin: Option<&str>,
-    get_pin: impl FnOnce() -> Result<String>,
+    get_pin: impl FnOnce(PinKind) -> Result<String>,
 ) -> Result<Receiver> {
     let mut client = open(target.addr)?;
     let plain_info = get_info(&mut client)
         .map_err(|e| debug!("pair: plain /info failed: {e}"))
         .ok();
+    let kind = pin_kind(target, plain_info.as_ref());
+    let homekit = plain_info
+        .as_ref()
+        .map(crate::airplay::session::homekit)
+        .unwrap_or_else(|| target.txt().is_some_and(|t| t.homekit()));
+    let owner_only = target.txt().is_some_and(|t| t.owner_only());
+    let forbidden = |e: Error| match e.code() {
+        Some("pairing-forbidden") if owner_only => {
+            crate::airplay::session::owner_only(Some(&target.label()))
+        }
+        Some("pairing-forbidden") => {
+            crate::airplay::session::pairing_forbidden(Some(&target.label()), homekit)
+        }
+        _ => e,
+    };
     let receiver = match pin {
         Some(pin) => {
-            let pin = pin.to_owned();
-            pairing::pair_setup_pin(&mut client, &store.identity, false, move || Ok(pin))?
+            let pin = kind.normalize(pin);
+            pairing::pair_setup_pin(&mut client, &store.identity, false, move || Ok(pin))
+                .map_err(forbidden)?
         }
-        None => pairing::pair_setup_pin(&mut client, &store.identity, true, get_pin)?,
+        None => pairing::pair_setup_pin(&mut client, &store.identity, kind.shows_pin(), || {
+            Ok(kind.normalize(&get_pin(kind)?))
+        })
+        .map_err(forbidden)?,
     };
     drop(client);
     if let Some(pk) = plain_info.as_ref().and_then(|i| i.pk.as_deref()) {
@@ -295,10 +357,8 @@ pub fn pair_with(
         .or_else(|| plain_info.as_ref().and_then(|i| i.name.clone()))
         .unwrap_or_else(|| target.addr.ip().to_string());
     let device_id = target
-        .device
-        .as_ref()
-        .and_then(|d| d.airplay.as_ref().or(d.raop.as_ref()))
-        .and_then(|a| a.txt.deviceid.clone())
+        .txt()
+        .and_then(|t| t.deviceid.clone())
         .or_else(|| plain_info.as_ref().and_then(|i| i.device_id.clone()));
     let record = Receiver {
         id: receiver.id,
@@ -328,14 +388,23 @@ pub fn pair(
         Ok(_) => Progress::Done(Step::Find(target.to_owned()), None),
         Err(e) => Progress::Failed(Step::Find(target.to_owned()), e.to_string()),
     });
-    let target = found?;
+    let mut target = found?;
+    // By address: its advertisement says whether its home takes pairings.
+    if target.device.is_none() {
+        target.device = advertised_at(target.addr);
+    }
     let mut store = Store::open(&ctx.storage)?;
     let label = target.label();
+    // It would pair, and refuse every session.
+    if home_only(&target) {
+        return Err(crate::airplay::session::home_only(Some(&label)));
+    }
     info!("pairing with {label} at {}", target.addr);
-    let record = pair_with(&target, &mut store, pin, || {
+    let record = pair_with(&target, &mut store, pin, |kind| {
         let req = PinRequest {
             name: label.clone(),
             address: target.addr.to_string(),
+            password: kind.is_password(),
         };
         ctx.events.emit(Event::PinRequired(req.clone()));
         get_pin(&req)
@@ -427,7 +496,7 @@ mod tests {
         });
         let path = Storage::dir(temp_dir("pair-pin"));
         let mut store = Store::open(&path).unwrap();
-        let record = pair_with(&target(&fake), &mut store, None, || Ok("1234".into())).unwrap();
+        let record = pair_with(&target(&fake), &mut store, None, |_| Ok("1234".into())).unwrap();
         assert_eq!(record.id, fake.config.id);
         assert_eq!(record.public_key, fake.public_key());
         assert_eq!(record.name, "Fake TV");
@@ -458,11 +527,127 @@ mod tests {
         let fake = FakeReceiver::start(Config::default());
         let path = Storage::dir(temp_dir("pair-fixed-pin"));
         let mut store = Store::open(&path).unwrap();
-        pair_with(&target(&fake), &mut store, Some("1234"), || {
+        pair_with(&target(&fake), &mut store, Some("1234"), |_| {
             panic!("not asked")
         })
         .unwrap();
         assert_eq!(fake.state.lock().unwrap().pin_starts, 0);
+    }
+
+    /// A receiver with a password: no `/pair-pin-start`, and the asker is told.
+    #[test]
+    fn password_is_the_pin_and_nothing_is_shown() {
+        let pair = |flags: u64, dir: &str, pin: Option<&str>| {
+            let fake = FakeReceiver::start(Config {
+                status_flags: flags,
+                ..Config::default()
+            });
+            let mut store = Store::open(&Storage::dir(temp_dir(dir))).unwrap();
+            let mut asked = None;
+            let r = pair_with(&target(&fake), &mut store, pin, |kind| {
+                asked = Some(kind);
+                Ok(" 1234 ".into())
+            });
+            let starts = fake.state.lock().unwrap().pin_starts;
+            (r.map(|_| ()), asked, starts)
+        };
+        // A password: asked for as one, taken as typed, nothing shown.
+        let (r, asked, starts) = pair(0x4c4, "pair-password", None);
+        assert_eq!((asked, starts), (Some(PinKind::Password), 0));
+        assert_eq!(r.unwrap_err().kind(), ErrorKind::Auth);
+        pair(0x4c4, "pair-password-given", Some("1234")).0.unwrap();
+        assert!(pair(0x4c4, "pair-password-spaces", Some("1234 "))
+            .0
+            .is_err());
+        // With the one-time pairing flag 0x200: still the password.
+        let (_, asked, starts) = pair(0x6c4, "pair-password-and-otp", None);
+        assert_eq!((asked, starts), (Some(PinKind::Password), 0));
+        // With the PIN flag (0x8) the PIN is shown, and trimmed.
+        let (r, asked, starts) = pair(0x4cc, "pair-password-and-pin", None);
+        assert_eq!((asked, starts), (Some(PinKind::Shown), 1));
+        r.unwrap();
+        pair(0x644, "pair-pin-given", Some(" 1234\n")).0.unwrap();
+
+        let dev = crate::net::device::tests::lan_devices()
+            .into_iter()
+            .find(|d| d.airplay.is_some())
+            .unwrap();
+        let t = Target {
+            addr: "127.0.0.1:9".parse().unwrap(),
+            device: Some(dev),
+        };
+        assert!(!home_only(&t));
+        let mut t = t;
+        t.device.as_mut().unwrap().airplay.as_mut().unwrap().txt.acl = Some(1);
+        assert!(home_only(&t));
+    }
+
+    /// A 403 to pair-setup is `forbidden`, naming the Home only for flag 0x400.
+    #[test]
+    fn forbidden_pair_setup_names_the_home() {
+        let fake = |flags: u64| {
+            FakeReceiver::start(Config {
+                status_flags: flags,
+                forbid_pair_setup: true,
+                ..Config::default()
+            })
+        };
+        let paired = |flags: u64, dir: &str| {
+            let f = fake(flags);
+            let mut store = Store::open(&Storage::dir(temp_dir(dir))).unwrap();
+            pair_with(&target(&f), &mut store, Some("1234"), |_| {
+                panic!("not asked")
+            })
+            .unwrap_err()
+        };
+        let e = paired(0x644, "pair-forbidden-home");
+        assert_eq!(e.code(), Some("forbidden"), "{e}");
+        assert!(
+            e.to_string().contains("refused pairing with 403 Forbidden"),
+            "{e}"
+        );
+        assert!(e.to_string().contains("Anyone On the Same Network"), "{e}");
+        let e = paired(0x244, "pair-forbidden");
+        assert_eq!(e.code(), Some("forbidden"), "{e}");
+        assert!(!e.to_string().contains("Apple Home"), "{e}");
+
+        // An unpaired session gets the same refusal, not "run `tvpipe pair`".
+        let f = fake(0x644);
+        let mut dev = crate::net::device::tests::lan_devices()
+            .into_iter()
+            .find(|d| d.airplay.is_some())
+            .unwrap();
+        dev.airplay.as_mut().unwrap().txt.flags = Some(0x644);
+        let t = Target {
+            addr: f.addr,
+            device: Some(dev),
+        };
+        let store = Store::open(&Storage::dir(temp_dir("connect-forbidden"))).unwrap();
+        let Err(e) = connect(&t, &store) else {
+            panic!("connected through a refused pair-setup");
+        };
+        assert_eq!(e.code(), Some("forbidden"), "{e}");
+        assert!(e.to_string().contains("Apple Home"), "{e}");
+
+        // A Mac on "Current User" (`act=2`) names its own setting.
+        let f = fake(0x4);
+        let mut dev = t.device.clone().unwrap();
+        let txt = &mut dev.airplay.as_mut().unwrap().txt;
+        txt.flags = Some(0x4);
+        txt.act = Some("2".into());
+        let t = Target {
+            addr: f.addr,
+            device: Some(dev),
+        };
+        let store = Store::open(&Storage::dir(temp_dir("connect-owner-only"))).unwrap();
+        let Err(e) = connect(&t, &store) else {
+            panic!("connected through a refused pair-setup");
+        };
+        assert_eq!(e.code(), Some("forbidden"), "{e}");
+        assert!(e.to_string().contains("Allow AirPlay for"), "{e}");
+        let mut store = Store::open(&Storage::dir(temp_dir("pair-owner-only"))).unwrap();
+        let e = pair_with(&t, &mut store, Some("1234"), |_| panic!("not asked")).unwrap_err();
+        assert!(e.to_string().contains("Allow AirPlay for"), "{e}");
     }
 
     #[test]
@@ -470,7 +655,7 @@ mod tests {
         let fake = FakeReceiver::start(Config::default());
         let path = Storage::dir(temp_dir("pair-wrong-pin"));
         let mut store = Store::open(&path).unwrap();
-        let err = pair_with(&target(&fake), &mut store, None, || Ok("9999".into())).unwrap_err();
+        let err = pair_with(&target(&fake), &mut store, None, |_| Ok("9999".into())).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Auth, "{err}");
         assert!(store.receivers.is_empty());
     }
@@ -593,13 +778,13 @@ mod tests {
         let fake = FakeReceiver::start(Config::default());
         let path = Storage::dir(temp_dir("pair-forget"));
         let mut store = Store::open(&path).unwrap();
-        pair_with(&target(&fake), &mut store, None, || Ok("1234".into())).unwrap();
+        pair_with(&target(&fake), &mut store, None, |_| Ok("1234".into())).unwrap();
         let no_browse = |_: &str| -> Result<Target> { panic!("should not browse") };
         let removed = forget(&mut store, "fake tv", no_browse).unwrap();
         assert_eq!(removed.len(), 1);
         assert!(Store::open(&path).unwrap().receivers.is_empty());
 
-        pair_with(&target(&fake), &mut store, None, || Ok("1234".into())).unwrap();
+        pair_with(&target(&fake), &mut store, None, |_| Ok("1234".into())).unwrap();
         let ip = fake.addr.ip().to_string();
         assert_eq!(forget(&mut store, &ip, no_browse).unwrap().len(), 1);
 
@@ -613,7 +798,7 @@ mod tests {
         let fake = FakeReceiver::start(Config::default());
         let path = Storage::dir(temp_dir("pair-repeat"));
         let mut store = Store::open(&path).unwrap();
-        pair_with(&target(&fake), &mut store, None, || Ok("1234".into())).unwrap();
+        pair_with(&target(&fake), &mut store, None, |_| Ok("1234".into())).unwrap();
         let mut secrets = Vec::new();
         for _ in 0..3 {
             let mut c = connect(&target(&fake), &store).unwrap();
@@ -624,7 +809,7 @@ mod tests {
         // Fresh ephemeral keys every time.
         assert_ne!(secrets[0], secrets[1]);
         // Pairing again replaces the record instead of adding one.
-        pair_with(&target(&fake), &mut store, None, || Ok("1234".into())).unwrap();
+        pair_with(&target(&fake), &mut store, None, |_| Ok("1234".into())).unwrap();
         assert_eq!(Store::open(&path).unwrap().receivers.len(), 1);
     }
 
@@ -633,7 +818,7 @@ mod tests {
         let fake = FakeReceiver::start(Config::default());
         let path = Storage::dir(temp_dir("pair-forgotten"));
         let mut store = Store::open(&path).unwrap();
-        pair_with(&target(&fake), &mut store, None, || Ok("1234".into())).unwrap();
+        pair_with(&target(&fake), &mut store, None, |_| Ok("1234".into())).unwrap();
         fake.state.lock().unwrap().pairings.clear();
         let err = connect(&target(&fake), &store).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Auth, "{err}");
@@ -681,7 +866,7 @@ mod hardware {
     fn hardware_pair() {
         let Some(t) = atv() else { return };
         let mut store = Store::open(&crate::storage::Storage::cli()).unwrap();
-        let r = pair_with(&t, &mut store, None, || {
+        let r = pair_with(&t, &mut store, None, |_| {
             eprint!("PIN: ");
             let mut line = String::new();
             std::io::stdin().read_line(&mut line).unwrap();

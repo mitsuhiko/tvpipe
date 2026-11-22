@@ -129,6 +129,42 @@ pub fn error_page(status: u16, reason: &str, game: &str, heading: &str, text: &s
 mod tests {
     use super::*;
 
+    /// Every relative import of an embedded script names an embedded file.
+    #[test]
+    fn imports_of_embedded_scripts_resolve() {
+        for f in FILES.iter().filter(|f| f.path.ends_with(".js")) {
+            let text = std::str::from_utf8(f.bytes).unwrap();
+            let dir: Vec<&str> = f.path.split('/').rev().skip(1).collect();
+            for (at, _) in text
+                .match_indices("from \"")
+                .chain(text.match_indices("import(\""))
+            {
+                let rest = &text[at..];
+                let rest = &rest[rest.find('"').unwrap() + 1..];
+                let import = &rest[..rest.find('"').unwrap()];
+                if !import.starts_with('.') {
+                    continue;
+                }
+                let mut path: Vec<&str> = dir.iter().rev().copied().collect();
+                for part in import.split('/') {
+                    match part {
+                        "." => {}
+                        ".." => {
+                            assert!(path.pop().is_some(), "{}: {import}", f.path);
+                        }
+                        p => path.push(p),
+                    }
+                }
+                let path = path.join("/");
+                assert!(
+                    FILES.iter().any(|f| f.path == path),
+                    "{} imports {import:?}: no embedded {path}",
+                    f.path
+                );
+            }
+        }
+    }
+
     #[test]
     fn error_pages_escape_what_they_show() {
         let page = error_page(

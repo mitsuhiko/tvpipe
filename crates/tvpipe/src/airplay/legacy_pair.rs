@@ -41,10 +41,14 @@ const OCTETS: &str = "application/octet-stream";
 const HAP_BITS: [u32; 4] = [38, 43, 46, 48];
 const THIRD_PARTY_BITS: [u32; 2] = [26, 51];
 
+/// Whether a receiver advertises HAP (TLV8) pairing.
+pub fn hap_capable(features: u64) -> bool {
+    HAP_BITS.iter().any(|&b| has(features, b))
+}
+
 /// Whether a receiver may speak raw pairing (Appendix A).
 pub fn is_candidate(features: u64) -> bool {
-    !HAP_BITS.iter().any(|&b| has(features, b))
-        || THIRD_PARTY_BITS.iter().any(|&b| has(features, b))
+    !hap_capable(features) || THIRD_PARTY_BITS.iter().any(|&b| has(features, b))
 }
 
 fn post(
@@ -158,8 +162,7 @@ fn has_hap_pairing(target: &Target, store: &Store) -> bool {
 }
 
 fn txt_features(target: &Target) -> Option<u64> {
-    let d = target.device.as_ref()?;
-    d.airplay.as_ref().or(d.raop.as_ref())?.txt.features
+    target.txt()?.features
 }
 
 /// Connects with the right pairing (see the module docs).
@@ -177,10 +180,15 @@ pub fn connect(target: &Target, store: &mut Store) -> Result<Connected> {
             secret,
         });
     }
-    let candidate =
-        !has_hap_pairing(target, store) && txt_features(target).is_some_and(is_candidate);
+    let paired = has_hap_pairing(target, store);
+    // Members only and no pairing: a new pairing would get no session (§2.1).
+    if !paired && pair::home_only(target) {
+        return Err(crate::airplay::session::home_only(Some(&target.label())));
+    }
+    let candidate = !paired && txt_features(target).is_some_and(is_candidate);
     if candidate {
-        match raw_setup_and_verify(target, store) {
+        let hap = txt_features(target).is_some_and(hap_capable);
+        match raw_setup_and_verify(target, store, hap) {
             Ok(c) => return Ok(c),
             Err(e) if e.kind() == ErrorKind::Auth => return Err(e),
             Err(e) => debug!("airplay: legacy raw pairing failed ({e}); trying HAP"),
@@ -189,13 +197,18 @@ pub fn connect(target: &Target, store: &mut Store) -> Result<Connected> {
     pair::connect(target, store).map(|c| Connected::Hap(Box::new(c)))
 }
 
-fn raw_setup_and_verify(target: &Target, store: &mut Store) -> Result<Connected> {
+/// `hap`: the receiver advertises HAP pairing too.
+fn raw_setup_and_verify(target: &Target, store: &mut Store, hap: bool) -> Result<Connected> {
     info!(
         "airplay: trying legacy raw pair-setup with {} (untested on hardware)",
         target.label()
     );
     let mut client = pair::open(target.addr)?;
-    let key = pair_setup(&mut client, &store.identity)?;
+    // With HAP pairing too, a refusal sends it on to HAP pairing.
+    let key = pair_setup(&mut client, &store.identity).map_err(|e| match e.kind() {
+        ErrorKind::Auth if hap => Error::protocol(e.message().to_owned()),
+        _ => e,
+    })?;
     let device_id = target
         .device
         .as_ref()
@@ -304,7 +317,7 @@ mod tests {
     fn connect_pairs_raw_then_verifies() {
         use crate::airplay::credentials::tests::temp_dir;
         use crate::airplay::fake_mirror::{Behaviour, FakeMirror};
-        use crate::airplay::session::{MirrorOptions, Session};
+        use crate::airplay::session::{ControlAuth, MirrorOptions, Session};
         let fake = FakeMirror::start(Behaviour {
             raw_pairing: Some([5; 32]),
             legacy: Some(([0; 16], [0; 16])),
@@ -338,13 +351,13 @@ mod tests {
                 client,
                 addr,
                 secret,
-                false,
+                ControlAuth::Legacy,
                 &MirrorOptions::default(),
                 &mut crate::airplay::session::NoMemory,
             )
             .map_err(|e| e.into_error())
             .unwrap();
-            assert!(!s.hap);
+            assert!(!s.hap());
             drop(s);
             let setups = fake
                 .rec()
@@ -364,6 +377,63 @@ mod tests {
         assert!(is_candidate(1 << 26 | 1 << 48));
         assert!(is_candidate(1 << 51 | 1 << 38));
         assert!(!is_candidate(1 << 43));
+    }
+
+    /// A refused raw pair-setup is no auth error from a receiver with HAP pairing.
+    #[test]
+    fn refused_raw_setup_is_not_an_auth_failure() {
+        use crate::airplay::credentials::tests::temp_dir;
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = l.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for _ in 0..2 {
+                let (s, _) = l.accept().unwrap();
+                let mut conn = Conn::new(s);
+                let req = conn.read_request().unwrap();
+                let mut r = Response::new(req.version, 403, "Forbidden");
+                r.headers.set("CSeq", req.headers.get("cseq").unwrap());
+                conn.send_response(&r).unwrap();
+            }
+        });
+        let path = crate::storage::Storage::dir(temp_dir("legacy-refused-raw"));
+        let mut store = Store::open(&path).unwrap();
+        let target = Target { addr, device: None };
+        let Err(e) = raw_setup_and_verify(&target, &mut store, false) else {
+            panic!("a refused pair-setup connected");
+        };
+        assert_eq!(e.kind(), ErrorKind::Auth, "{e}");
+        let path = crate::storage::Storage::dir(temp_dir("legacy-refused"));
+        let mut store = Store::open(&path).unwrap();
+        let target = Target { addr, device: None };
+        let Err(e) = raw_setup_and_verify(&target, &mut store, true) else {
+            panic!("a refused pair-setup connected");
+        };
+        assert_eq!(e.kind(), ErrorKind::Protocol, "{e}");
+        assert!(store.receivers.is_empty());
+        assert!(hap_capable(0x38b_cf46_007f_8ad0) && !hap_capable(1 << 26 | 1 << 7));
+    }
+
+    /// `acl=1` and no pairing: no connection is made.
+    #[test]
+    fn home_only_is_said_before_connecting() {
+        use crate::airplay::credentials::tests::temp_dir;
+        let mut dev = crate::net::device::tests::lan_devices()
+            .into_iter()
+            .find(|d| d.airplay.is_some())
+            .unwrap();
+        dev.airplay.as_mut().unwrap().txt.acl = Some(1);
+        let name = dev.name.clone();
+        let target = Target {
+            addr: "127.0.0.1:9".parse().unwrap(),
+            device: Some(dev),
+        };
+        let path = crate::storage::Storage::dir(temp_dir("legacy-home-only"));
+        let mut store = Store::open(&path).unwrap();
+        let Err(e) = connect(&target, &mut store) else {
+            panic!("connected to a receiver that takes its home's members only");
+        };
+        assert_eq!(e.code(), Some("home-only"), "{e}");
+        assert_eq!(e.device(), Some(name.as_str()));
     }
 
     /// Raw pair-setup + pair-verify against the fake receiver side; both

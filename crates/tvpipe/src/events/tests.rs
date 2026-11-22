@@ -82,7 +82,9 @@ fn examples() -> Vec<(&'static str, Event)> {
             pk: Some(s("00".repeat(32).as_str())),
             mirroring: true,
             password: false,
+            password_pin: false,
             pin: true,
+            home_only: false,
             paired: Some(false),
         }),
         raop: None,
@@ -333,6 +335,7 @@ fn examples() -> Vec<(&'static str, Event)> {
             Event::PinRequired(PinRequest {
                 name: s("Living Room"),
                 address: s("192.0.2.10:7000"),
+                password: false,
             }),
         ),
         (

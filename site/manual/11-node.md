@@ -80,7 +80,9 @@ console.log(s.publicUrl); // someone elsewhere opens it and shares to the TV
 ```js
 import { pair } from "@tvpipe/sdk";
 
-await pair("Living Room", { onPin: ({ name }) => askUser(`PIN on ${name}?`) });
+await pair("Living Room", {
+  onPin: ({ name, password }) => askUser(password ? `AirPlay password of ${name}?` : `PIN on ${name}?`),
+});
 ```
 
 Pass `onPin` to `play()` and the other functions, and a receiver that needs pairing is paired when it is first used. Pairings live in tvpipe's config directory ([Configuration](config.md)), the same one the command line tool uses. The `configDir` option points elsewhere.

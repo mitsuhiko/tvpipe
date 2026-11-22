@@ -47,8 +47,8 @@ use crate::airplay::pair::{self, SecureClient};
 use crate::airplay::policy::{self, bit};
 use crate::airplay::secure::SecureStream;
 use crate::airplay::session::{
-    lock_control, ControlStream, MirrorOptions, NoMemory, PtpMemory, ReceiverKey, Session,
-    SetupError, DEFAULT_TIMEOUT, STOP_TEARDOWN_TIMEOUT,
+    lock_control, ControlAuth, ControlStream, MirrorOptions, NoMemory, PtpMemory, ReceiverKey,
+    Session, SetupError, DEFAULT_TIMEOUT, STOP_TEARDOWN_TIMEOUT,
 };
 use crate::airplay::setup::AudioCodecId;
 use crate::airplay::timing::{
@@ -126,10 +126,15 @@ pub fn connect_mirror(
                         (None, None) => pair::connect(target, &store.borrow())?,
                     };
                     let secret = control.shared.secret().to_vec();
+                    let auth = match control.auth {
+                        pair::Auth::Verified(_) => ControlAuth::Verified,
+                        pair::Auth::Transient => ControlAuth::Transient,
+                    };
                     let client: SecureClient = control.client;
-                    Ok((client, control.addr, secret, true))
+                    Ok((client, control.addr, secret, auth))
                 },
             )
+            .map_err(|e| refusal(e, target))
             .map(AnyMirrorSink::Hap)
         }
         Connected::Legacy {
@@ -140,12 +145,22 @@ pub fn connect_mirror(
             warn!("airplay: {name}: legacy profile (untested on hardware)");
             let mut first = Some((client, addr, secret));
             connect_with(name, opts, |_| match first.take() {
-                Some((client, addr, secret)) => Ok((client, addr, secret, false)),
+                Some((client, addr, secret)) => Ok((client, addr, secret, ControlAuth::Legacy)),
                 // The legacy profile never uses PTP, so there is no retry.
                 None => Err(Error::protocol("airplay: legacy session cannot be retried")),
             })
             .map(AnyMirrorSink::Legacy)
         }
+    }
+}
+
+/// A session's `forbidden` for `target`, `home-only` when its TXT says so.
+fn refusal(e: Error, target: &pair::Target) -> Error {
+    use crate::airplay::session::{forbidden, home_only};
+    match (e.code(), target.txt()) {
+        (Some("forbidden"), _) if pair::home_only(target) => home_only(Some(&target.label())),
+        (Some("forbidden"), Some(t)) => forbidden(Some(&target.label()), t.homekit()),
+        _ => e,
     }
 }
 
@@ -207,8 +222,13 @@ impl Sink for AnyMirrorSink {
 }
 
 /// A fresh authenticated control connection: client, peer, shared
-/// secret, HAP profile.
-pub type Fresh<S> = (crate::net::rtsp::RtspClient<S>, SocketAddr, Vec<u8>, bool);
+/// secret, how it was authenticated.
+pub type Fresh<S> = (
+    crate::net::rtsp::RtspClient<S>,
+    SocketAddr,
+    Vec<u8>,
+    ControlAuth,
+);
 
 /// How [`connect_full`] reconnects after a PTP failure (§2.5).
 #[derive(Debug, Clone, Copy)]
@@ -255,8 +275,8 @@ pub fn connect_full<S: ControlStream>(
     let mut opts = opts.clone();
     let mut fresh = connect(None)?;
     loop {
-        let (client, peer, secret, hap) = fresh;
-        match Session::establish(client, peer, secret, hap, &opts, memory) {
+        let (client, peer, secret, auth) = fresh;
+        match Session::establish(client, peer, secret, auth, &opts, memory) {
             Ok(s) => return Ok(MirrorSink::new(name, s, &opts)),
             Err(SetupError::PtpFailed(e)) if opts.ptp => {
                 // Not a warning: NTP works, and the receiver gets it at
@@ -938,7 +958,7 @@ impl<S: ControlStream> MirrorSink<S> {
         let vstate = VideoState::new(video, self.session.leads.video_ms)?;
         let astate = self.audio_state(audio)?;
         let data = self.session.start_video()?;
-        let cipher = if self.session.hap {
+        let cipher = if self.session.hap() {
             VideoCipher::chacha(&keys::video_key(
                 &self.session.secret.0,
                 self.session.video_id,
@@ -1369,7 +1389,12 @@ mod tests {
                 client.conn().get_ref().set_read_timeout(Some(t)).unwrap();
                 client.request("POST", "/pair-verify", &[], None)?;
             }
-            Ok((client, fake.addr, fake.secret.clone(), true))
+            Ok((
+                client,
+                fake.addr,
+                fake.secret.clone(),
+                ControlAuth::Verified,
+            ))
         }
     }
 
@@ -1833,12 +1858,13 @@ mod tests {
             .collect();
         assert_eq!(protocols, ["NTP"]);
         let infos = r.requests.iter().filter(|q| *q == "GET /info").count();
-        let teardowns = r
-            .requests
+        // One session: one TEARDOWN of the session (the empty dict).
+        let sessions = r
+            .teardown_bodies
             .iter()
-            .filter(|q| q.starts_with("TEARDOWN"))
+            .filter(|b| b.as_ref().is_some_and(|b| b.get("streams").is_none()))
             .count();
-        assert_eq!((infos, teardowns), (2, 1), "{:?}", r.requests);
+        assert_eq!((infos, sessions), (2, 1), "{:?}", r.requests);
         assert!(r.video.iter().any(|p| p.kind == 0));
     }
 
@@ -2033,7 +2059,7 @@ mod tests {
             RtspClient::new(tcp),
             fake.addr,
             fake.secret.clone(),
-            false,
+            ControlAuth::Legacy,
             &opts,
             &mut NoMemory,
         )
@@ -2093,7 +2119,7 @@ mod tests {
             RtspClient::new(tcp),
             fake.addr,
             fake.secret.clone(),
-            false,
+            ControlAuth::Legacy,
             &opts,
             &mut NoMemory,
         )
@@ -2155,7 +2181,7 @@ mod tests {
             RtspClient::new(tcp),
             fake.addr,
             fake.secret.clone(),
-            false,
+            ControlAuth::Legacy,
             &MirrorOptions::default(),
             &mut NoMemory,
         )
@@ -2173,10 +2199,107 @@ mod tests {
 
     /// A receiver that refuses the session after FairPlay was skipped:
     /// `fairplay-required` (with FairPlay built in, the refusal itself).
+    /// A 403 to a stored pairing names the receiver's home too.
     #[test]
     fn refusal_without_fairplay_names_it() {
+        let refused = |status: u16| {
+            let fake = FakeMirror::start(Behaviour {
+                fairplay_bit: true,
+                refuse_session_setup: Some(status),
+                nack_after: None,
+                ..Behaviour::default()
+            });
+            let tcp = TcpStream::connect(fake.addr).unwrap();
+            Session::establish(
+                RtspClient::new(tcp),
+                fake.addr,
+                fake.secret.clone(),
+                ControlAuth::Verified,
+                &MirrorOptions::default(),
+                &mut NoMemory,
+            )
+            .map_err(SetupError::into_error)
+            .err()
+            .unwrap()
+        };
+        let built = crate::airplay::session::FAIRPLAY_BUILT;
+        let e = refused(500);
+        assert_eq!(e.code() == Some("fairplay-required"), !built, "{e}");
+        let e = refused(403);
+        let code = if built {
+            "forbidden"
+        } else {
+            "fairplay-required"
+        };
+        assert_eq!(e.code(), Some(code), "{e}");
+        assert!(e.to_string().contains("Apple Home"), "{e}");
+        assert!(e.to_string().contains("403 Forbidden"), "{e}");
+        if built {
+            let target = pair::Target {
+                addr: "192.0.2.7:7000".parse().unwrap(),
+                device: None,
+            };
+            // No TXT: the error as the session built it.
+            let kept = refusal(e, &target);
+            assert_eq!(kept.device(), Some("Fake TV"));
+            assert!(kept.to_string().contains("Fake TV verified"), "{kept}");
+            // With a TXT: the name `pair` takes, in both.
+            let mut dev = crate::net::device::tests::lan_devices()
+                .into_iter()
+                .find(|d| d.airplay.is_some())
+                .unwrap();
+            dev.airplay.as_mut().unwrap().txt.flags = Some(0x644);
+            let name = dev.name.clone();
+            let target = pair::Target {
+                addr: target.addr,
+                device: Some(dev),
+            };
+            let named = refusal(kept, &target);
+            assert_eq!(named.device(), Some(name.as_str()));
+            assert!(
+                named.to_string().contains(&format!("{name} verified")),
+                "{named}"
+            );
+        }
+    }
+
+    /// `/fp-setup` comes before the session: its 403 is the same refusal.
+    #[cfg(feature = "fairplay")]
+    #[test]
+    fn forbidden_fp_setup_is_the_same_refusal() {
         let fake = FakeMirror::start(Behaviour {
             fairplay_bit: true,
+            forbid_fp_setup: true,
+            nack_after: None,
+            ..Behaviour::default()
+        });
+        let establish = |auth| {
+            let tcp = TcpStream::connect(fake.addr).unwrap();
+            Session::establish(
+                RtspClient::new(tcp),
+                fake.addr,
+                fake.secret.clone(),
+                auth,
+                &MirrorOptions::default(),
+                &mut NoMemory,
+            )
+            .map_err(SetupError::into_error)
+            .err()
+            .unwrap()
+        };
+        let e = establish(ControlAuth::Verified);
+        assert_eq!(e.code(), Some("forbidden"), "{e}");
+        assert_eq!(e.device(), Some("Fake TV"));
+        assert!(fake.rec().setup_bodies.is_empty());
+        let e = establish(ControlAuth::Transient);
+        assert_ne!(e.code(), Some("forbidden"), "{e}");
+        assert!(e.to_string().contains("403"), "{e}");
+    }
+
+    /// A 403 to the session is `forbidden`, or `home-only` with `acl=1`.
+    #[test]
+    fn forbidden_session_names_the_home() {
+        let fake = FakeMirror::start(Behaviour {
             refuse_session_setup: Some(403),
             nack_after: None,
             ..Behaviour::default()
@@ -2186,18 +2309,70 @@ mod tests {
             RtspClient::new(tcp),
             fake.addr,
             fake.secret.clone(),
-            true,
+            ControlAuth::Verified,
             &MirrorOptions::default(),
             &mut NoMemory,
         )
         .map_err(SetupError::into_error)
         .err()
         .unwrap();
-        assert_eq!(
-            e.code() == Some("fairplay-required"),
-            !crate::airplay::session::FAIRPLAY_BUILT,
-            "{e}"
-        );
+        assert_eq!(e.code(), Some("forbidden"), "{e}");
+        assert_eq!(e.kind(), crate::error::ErrorKind::Auth);
+        assert!(e.to_string().contains("403 Forbidden"), "{e}");
+        assert!(e.to_string().contains("Anyone On the Same Network"), "{e}");
+        assert_eq!(e.device(), Some("Fake TV"));
+        // Not in an Apple Home (no status flag 0x400): the 403 alone.
+        let outside = FakeMirror::start(Behaviour {
+            refuse_session_setup: Some(403),
+            status_flags: 0x244,
+            nack_after: None,
+            ..Behaviour::default()
+        });
+        let tcp = TcpStream::connect(outside.addr).unwrap();
+        let plain = Session::establish(
+            RtspClient::new(tcp),
+            outside.addr,
+            outside.secret.clone(),
+            ControlAuth::Verified,
+            &MirrorOptions::default(),
+            &mut NoMemory,
+        )
+        .map_err(SetupError::into_error)
+        .err()
+        .unwrap();
+        assert_eq!(plain.code(), Some("forbidden"), "{plain}");
+        assert!(plain.to_string().contains("403 Forbidden"), "{plain}");
+        assert!(!plain.to_string().contains("Apple Home"), "{plain}");
+        let mut dev = crate::net::device::tests::lan_devices()
+            .into_iter()
+            .find(|d| d.airplay.is_some())
+            .unwrap();
+        dev.airplay.as_mut().unwrap().txt.acl = Some(1);
+        let name = dev.name.clone();
+        let target = pair::Target {
+            addr: fake.addr,
+            device: Some(dev),
+        };
+        let named = refusal(e, &target);
+        assert_eq!(named.code(), Some("home-only"), "{named}");
+        assert_eq!(named.device(), Some(name.as_str()));
+        assert_eq!(fake.rec().setup_bodies.len(), 1);
+
+        // After a transient pair-setup a 403 is just that.
+        let tcp = TcpStream::connect(fake.addr).unwrap();
+        let e = Session::establish(
+            RtspClient::new(tcp),
+            fake.addr,
+            fake.secret.clone(),
+            ControlAuth::Transient,
+            &MirrorOptions::default(),
+            &mut NoMemory,
+        )
+        .map_err(SetupError::into_error)
+        .err()
+        .unwrap();
+        assert_eq!(e.code(), None, "{e}");
+        assert!(e.to_string().contains("403"), "{e}");
     }
 
     /// Regression (audio stopped on a QuickTime recording): when the
@@ -2371,6 +2546,87 @@ mod tests {
         stream(&mut sink, 5);
         sink.stop().unwrap();
         assert!(fake.rec().teardown);
+    }
+
+    /// A 401 to the session is `password-unsupported`.
+    #[test]
+    fn password_digest_is_named() {
+        let fake = FakeMirror::start(Behaviour {
+            refuse_session_setup: Some(401),
+            nack_after: None,
+            ..Behaviour::default()
+        });
+        let tcp = TcpStream::connect(fake.addr).unwrap();
+        let e = Session::establish(
+            RtspClient::new(tcp),
+            fake.addr,
+            fake.secret.clone(),
+            ControlAuth::Verified,
+            &MirrorOptions::default(),
+            &mut NoMemory,
+        )
+        .map_err(SetupError::into_error)
+        .err()
+        .unwrap();
+        assert_eq!(e.code(), Some("password-unsupported"), "{e}");
+        assert_eq!(e.device(), Some("Fake TV"));
+        assert!(e.to_string().contains("turn Require Password off"), "{e}");
+        assert_eq!(fake.rec().setup_bodies.len(), 1);
+    }
+
+    /// A TEARDOWN per stream set up, then one with an empty dict (§4.14).
+    #[test]
+    fn teardown_names_each_stream_then_the_session() {
+        let types = |fake: &FakeMirror| -> Vec<Vec<i128>> {
+            fake.rec()
+                .teardown_bodies
+                .iter()
+                .map(|b| {
+                    let b = b.as_ref().expect("a TEARDOWN without a body");
+                    b.get("streams")
+                        .and_then(Plist::as_array)
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|s| s.get("type").and_then(Plist::as_i128).unwrap())
+                        .collect()
+                })
+                .collect()
+        };
+        let started = |b: Behaviour| {
+            let fake = FakeMirror::start(Behaviour {
+                nack_after: None,
+                ..b
+            });
+            let mut sink = connect(&fake, &MirrorOptions::default());
+            sink.start(&video_info(), Some(&audio_info())).unwrap();
+            stream(&mut sink, 5);
+            (fake, sink)
+        };
+        let (fake, mut sink) = started(Behaviour::default());
+        sink.stop().unwrap();
+        assert_eq!(types(&fake), [vec![96], vec![110], vec![]]);
+
+        let early = FakeMirror::start(Behaviour {
+            nack_after: None,
+            ..Behaviour::default()
+        });
+        let mut sink = connect(&early, &MirrorOptions::default());
+        sink.stop().unwrap();
+        assert_eq!(types(&early), [vec![96], vec![]]);
+
+        let (refusing, mut sink) = started(Behaviour {
+            refuse_stream_teardown: true,
+            ..Behaviour::default()
+        });
+        sink.stop().unwrap();
+        assert_eq!(types(&refusing), [vec![96], vec![110], vec![]]);
+
+        let (silent, mut sink) = started(Behaviour {
+            hang_teardown: true,
+            ..Behaviour::default()
+        });
+        assert!(sink.stop().is_err());
+        assert_eq!(types(&silent), [vec![96]]);
     }
 
     #[test]

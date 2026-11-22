@@ -28,6 +28,10 @@ export interface Device {
   paired: boolean | undefined;
   /** AirPlay: whether it asks for a PIN (pair it first). */
   pin: boolean | undefined;
+  /** AirPlay: its password is what `onPin` returns, and it shows no PIN (not `airplay.password`). */
+  passwordPin: boolean | undefined;
+  /** AirPlay: only members of its Apple Home may use it (`home-only`). */
+  homeOnly: boolean | undefined;
   /** What `discover --json` says, camelCased. */
   airplay: Record<string, unknown> | undefined;
   raop: Record<string, unknown> | undefined;
@@ -57,6 +61,8 @@ function toDevice(d: RawDevice): Device {
     video: bool(d.cast, "video") === true || bool(d.airplay, "mirroring") === true,
     paired: ap ? (bool(d.airplay, "paired") ?? bool(d.raop, "paired") ?? false) : undefined,
     pin: ap ? (bool(d.airplay, "pin") ?? bool(d.raop, "pin")) : undefined,
+    passwordPin: ap ? (bool(d.airplay, "password_pin") ?? bool(d.raop, "password_pin") ?? false) : undefined,
+    homeOnly: ap ? (bool(d.airplay, "home_only") ?? bool(d.raop, "home_only") ?? false) : undefined,
     airplay: d.airplay,
     raop: d.raop,
     cast: d.cast,
@@ -91,6 +97,8 @@ export async function discover(options: DiscoverOptions = {}): Promise<Device[]>
 export interface PinRequest {
   name: string;
   address: string;
+  /** It asks for its AirPlay password and shows no PIN: return the password. */
+  password: boolean;
 }
 
 /** Asked for the PIN the TV shows; return it (or throw to cancel). */
@@ -129,15 +137,17 @@ export async function pair(target: string | Device, options: PairOptions = {}): 
     if (ev.type === "pin-required") {
       const onPin = options.onPin;
       if (!onPin) {
-        cancelled = new TvpipeError("pin-missing", `${ev.name} shows a PIN: pass onPin to pair()`, { device: ev.name });
+        const what = ev.password === true ? "asks for its password" : "shows a PIN";
+        cancelled = new TvpipeError("pin-missing", `${ev.name} ${what}: pass onPin to pair()`, { device: ev.name });
         proc.endInput();
         return;
       }
       Promise.resolve()
-        .then(() => onPin({ name: ev.name, address: ev.address }))
+        .then(() => onPin({ name: ev.name, address: ev.address, password: ev.password === true }))
         .then(
           (pin) => {
-            proc.command({ type: "pin", pin: String(pin).trim() });
+            // As returned but for a line ending (tvpipe trims a PIN).
+            proc.command({ type: "pin", pin: String(pin).replace(/[\r\n]+$/, "") });
           },
           (err: unknown) => {
             cancelled = err;

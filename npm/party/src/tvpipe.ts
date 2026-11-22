@@ -104,8 +104,10 @@ export interface Device {
   kind: "airplay" | "cast" | "both" | "browser";
   model?: string;
   title?: string;
-  /** AirPlay: shows a PIN and has no pairing here yet. */
+  /** AirPlay: shows a PIN (or takes its password for one) and has no pairing here yet. */
   needsPairing?: boolean;
+  /** AirPlay: its Apple Home lets only its members use it; no pairing helps. */
+  homeOnly?: boolean;
   paired?: boolean;
   /** The TV's display lag as measured by the launcher's Sync (`setDisplayLag`), ms. */
   displayMs?: number;
@@ -114,6 +116,8 @@ export interface Device {
 export interface PairStatus {
   device: string;
   state: "connecting" | "pin" | "done" | "failed";
+  /** With `pin`: the TV shows no code; its password is what to type. */
+  password?: boolean;
   error?: string;
 }
 

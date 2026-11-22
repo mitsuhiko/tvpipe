@@ -94,6 +94,8 @@ pub mod slrw {
 pub mod __cli {
     #[cfg(feature = "airplay")]
     pub use crate::airplay::pair::pair;
+    #[cfg(feature = "airplay")]
+    pub use crate::airplay::session::HOME_ACCESS;
     pub use crate::api::__spawn_command as spawn;
     pub use crate::ctx::Ctx;
 

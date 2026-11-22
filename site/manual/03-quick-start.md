@@ -31,8 +31,8 @@ Also found 2 speakers that play audio only (tvpipe streams video):
 Stream to one: tvpipe play FILE --to "Living Room"
 ```
 
-### Pair once (Apple TV only)
-The first time, an Apple TV shows a PIN. Type it when tvpipe asks for it. Cast devices need no pairing.
+### Pair once (AirPlay only)
+The first time, an Apple TV shows a PIN, and an AirPlay TV with a password asks for that password. Type it when tvpipe asks for it. Cast devices need no pairing.
 
 ```sh
 $ tvpipe pair "Living Room"

@@ -2,7 +2,8 @@
  * The pairing dialog ({@link Tvpipe.showPairing}): an AirPlay TV that
  * wants a PIN shows one, people type it here (`pair.start`, `pair` events,
  * `pair.pin`). A wrong code or a pairing that failed offers another try
- * (the TV shows a new code).
+ * (the TV shows a new code). A TV with a password shows no code: its
+ * password is typed instead (`password` on the `pair` event).
  */
 
 import type { PairStatus, Tvpipe } from "./tvpipe.ts";
@@ -11,14 +12,18 @@ interface Strings {
   title: (device: string) => string;
   body: (device: string) => string;
   connecting: (device: string) => string;
+  connectingPassword: (device: string) => string;
   pin: (device: string) => string;
+  password: (device: string) => string;
   done: (device: string) => string;
   failed: string;
   digits: string;
+  empty: string;
   pair: string;
   again: string;
   cancel: string;
   label: string;
+  passwordLabel: string;
 }
 
 const STRINGS: Record<string, Strings> = {
@@ -26,27 +31,35 @@ const STRINGS: Record<string, Strings> = {
     title: (d) => `Pair with ${d}`,
     body: (d) => `${d} needs pairing once before it shows the game. tvpipe keeps the pairing.`,
     connecting: (d) => `Asking ${d} for a code…`,
+    connectingPassword: (d) => `Connecting to ${d}…`,
     pin: (d) => `Type the code ${d} shows.`,
+    password: (d) => `Type the AirPlay password of ${d}: the one set in the Home app under Speakers & TV, in the TV's AirPlay settings, or on a Mac under AirPlay Receiver.`,
     done: (d) => `Paired with ${d}.`,
     failed: "Pairing failed",
     digits: "The code is the digits the TV shows.",
+    empty: "Type the TV's password.",
     pair: "Pair",
     again: "Try again",
     cancel: "Cancel",
     label: "Code",
+    passwordLabel: "Password",
   },
   de: {
     title: (d) => `Mit ${d} koppeln`,
     body: (d) => `${d} muss einmal gekoppelt werden, bevor es das Spiel zeigt. tvpipe merkt sich die Kopplung.`,
     connecting: (d) => `${d} wird nach einem Code gefragt…`,
+    connectingPassword: (d) => `Verbindung mit ${d}…`,
     pin: (d) => `Den Code eingeben, den ${d} zeigt.`,
+    password: (d) => `Das AirPlay-Passwort von ${d} eingeben: das in der Home-App unter „Lautsprecher & TV“, in den AirPlay-Einstellungen des Fernsehers oder auf einem Mac unter „AirPlay-Empfänger“ festgelegte.`,
     done: (d) => `Mit ${d} gekoppelt.`,
     failed: "Koppeln fehlgeschlagen",
     digits: "Der Code sind die Ziffern auf dem Fernseher.",
+    empty: "Das Passwort des Fernsehers eingeben.",
     pair: "Koppeln",
     again: "Nochmal",
     cancel: "Abbrechen",
     label: "Code",
+    passwordLabel: "Passwort",
   },
 };
 
@@ -58,11 +71,30 @@ p { margin: 0; color: #4b4d58; }
 .error { color: #b42318; }
 input { font: inherit; font-size: 28px; letter-spacing: 0.3em; text-align: center; padding: 8px 10px; border: 1px solid #c9cbd4; border-radius: 9px; font-variant-numeric: tabular-nums; }
 input:disabled { background: #f3f4f7; }
+input.password { font-size: 20px; letter-spacing: normal; text-align: left; }
 .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 button { font: inherit; font-weight: 600; border-radius: 9px; padding: 8px 16px; border: 1px solid #c9cbd4; background: #fff; color: #15161c; cursor: pointer; }
 button.primary { background: #15161c; color: #fff; border-color: #15161c; }
 button:disabled { opacity: 0.5; cursor: default; }
 `;
+
+/** Sets a pairing field up for a TV's code (digits) or, with `password`, its password. */
+export function pairField(input: HTMLInputElement, password: boolean, label: string): void {
+  input.type = password ? "password" : "text";
+  input.inputMode = password ? "text" : "numeric";
+  input.autocomplete = password ? "off" : "one-time-code";
+  input.maxLength = password ? 128 : 8;
+  input.placeholder = password ? "" : "0000";
+  if (password) input.removeAttribute("pattern");
+  else input.pattern = "[0-9]*";
+  input.setAttribute("aria-label", label);
+}
+
+/** What was typed, or `undefined` when it is not a code (4–8 digits) or is an empty password. */
+export function pairFieldValue(input: HTMLInputElement, password: boolean): string | undefined {
+  const typed = password ? input.value : input.value.trim();
+  return (password ? typed !== "" : /^\d{4,8}$/.test(typed)) ? typed : undefined;
+}
 
 /** Shows the dialog and pairs; resolves `true` once paired, `false` when cancelled. */
 export function showPairDialog(tvpipe: Tvpipe, device: string): Promise<boolean> {
@@ -87,10 +119,7 @@ export function showPairDialog(tvpipe: Tvpipe, device: string): Promise<boolean>
     const state = h("p", "state");
     const error = h("p", "error");
     const input = h<HTMLInputElement>("input", "");
-    input.inputMode = "numeric";
-    input.autocomplete = "one-time-code";
-    input.maxLength = 8;
-    input.setAttribute("aria-label", t.label);
+    pairField(input, false, t.label);
     const ok = h<HTMLButtonElement>("button", "primary", t.pair);
     ok.type = "submit";
     const cancel = h<HTMLButtonElement>("button", "", t.cancel);
@@ -102,11 +131,20 @@ export function showPairDialog(tvpipe: Tvpipe, device: string): Promise<boolean>
     dialog.append(host);
 
     let step: PairStatus["state"] = "connecting";
+    /** The TV shows no code: its password is asked for. */
+    let password = false;
     let finished = false;
-    const show = (s: PairStatus["state"], err?: string) => {
+    const show = (s: PairStatus["state"], err?: string, wantsPassword = false) => {
       step = s;
+      if (s === "pin") {
+        password = wantsPassword;
+        input.className = password ? "password" : "";
+        pairField(input, password, password ? t.passwordLabel : t.label);
+      }
       state.className = `state ${s}`;
-      state.textContent = s === "pin" ? t.pin(device) : s === "done" ? t.done(device) : s === "failed" ? t.failed : t.connecting(device);
+      const ask = password ? t.password(device) : t.pin(device);
+      const wait = password ? t.connectingPassword(device) : t.connecting(device);
+      state.textContent = s === "pin" ? ask : s === "done" ? t.done(device) : s === "failed" ? t.failed : wait;
       error.hidden = !err;
       error.textContent = err ?? "";
       input.disabled = s !== "pin";
@@ -132,17 +170,17 @@ export function showPairDialog(tvpipe: Tvpipe, device: string): Promise<boolean>
     };
     const off = tvpipe.on("pair", (p) => {
       if (p.device !== device || finished) return;
-      show(p.state, p.state === "failed" ? p.error : undefined);
+      show(p.state, p.state === "failed" ? p.error : undefined, p.password === true);
       if (p.state === "done") setTimeout(() => finish(true), 700);
     });
     form.onsubmit = (ev) => {
       ev.preventDefault();
       if (step === "failed") return start();
       if (step !== "pin") return;
-      const pin = input.value.trim();
-      if (!/^\d{4,8}$/.test(pin)) {
+      const pin = pairFieldValue(input, password);
+      if (pin === undefined) {
         error.hidden = false;
-        error.textContent = t.digits;
+        error.textContent = password ? t.empty : t.digits;
         return;
       }
       ok.disabled = true;

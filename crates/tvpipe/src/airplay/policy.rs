@@ -227,6 +227,20 @@ impl Leads {
         }
     }
 
+    /// A third-party TV carrying audio (§2.7).
+    pub const THIRD_PARTY_TV: Leads = Leads {
+        video_ms: 600,
+        audio_ms: 600,
+    };
+
+    /// [`Leads::new`], or [`Leads::THIRD_PARTY_TV`] for `audio` on one.
+    pub fn for_receiver(explicit_ms: Option<u32>, info: &Info, audio: bool) -> Leads {
+        match explicit_ms {
+            None if audio && third_party_tv(info) => Leads::THIRD_PARTY_TV,
+            e => Leads::new(e),
+        }
+    }
+
     /// `latencyMax`: the audio lead in 44.1 kHz samples, truncated.
     pub fn audio_samples(&self) -> u32 {
         ms_to_samples(self.audio_ms)
@@ -251,6 +265,12 @@ struct Corrections {
     resend: bool,
 }
 
+/// Bit 26 or 51, and 49.
+pub fn third_party_tv(info: &Info) -> bool {
+    (has(info.features, bit::THIRD_PARTY_A) || has(info.features, bit::THIRD_PARTY_B))
+        && has(info.features, bit::THIRD_PARTY_TV)
+}
+
 fn family(info: &Info) -> Corrections {
     let starts = |v: Option<&str>, p: &str| {
         v.and_then(|s| s.get(..p.len()))
@@ -258,9 +278,7 @@ fn family(info: &Info) -> Corrections {
     };
     let model = info.model.as_deref();
     let manufacturer = info.raw.get("manufacturer").and_then(Plist::as_str);
-    let third_party_tv = (has(info.features, bit::THIRD_PARTY_A)
-        || has(info.features, bit::THIRD_PARTY_B))
-        && has(info.features, bit::THIRD_PARTY_TV);
+    let third_party_tv = third_party_tv(info);
     let quiet_only = starts(model, "AppleTV") || starts(model, "AirPort");
     let invalid_only = starts(model, "AudioAccessory")
         || (!quiet_only && starts(manufacturer, "Apple"))
@@ -499,6 +517,15 @@ mod tests {
         assert_eq!(ms_to_samples(75), 3307);
         assert_eq!(Leads::new(Some(1)).video_ms, 5);
         assert_eq!(Leads::new(Some(5000)).audio_ms, 2000);
+        let tv_bits = 1 << bit::THIRD_PARTY_B | 1 << bit::THIRD_PARTY_TV;
+        let lg = info_with("55UA84006LB.DFUYLWE", tv_bits, &[]);
+        assert_eq!(Leads::for_receiver(None, &lg, true), Leads::THIRD_PARTY_TV);
+        assert_eq!(Leads::for_receiver(None, &lg, false), Leads::WIRELESS);
+        assert_eq!(Leads::for_receiver(Some(1000), &lg, true).video_ms, 1000);
+        let speaker = info_with("Sonos", 1 << bit::THIRD_PARTY_B, &[]);
+        assert_eq!(Leads::for_receiver(None, &speaker, true), Leads::WIRELESS);
+        let atv = info_with("AppleTV6,2", 0, &[]);
+        assert_eq!(Leads::for_receiver(None, &atv, true), Leads::WIRELESS);
     }
 
     fn info_with(model: &str, features: u64, extra: &[(&str, Plist)]) -> Info {

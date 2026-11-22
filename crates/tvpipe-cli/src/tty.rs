@@ -121,3 +121,59 @@ impl Drop for Cooked {
         }
     }
 }
+
+/// Echo is off for a [`NoEcho`] prompt.
+static HIDDEN: AtomicBool = AtomicBool::new(false);
+/// The terminal's state before the last [`NoEcho`], as `stty -g` printed it.
+static SHOWN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Gives the terminal back the state it had before [`NoEcho`], once.
+fn show() -> bool {
+    let mut saved = SHOWN.lock().unwrap_or_else(|e| e.into_inner());
+    if !HIDDEN.swap(false, Ordering::SeqCst) {
+        return false;
+    }
+    let _ = match saved.take() {
+        Some(saved) => stty(&[&saved]),
+        None => stty(&["echo"]),
+    };
+    true
+}
+
+/// No echo while this lives, for a password prompt; Ctrl-C restores it.
+pub struct NoEcho(bool);
+
+impl NoEcho {
+    pub fn new() -> NoEcho {
+        static WATCHED: std::sync::Once = std::sync::Once::new();
+        WATCHED.call_once(|| {
+            tvpipe::signals::on_signal(|| {
+                let hidden = show();
+                if hidden {
+                    eprintln!();
+                }
+                if hidden || !crate::interrupt::linked() {
+                    std::process::exit(130);
+                }
+            });
+            tvpipe::signals::before_forced_exit(|| {
+                show();
+            });
+        });
+        let saved = stty(&["-g"]).filter(|s| !s.is_empty());
+        let off = saved.is_some() && stty(&["-echo"]).is_some();
+        if off {
+            *SHOWN.lock().unwrap_or_else(|e| e.into_inner()) = saved;
+            HIDDEN.store(true, Ordering::SeqCst);
+        }
+        NoEcho(off)
+    }
+}
+
+impl Drop for NoEcho {
+    fn drop(&mut self) {
+        if self.0 {
+            show();
+        }
+    }
+}

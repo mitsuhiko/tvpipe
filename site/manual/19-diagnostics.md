@@ -52,6 +52,8 @@ Colours follow `NO_COLOR` and `CLICOLOR=0`, and `CLICOLOR_FORCE` or `FORCE_COLOR
 | No receivers found | Make sure the computer and the TV are on the same network. Try `--interface`, or give `--to` the address. |
 | Windows asks to allow tvpipe | Allow it. Apple TVs need to reach tvpipe on your computer. |
 | No sound in a browser tab | Click the page once. |
+| A TV fails with `home-only` or `forbidden` | Its Apple Home lets only its members stream. See [TVs in an Apple Home](receivers.md#s6). |
+| Crackling or missing sound on an AirPlay TV | Try a longer delay, such as `--latency 800`. See [Latency](latency.md). |
 | An Apple TV fails with `fairplay-required` | This tvpipe was built without FairPlay. Use a release, or build it with the default features. |
 | tvpipe does not stop | Press `Ctrl-C` a second time. |
 | A site does not show with `share URL` | It refuses controlled browsers. See [limitations](web-page.md#s4). |

@@ -78,7 +78,8 @@ Session sequence (control-first ordering; §4 has every message):
 12. Streaming: codec packet + IDR, then frames; audio starts after the
     first video frame; heartbeats every 1 s; `POST /feedback` every 2 s;
     audio sync every 1 s.
-13. `TEARDOWN`, close the media sockets.
+13. `TEARDOWN` for each stream, then for the session (§4.14); close the
+    control connection and the media sockets.
 
 ---
 
@@ -111,6 +112,62 @@ verifies with only `X-Apple-HKP: 3`; the same keys presented with
 TLV error value 7 in M4. A pairing made with type 3 and no extra
 access-control entry is sufficient for a mirroring session on the Apple TV
 [HW].
+
+**Receivers in an Apple Home** [HW: LG 55UA84006LB, webOS, sourceVersion
+377.40.00, AirPlay SDK 3.6.0.72]. The TXT key `acl` is the home's "Allow
+Speaker & TV Access" level: 0 "Everyone" or "Anyone On the Same Network"
+(not told apart), 1 "Only People Sharing This Home", 2 admin [REF:
+HomeKit's access-control levels (HAP-NodeJS `AccessLevel`), the
+`/configure` `Access_Control_Level` of open receivers; pyatv reads 1 as
+pairing not possible]. Status flag 0x400 ("device was set up for HomeKit
+access control") says the receiver is in a Home [REF]. Apple's receivers
+in that mode refuse others' first pair-setup with 403 [REF: captures of an
+Apple TV and a HomePod; many user reports of third-party senders failing
+there]. This LG instead still shows a
+PIN, completes PIN pair-setup and pair-verify (`X-Apple-HKP` 2, 3 and 4
+alike; 6 fails in M4, the keys it looks up are not ours) and encrypts the
+control connection, but then answers every request except `GET /info` with
+`403 Forbidden`, an empty body and no extra headers: the same answers an
+unpaired plaintext connection gets. SETUP ordering, NTP or PTP and the
+SETUP body make no difference.
+
+A Mac whose AirPlay Receiver allows only its current user advertises
+`act=2` (AccessControlType [REF: pyatv #2105]; "Everyone" and "Anyone on
+the same network" leave `act` out [HW: a Mac, macOS AirPlay 1005.13.5])
+and answers 403 to transient and to normal pair-setup alike [HW]: error
+`forbidden`, naming that setting.
+
+What to tell the user: a 403 to pair-setup is error `forbidden`. A 403 to
+SETUP #1 after a pair-verify with a stored pairing (or to `/fp-setup`,
+which comes before it on a receiver with feature 14) is error `home-only`
+when the receiver advertises `acl=1`, and otherwise error `forbidden`,
+which keeps the status and, when status flag
+0x400 is set, names this case as the known cause (other families' reasons for a 403 are not known; after a
+transient pair-setup a 403 is reported as it is). Without a stored
+pairing, `acl=1` alone is `home-only`, before connecting: pairing would
+succeed and help nothing (`pair` looks the advertisement up, by address
+and port, for a target given by address too; a session given by address
+looks it up once the receiver has refused it). With a stored pairing the
+session is tried, since only this LG is known to refuse it and the
+advertisement may be older than a change in the Home app.
+With the level at "Anyone On the Same Network" the TXT has `acl=0` and the
+same pairing gets a session. With "Require Password" on as well (status
+flag 0x80 set, 0x200 clear) the password is the pair-setup PIN, with or
+without `/pair-pin-start` (skip it: the TV starts to show a PIN and drops
+it), and a pairing made before the password was set keeps working. Take
+the password for the PIN (judged from the `/info` just fetched; from the
+advertisement only when `/info` has no flags) with the password flag set,
+the PIN flag 0x8 clear and a HAP pairing feature (38, 43, 46 or 48). The
+one-time pairing flag 0x200 does not change it [HW: a Mac's AirPlay
+Receiver with a password advertises 0x284, does not answer
+`/pair-pin-start`, and pairs with the password as the PIN; REF: doubletake
+prefers the password flag over 0x200, "matching the sender framework's
+AirPlay security selection"]. With 0x8 the receiver shows its PIN as before
+[untested]; without HAP pairing the password is HTTP Digest (§3). The Mac
+then answers SETUP #1 401 Unauthorized: an Apple receiver with a password
+also wants the password as HTTP Digest on the session (§3), which tvpipe
+does not do (error `password-unsupported`, which says to turn the password
+off); the LG of §10 does not.
 
 ### 2.2 FairPlay SAP and what mirroring takes from it
 
@@ -287,13 +344,23 @@ The sender picks one pair of playout leads for the session:
 |---|---|---|---|
 | normal (wired/unknown route) | 75 ms | 85 ms | 3748 |
 | wireless route | 100 ms | 170 ms | 7497 |
+| third-party TV, with audio | 600 ms | 600 ms | 26460 |
 | explicit (user) | L | L | floor(L × 44.1) |
 
 The reference picks "wireless" when the control connection's local
 interface is Wi-Fi (an OS query); tvpipe cannot ask the OS portably, so
 use "normal" by default and let the user override (or choose "wireless"
-when unsure; it only costs latency). Explicit values are clamped to
-5–2000 ms. ms → samples always truncates (`floor(ms × 44100 / 1000)`).
+when unsure; it only costs latency). A third-party TV (feature bit 26 or
+51, and 49) gets 600 ms instead whenever the session carries audio
+(`play`, `share` and games alike): on the LG of §10 a film played late,
+crackling audio and stuttered with the wireless profile, still crackled
+at 500 ms, and played well at 600, 800 and 1000 ms; a shared page playing
+the same film had no sound at all with the wireless profile, crackled at
+500 ms and played well at 600 and 800 ms; a game's sound effects crackled
+at 300 ms and played well at 600 ms; the picture alone was fine with the
+wireless profile [HW]. LG TVs elsewhere needed 500–1000 ms [REF:
+doubletake PR #61 and PR #31]. Without audio (`--no-audio`) the profile
+above applies. Explicit values are clamped to 5–2000 ms. ms → samples always truncates (`floor(ms × 44100 / 1000)`).
 
 ---
 
@@ -612,11 +679,37 @@ feedback request is logged, not fatal.
 ### 4.14 Teardown
 
 1. Stop media.
-2. `TEARDOWN <audio URI>`, no body (one request ends the whole session;
-   the reference sends no per-stream TEARDOWN). Apple TV: 200 after
-   ~750 ms, or the control connection is closed without a response; both
-   end the session [HW]. It then closes the video data connection.
-3. Close the video data, event, MediaDataControl and UDP sockets.
+2. End the session as iPhones do with Apple-TV-like receivers [REF:
+   iPhone captures in UxPlay issues #390 and #540; HW: the LG of §10]
+   (a Mac and an iPhone send the LG of §10 only the empty dict below,
+   after closing the mirror data connection [HW: their AirPlay logs]):
+   on the audio URI, a
+   `TEARDOWN` for each stream whose SETUP was answered 2xx, one stream per
+   request, audio first: body a bplist `{streams: [{type: 96}]}`, then
+   `{streams: [{type: 110}]}`; then a `TEARDOWN` whose body is a bplist
+   of an empty dict (`Content-Type: application/x-apple-binary-plist`,
+   Content-Length 42). No `Session:` header. A refused stream `TEARDOWN`
+   (an error status) is passed over; the session's follows. If the
+   receiver closes the control connection instead of answering, the
+   session has ended (the Apple TV does this, §13). If a request is not
+   answered in time, send nothing more: a late answer to it would be read
+   as the next one's.
+3. Close the control connection (the sender does it; the receiver's
+   `Connection: close` is optional [REF]), then the video data, event,
+   MediaDataControl and UDP sockets.
+
+Do not send a `TEARDOWN` without a body: no Apple sender does. The LG of
+§10 does not answer one, closes the control connection and restarts its
+AirPlay service (port 7000 refuses connections for a moment and the TV can
+drop out of mDNS) [HW: twice, the TV on and showing a picture; not seen
+with the TV in standby]. The same firmware family behaves alike for other
+senders' body-less `TEARDOWN` [REF: a Samsung on 377.40.00 that "relocates
+its control port on every teardown"; an LG on 377.40.00 whose `TEARDOWN`
+timed out]. With step 2 the LG answers each request 200 and its service
+stays up; so it does with the empty dict alone [HW]. Receivers differ on
+a body-less one: some ignore it, some end the session [REF]. iOS 27 leaves
+out the video stream's `TEARDOWN` [REF]; the empty dict alone ends the
+session either way.
 
 If setup fails after the first SETUP was accepted, release the receiver
 state with the same TEARDOWN but bounded by a 2 s deadline; if that fails
@@ -1271,6 +1364,7 @@ not the session.
 | Apple TV 3rd gen (AppleTV3,2, sourceVersion 220.68) [MODEL] | legacy raw pairing, plaintext control | media-first | NTP, receiver probes | layout P, no shk, AES-CBC | needs `ekey`/`eiv`/`et` in the session SETUP; no `supportedFormats` (use feature bits); video AES-CTR |
 | Roku (Streaming Stick 4K 3820R2, sourceVersion 377.40.00) [MODEL; Roku/TCL Roku reported working] | legacy (HKP 3) | media-first | advertises PTP (feature 41, `PTPInfo`), uses NTP with receiver probes | layout P | omits `supportedFormats`; AAC-ELD |
 | LG (75UP75009LC, sourceVersion 377.25.06) [MODEL; LG not in the reference's tested list] | HKP 3 but TLV8/HAP, encrypted control | media-first (rejects control-only SETUP) | advertises PTP but sends no timing headers → NTP from the start (§2.5) | — | ALAC only (`screenStream` 0x40000); third-party TV family |
+| LG (55UA84006LB, webOS, sourceVersion 377.40.00) [HW] | HAP pairing (HKP 3) with its AirPlay password as the PIN; raw `/pair-setup` and transient pair-setup refused | control-first, SETUP #1 accepted (in an Apple Home with `acl=1`: 403 to everything, §2.1) | advertises PTP, no timing headers on `/info` → NTP | ALAC | no FairPlay (feature 14 clear, `/fp-setup` 404); `displays` in `/info` before SETUP; TXT `rsf=0x3` |
 | Samsung The Frame 43" (LS03B, sourceVersion 377.40.00) [USER: issue #5] | HAP pair-verify; no FairPlay (feature 14 clear) | control-first, SETUP #1 accepted | advertises PTP (feature 41), accepts the PTP SETUP #1 but its response has no timing headers (that `/info` lacks them too is assumed, not reported); after that abandoned session it answers neither TEARDOWN nor a new connection's pair-verify (15 s timeout); for how long is unknown → NTP from the start (no timing headers on `/info`, or remembered), else the §2.5 reconnect attempts | ALAC | 1080p60 canvas; third-party TV family |
 | Samsung TU8300, Hisense, TCL Google TV [REF: reported working] | — | — | — | — | no per-family facts recorded; third-party TVs need an explicit initial volume |
 | UxPlay (open-source receiver, advertises AppleTV3,2) [MODEL] | legacy raw pairing | control-first | NTP, receiver probes | ALAC, layout P | no `eventPort`; AES-CTR video keyed from `K = SHA-512(K_fp ‖ S)[0..16]`, because the legacy pair-verify sent `X-Apple-PD: 1` (§2.2, §5.2) |
@@ -1392,6 +1486,9 @@ Raw pair-verify requests carry `Content-Type: application/octet-stream`,
   `Content-Length` headers; body = the sender's 32-byte Ed25519 public key
   (the controller's long-term key, the same one sent in V1); response = the
   receiver's 32-byte Ed25519 public key. It is unauthenticated (no PIN).
+  A receiver with a HAP pairing feature (38, 43, 46 or 48) that refuses it
+  (the LG of §10 [HW]: 403) does not speak raw pairing; go on to TLV8
+  pairing. From a receiver without those features the refusal stands.
   Do it once and store the receiver key with the controller identity, like
   a HAP pairing; later connections only run raw pair-verify against the
   stored key. If a later connection does run raw pair-setup again, the

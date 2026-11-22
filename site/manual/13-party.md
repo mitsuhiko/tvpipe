@@ -63,7 +63,7 @@ Other sources work the same way:
 
 ## Playing
 
-1. tvpipe opens a window. It lists the TVs on your network as they answer: Apple TVs and AirPlay TVs, Chromecasts and Google TVs. An Apple TV you have not paired with shows a **Pair** button: the TV shows a code, you type it in the window. "A browser tab on this computer" lets you try a game without a TV.
+1. tvpipe opens a window. It lists the TVs on your network as they answer: Apple TVs and AirPlay TVs, Chromecasts and Google TVs. An Apple TV you have not paired with shows a **Pair** button: the TV shows a code, you type it in the window. A TV with an AirPlay password asks for that password instead. "A browser tab on this computer" lets you try a game without a TV.
 2. Pick one or more TVs and press **Start**. The window becomes the game's own page, and the TV shows the game with its QR code.
 3. Everyone scans the QR code and plays on their phone. Phones that lose the connection (a locked screen, a tunnel hiccup) come back on their own.
 4. **Other game** in the window picks the next game from the list. The TVs, the QR code and the link stay, and the phones go to the next game by themselves, with their names.

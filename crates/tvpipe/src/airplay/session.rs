@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use crate::airplay::discovery::status;
 use crate::airplay::events::{Event, EventChannel};
 use crate::airplay::info::Info;
 use crate::airplay::keys;
@@ -28,6 +29,7 @@ use crate::airplay::secure::SecureStream;
 use crate::airplay::setup::{
     parse_audio_response, parse_video_response, streams_body, AudioCodecId, AudioLayout,
     AudioPorts, AudioRequest, SessionRequest, SessionResponse, TimingRequest, VideoRequest,
+    STREAM_TYPE_AUDIO, STREAM_TYPE_VIDEO,
 };
 use crate::airplay::timing::{anchor_from_headers, NtpResponder, PtpClock, Timeline};
 use crate::codec::bplist::Plist;
@@ -328,6 +330,24 @@ pub struct AudioStream {
 #[derive(Clone)]
 pub struct KeyedSecret(pub Vec<u8>);
 
+/// How the control connection was authenticated (§2.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlAuth {
+    /// HAP pair-verify with a stored pairing.
+    Verified,
+    /// HAP transient pair-setup (no stored pairing).
+    Transient,
+    /// Legacy raw pair-verify: the control connection stays plaintext.
+    Legacy,
+}
+
+impl ControlAuth {
+    /// The HAP profile (else legacy).
+    pub fn hap(self) -> bool {
+        self != ControlAuth::Legacy
+    }
+}
+
 impl std::fmt::Debug for KeyedSecret {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "KeyedSecret({} bytes)", self.0.len())
@@ -349,8 +369,8 @@ pub struct Session<S: ControlStream> {
     pub video_id: u64,
     pub session_uuid: String,
     pub secret: KeyedSecret,
-    /// HAP profile (else legacy).
-    pub hap: bool,
+    /// How the control connection was authenticated.
+    pub auth: ControlAuth,
     pub fairplay: Option<FairPlayKeys>,
     pub timeline: Timeline,
     pub info: Info,
@@ -371,6 +391,9 @@ pub struct Session<S: ControlStream> {
     record_pending: bool,
     skip_record: bool,
     has_audio: bool,
+    /// The receiver accepted the audio, the video SETUP.
+    audio_setup: bool,
+    video_setup: bool,
     torn_down: bool,
 }
 
@@ -380,7 +403,7 @@ impl<S: ControlStream> std::fmt::Debug for Session<S> {
             .field("peer", &self.peer)
             .field("audio_id", &self.audio_id)
             .field("video_id", &self.video_id)
-            .field("hap", &self.hap)
+            .field("hap", &self.hap())
             .field("timeline", &self.timeline)
             .finish_non_exhaustive()
     }
@@ -409,6 +432,11 @@ pub fn lock_control<S>(c: &Mutex<Control<S>>) -> MutexGuard<'_, Control<S>> {
 }
 
 impl<S: ControlStream> Session<S> {
+    /// HAP profile (else legacy).
+    pub fn hap(&self) -> bool {
+        self.auth.hap()
+    }
+
     pub fn audio_uri(&self) -> String {
         format!("rtsp://{}/{}", self.peer, self.audio_id)
     }
@@ -430,17 +458,19 @@ impl<S: ControlStream> Session<S> {
 
     /// Runs the setup up to and including the audio SETUP (§4.1–§4.6,
     /// §4.12) on an authenticated control connection. `secret` is the
-    /// pair-verify shared secret; `hap` selects the crypto profile.
+    /// pairing's shared secret; `auth` says how it was made and selects
+    /// the crypto profile.
     /// `memory` says which receivers get NTP at once and learns about
     /// PTP failures.
     pub fn establish(
         client: RtspClient<S>,
         peer: SocketAddr,
         secret: Vec<u8>,
-        hap: bool,
+        auth: ControlAuth,
         opts: &MirrorOptions,
         memory: &mut dyn PtpMemory,
     ) -> std::result::Result<Session<S>, SetupError> {
+        let hap = auth.hap();
         let mut control = Control::new(client);
         let local_ip = control
             .socket()
@@ -472,7 +502,11 @@ impl<S: ControlStream> Session<S> {
             debug!("airplay: no FairPlay (feature 14 not set)");
             None
         } else if FAIRPLAY_BUILT {
-            fair_play(&mut control, &secret)?
+            let verified = auth == ControlAuth::Verified;
+            fair_play(&mut control, &secret).map_err(|e| match e.code() {
+                Some("fp-forbidden") if verified => forbidden(info.name.as_deref(), homekit(&info)),
+                _ => e,
+            })?
         } else if hap {
             debug!("airplay: receiver offers FairPlay; this build has none, going on without");
             fairplay_skipped = true;
@@ -508,7 +542,7 @@ impl<S: ControlStream> Session<S> {
                 .map_err(|e| Error::io("airplay: clone timing socket", e))?;
             Some(NtpResponder::start(sock, peer.ip())?)
         };
-        let leads = Leads::new(opts.latency_ms);
+        let leads = Leads::for_receiver(opts.latency_ms, &info, opts.audio);
         let mut session = Session {
             control_sock: control.socket().try_clone().ok(),
             control: Arc::new(Mutex::new(control)),
@@ -517,7 +551,7 @@ impl<S: ControlStream> Session<S> {
             video_id: stream_id()?,
             session_uuid: uuid_lower()?,
             secret: KeyedSecret(secret),
-            hap,
+            auth,
             fairplay,
             timeline: Timeline::Ntp,
             info,
@@ -546,22 +580,31 @@ impl<S: ControlStream> Session<S> {
             record_pending: true,
             skip_record: false,
             has_audio: opts.audio,
+            audio_setup: false,
+            video_setup: false,
             torn_down: true,
         };
         let r = session.setup(opts, ptp, local_ip);
         match r {
             Ok(()) => Ok(session),
             // A receiver that refuses the session after FairPlay was
-            // skipped most likely wants it.
+            // skipped most likely wants it (a 403 may also be its home, §2.1).
             Err(SetupError::Fatal(e))
                 if fairplay_skipped
                     && matches!(e.kind(), ErrorKind::Protocol | ErrorKind::Auth) =>
             {
                 session.cleanup();
                 debug!("airplay: setup without FairPlay failed: {e}");
+                let why = match e.code() {
+                    Some("forbidden") if homekit(&session.info) => format!(
+                        "it answered the session 403 Forbidden without it; a receiver whose \
+                         Apple Home takes its members only does that too: {HOME_ACCESS}"
+                    ),
+                    _ => format!("it refused the session without it ({e})"),
+                };
                 Err(SetupError::Fatal(fairplay_required(
                     session.info.name.as_deref().unwrap_or("the receiver"),
-                    &format!("it refused the session without it ({e})"),
+                    &why,
                 )))
             }
             Err(e) => {
@@ -588,12 +631,12 @@ impl<S: ControlStream> Session<S> {
         } else {
             AudioCodecId::Alac
         };
-        if self.hap {
+        if self.hap() {
             self.audio.key = Some(random_array()?);
         }
         // §8.10: MediaDataControl (receiver audio reports) only with HAP,
         // features 59 + 60, sourceVersion >= 450.1.0 and automatic leads.
-        if self.hap
+        if self.hap()
             && opts.audio
             && opts.latency_ms.is_none()
             && policy::has(features, bit::STREAM_CONNECTIONS)
@@ -617,7 +660,7 @@ impl<S: ControlStream> Session<S> {
             session_uuid: self.session_uuid.clone(),
             name: opts.name.clone(),
             timing,
-            fairplay: match (&self.fairplay, self.hap) {
+            fairplay: match (&self.fairplay, self.hap()) {
                 (Some(fp), false) => Some((fp.ekey.to_vec(), fp.eiv)),
                 _ => None,
             },
@@ -654,6 +697,17 @@ impl<S: ControlStream> Session<S> {
                 resp
             };
             (check(resp, "SETUP (media-first)")?, Instant::now())
+        } else if self.auth == ControlAuth::Verified && resp.status == 403 {
+            // A stored pairing verified, and still forbidden (§2.1).
+            return Err(SetupError::Fatal(forbidden(
+                self.info.name.as_deref(),
+                homekit(&self.info),
+            )));
+        } else if resp.status == 401 {
+            // It wants its password as HTTP Digest (§3).
+            return Err(SetupError::Fatal(password_unsupported(
+                self.info.name.as_deref(),
+            )));
         } else {
             (check(resp, "SETUP (session)")?, t0)
         };
@@ -663,6 +717,7 @@ impl<S: ControlStream> Session<S> {
         self.skip_record = sr.skip_record;
         if media_first {
             self.audio.ports = parse_audio_response(&body);
+            self.audio_setup = true;
         }
 
         // Timing (§7.2, §7.3).
@@ -748,6 +803,7 @@ impl<S: ControlStream> Session<S> {
                 resp
             };
             let resp = check(resp, "SETUP (audio)")?;
+            self.audio_setup = true;
             let body = plist_of(&resp, "audio SETUP response")?;
             self.audio.ports = parse_audio_response(&body);
             if self.events.is_none() {
@@ -817,7 +873,7 @@ impl<S: ControlStream> Session<S> {
 
     fn connect_events(&mut self, port: Option<u16>, clock: Option<Arc<PtpClock>>) {
         let Some(port) = port else { return };
-        let keys = if self.hap {
+        let keys = if self.hap() {
             match keys::event_keys(&self.secret.0) {
                 Ok(k) => Some(k),
                 Err(e) => {
@@ -859,7 +915,7 @@ impl<S: ControlStream> Session<S> {
         let (shk, shiv) = match &self.fairplay {
             Some(fp) => (fp.master, fp.eiv),
             // §5.3: placeholders without FairPlay.
-            None if self.hap => {
+            None if self.hap() => {
                 let k = crate::airplay::secure::Keys::control(&self.secret.0)?;
                 let mut shk = [0u8; 16];
                 let mut shiv = [0u8; 16];
@@ -889,6 +945,7 @@ impl<S: ControlStream> Session<S> {
             )?,
             "SETUP (video)",
         )?;
+        self.video_setup = true;
         let body = plist_of(&resp, "video SETUP response")?;
         let port = parse_video_response(&body)
             .ok_or_else(|| Error::protocol("airplay: video SETUP response without dataPort"))?;
@@ -961,47 +1018,42 @@ impl<S: ControlStream> Session<S> {
         }
     }
 
-    /// `TEARDOWN` for the whole session (§4.14), then closes the side
-    /// channels. Safe to call more than once.
+    /// One `TEARDOWN`; `Ok(None)` when the receiver closed the connection (§4.14).
+    fn send_teardown(&self, body: Plist, deadline: Instant) -> Result<Option<Response>> {
+        // Another request (a `/feedback` to a receiver that stopped
+        // answering) may hold the connection; do not wait for it past
+        // the deadline.
+        let Some(mut c) = lock_control_until(&self.control, deadline) else {
+            return Err(Error::timeout(
+                "airplay: TEARDOWN: control connection busy (receiver not answering)",
+            ));
+        };
+        let left = deadline
+            .saturating_duration_since(Instant::now())
+            .max(Duration::from_millis(100));
+        let body = Some((BPLIST, body.to_bytes()));
+        match c.request("TEARDOWN", &self.audio_uri(), &[], body, left) {
+            Ok(r) => Ok(Some(r)),
+            Err(e) if e.kind() == ErrorKind::Closed => {
+                debug!("airplay: receiver closed the connection on TEARDOWN ({e})");
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Ends the session (§4.14) and closes its connections; safe to call twice.
     pub fn teardown(&mut self, timeout: Duration) -> Result<()> {
         let deadline = Instant::now() + timeout;
         let r = if self.torn_down {
             Ok(())
         } else {
             self.torn_down = true;
-            let uri = self.audio_uri();
-            // Another request (a `/feedback` to a receiver that stopped
-            // answering) may hold the connection; do not wait for it past
-            // the deadline.
-            match lock_control_until(&self.control, deadline) {
-                None => Err(Error::timeout(
-                    "airplay: TEARDOWN: control connection busy (receiver not answering)",
-                )),
-                Some(mut c) => {
-                    let left = deadline
-                        .saturating_duration_since(Instant::now())
-                        .max(Duration::from_millis(100));
-                    match c.request("TEARDOWN", &uri, &[], None, left) {
-                        Ok(r) if r.is_success() => {
-                            debug!("airplay: session torn down");
-                            Ok(())
-                        }
-                        Ok(r) => Err(Error::protocol(format!(
-                            "airplay: TEARDOWN answered {} {}",
-                            r.status, r.reason
-                        ))),
-                        // The Apple TV often closes the control connection
-                        // instead of answering; that ends the session too
-                        // (§4.14, §13).
-                        Err(e) if e.kind() == crate::error::ErrorKind::Closed => {
-                            debug!("airplay: receiver closed the connection on TEARDOWN ({e})");
-                            Ok(())
-                        }
-                        Err(e) => Err(e),
-                    }
-                }
-            }
+            self.teardown_session(deadline)
         };
+        if let Some(s) = &self.control_sock {
+            let _ = s.shutdown(std::net::Shutdown::Both);
+        }
         if let Some(mut ev) = self.events.take() {
             ev.close();
         }
@@ -1009,12 +1061,36 @@ impl<S: ControlStream> Session<S> {
             m.close();
         }
         self.ntp = None;
-        if r.is_err() {
-            if let Some(s) = &self.control_sock {
-                let _ = s.shutdown(std::net::Shutdown::Both);
+        r
+    }
+
+    fn teardown_session(&mut self, deadline: Instant) -> Result<()> {
+        let stream =
+            |t: i64| Plist::dict().with("streams", Plist::array([Plist::dict().with("type", t)]));
+        let mut steps = Vec::new();
+        if self.audio_setup {
+            steps.push(("audio", stream(STREAM_TYPE_AUDIO)));
+        }
+        if self.video_setup {
+            steps.push(("video", stream(STREAM_TYPE_VIDEO)));
+        }
+        steps.push(("session", Plist::dict()));
+        for (what, body) in steps {
+            match self.send_teardown(body, deadline)? {
+                None => return Ok(()),
+                Some(r) if r.is_success() => debug!("airplay: {what} torn down"),
+                Some(r) if what != "session" => {
+                    debug!("airplay: TEARDOWN ({what}) answered {}", r.status)
+                }
+                Some(r) => {
+                    return Err(Error::protocol(format!(
+                        "airplay: TEARDOWN answered {} {}",
+                        r.status, r.reason
+                    )))
+                }
             }
         }
-        r
+        Ok(())
     }
 
     /// After a failed setup: TEARDOWN within 2 s, else close (§4.14).
@@ -1032,6 +1108,90 @@ pub const FAIRPLAY_BUILT: bool = cfg!(feature = "fairplay");
 const FP_ENCRYPTION_TYPE: &str = "32";
 /// Their `Content-Type` (§2.2).
 const FP_CONTENT_TYPE: &str = "application/octet-stream";
+
+/// What to change in the Home app for a members-only receiver.
+pub const HOME_ACCESS: &str = "in the Home app, open Home Settings > Speakers & TV and set Allow \
+     Speaker & TV Access to \"Anyone On the Same Network\" (or \"Everyone\")";
+
+/// The error for a members-only receiver (`acl=1`, §2.1).
+pub fn home_only(name: Option<&str>) -> Error {
+    let e = Error::auth(format!(
+        "airplay: {} takes AirPlay only from members of its Apple Home: {HOME_ACCESS}",
+        name.unwrap_or("the receiver")
+    ))
+    .with_code("home-only");
+    match name {
+        Some(n) => e.with_device(n),
+        None => e,
+    }
+}
+
+/// Whether a receiver is in an Apple Home (status flag 0x400).
+pub fn homekit(info: &Info) -> bool {
+    info.status_flags
+        .is_some_and(|f| f & u64::from(status::HOMEKIT_ACCESS_CONTROL) != 0)
+}
+
+/// The error for a 403 after a verified pairing (§2.1).
+pub fn forbidden(name: Option<&str>, homekit: bool) -> Error {
+    refused(
+        name,
+        "verified the pairing and answered the session",
+        homekit,
+    )
+}
+
+/// The error for a 403 to pair-setup (§2.1).
+pub fn pairing_forbidden(name: Option<&str>, homekit: bool) -> Error {
+    refused(name, "refused pairing with", homekit)
+}
+
+/// The error for a 403 to pair-setup from a Mac that takes its own user only.
+pub fn owner_only(name: Option<&str>) -> Error {
+    let e = Error::auth(format!(
+        "airplay: {} takes AirPlay only from its own user's devices: on that Mac, in System \
+         Settings > General > AirDrop & Handoff > AirPlay Receiver, set Allow AirPlay for to \
+         \"Anyone on the same network\" or \"Everyone\"",
+        name.unwrap_or("the receiver")
+    ))
+    .with_code("forbidden");
+    match name {
+        Some(n) => e.with_device(n),
+        None => e,
+    }
+}
+
+fn refused(name: Option<&str>, what: &str, homekit: bool) -> Error {
+    let name_ = name.unwrap_or("the receiver");
+    let msg = if homekit {
+        format!(
+            "airplay: {name_} {what} 403 Forbidden. A receiver whose Apple Home takes its \
+             members only does that: {HOME_ACCESS}"
+        )
+    } else {
+        format!("airplay: {name_} {what} 403 Forbidden")
+    };
+    let e = Error::auth(msg).with_code("forbidden");
+    match name {
+        Some(n) => e.with_device(n),
+        None => e,
+    }
+}
+
+/// The error for a receiver that wants HTTP Digest (§3), which tvpipe lacks.
+pub fn password_unsupported(name: Option<&str>) -> Error {
+    let e = Error::unsupported(format!(
+        "airplay: {} wants its AirPlay password for streaming (401 Unauthorized), which \
+         tvpipe cannot send yet: turn Require Password off (in the Home app under Speakers & \
+         TV, in the TV's AirPlay settings, or on a Mac under AirPlay Receiver)",
+        name.unwrap_or("the receiver")
+    ))
+    .with_code("password-unsupported");
+    match name {
+        Some(n) => e.with_device(n),
+        None => e,
+    }
+}
 
 /// The error for a receiver that needs FairPlay in a build without it.
 pub fn fairplay_required(name: &str, why: &str) -> Error {
@@ -1073,6 +1233,11 @@ fn fair_play<S: ControlStream>(
     if m2.status == 404 {
         debug!("airplay: /fp-setup not found; no FairPlay");
         return Ok(None);
+    }
+    if m2.status == 403 {
+        return Err(
+            Error::auth("airplay: fp-setup m1: RTSP/1.0 403 Forbidden").with_code("fp-forbidden")
+        );
     }
     let m2 = check(m2, "fp-setup m1")?;
     let m3 = fp.m3(&m2.body).map_err(fp_error)?;

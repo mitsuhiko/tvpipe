@@ -9,6 +9,7 @@
 //! Parsing is lenient: a malformed value is logged and left unset rather
 //! than dropping the whole service.
 
+use crate::airplay::pairing::PinKind;
 use crate::error::{Error, Result};
 
 /// Feature bits from the `features` / `ft` TXT key (pyatv `AirPlayFlags`).
@@ -42,6 +43,8 @@ pub mod status {
     pub const PIN_REQUIRED: u32 = 0x8;
     pub const PASSWORD_REQUIRED: u32 = 0x80;
     pub const LEGACY_PAIRING: u32 = 0x200;
+    /// "DeviceWasSetupForHKAccessControl": it is in an Apple Home.
+    pub const HOMEKIT_ACCESS_CONTROL: u32 = 0x400;
 }
 
 /// Which advertisement the TXT came from; the key names differ.
@@ -71,6 +74,8 @@ pub struct AirPlayTxt {
     pub pi: Option<String>,
     /// `act`: access control type ("2" seems to mean "current user").
     pub act: Option<String>,
+    /// `acl`: the Apple Home's access level (0 open, 1 members only, 2 admin).
+    pub acl: Option<u32>,
     pub osvers: Option<String>,
     pub manufacturer: Option<String>,
 }
@@ -94,6 +99,7 @@ impl AirPlayTxt {
             deviceid: get("deviceid").filter(|s| !s.is_empty()),
             pi: get("pi").filter(|s| !s.is_empty()),
             act: get("act"),
+            acl: get("acl").and_then(|v| v.parse().ok()),
             osvers: get("osvers").filter(|s| !s.is_empty()),
             manufacturer: get("manufacturer").filter(|s| !s.is_empty()),
             pw: get("pw").is_some_and(|v| parse_bool(&v)),
@@ -135,6 +141,33 @@ impl AirPlayTxt {
             || self
                 .flags
                 .is_some_and(|f| f & status::PASSWORD_REQUIRED != 0)
+    }
+
+    /// A shown PIN or its password ([`PinKind::from_status`]).
+    pub fn pin_kind(&self) -> PinKind {
+        let flags = self.flags.unwrap_or(0)
+            | if self.pw {
+                status::PASSWORD_REQUIRED
+            } else {
+                0
+            };
+        PinKind::from_status(flags, self.features.unwrap_or(0))
+    }
+
+    /// Only members of its Apple Home may use it (`acl=1`, §2.1).
+    pub fn home_only(&self) -> bool {
+        self.acl == Some(1)
+    }
+
+    /// A Mac set to "Allow AirPlay for: Current User" (`act=2`).
+    pub fn owner_only(&self) -> bool {
+        self.act.as_deref() == Some("2")
+    }
+
+    /// It is in an Apple Home (status flag 0x400).
+    pub fn homekit(&self) -> bool {
+        self.flags
+            .is_some_and(|f| f & status::HOMEKIT_ACCESS_CONTROL != 0)
     }
 
     /// PIN pairing is mandatory (status bits 0x8 or 0x200).
@@ -248,11 +281,43 @@ mod tests {
         assert_eq!(txt.flags, Some(0x244));
         assert!(!txt.password_required());
         assert!(txt.pin_required()); // 0x200 set
+        assert_eq!(txt.acl, Some(0));
+        assert!(!txt.home_only());
         assert_eq!(txt.model.as_deref(), Some("AppleTV11,1"));
         assert_eq!(txt.srcvers.as_deref(), Some("860.7.1"));
         assert_eq!(txt.deviceid.as_deref(), Some("AA:BB:CC:00:00:01"));
         assert_eq!(txt.pk.as_ref().map(Vec::len), Some(32));
         assert_eq!(txt.osvers.as_deref(), Some("26.1"));
+    }
+
+    /// An LG TV in an Apple Home: members only, then anyone with a password.
+    #[test]
+    fn home_only_txt() {
+        let lg = |acl: &str, flags: &str| {
+            AirPlayTxt::parse(
+                &pairs(&[acl, "features=0x7F8AD0,0x38BCF46", flags, "rsf=0x3"]),
+                Source::AirPlay,
+            )
+        };
+        let members = lg("acl=1", "flags=0x644");
+        assert!(members.homekit() && !lg("acl=0", "flags=0x244").homekit());
+        assert!(members.home_only() && members.pin_required());
+        let network = lg("acl=0", "flags=0x4c4");
+        assert!(!network.home_only() && network.password_required());
+        assert_eq!(
+            (network.pin_kind(), members.pin_kind()),
+            (PinKind::Password, PinKind::Shown)
+        );
+        // A password and the one-time pairing flag 0x200: the password.
+        assert_eq!(lg("acl=0", "flags=0x6c4").pin_kind(), PinKind::Password);
+        // A password and the PIN flag 0x8: the PIN is shown.
+        assert_eq!(lg("acl=0", "flags=0x4cc").pin_kind(), PinKind::Shown);
+        let digest = AirPlayTxt::parse(
+            &pairs(&["features=0x4000080", "flags=0x84"]),
+            Source::AirPlay,
+        );
+        assert!(digest.password_required() && digest.pin_kind() == PinKind::Shown);
+        assert!(!lg("acl=x", "flags=0x644").home_only());
     }
 
     #[test]

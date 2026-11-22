@@ -274,7 +274,7 @@ static PAIR: Cli<PairArg> = Cli::new("pair")
     .opts(&[Opt::new(PairArg::Pin)
         .long("pin")
         .value("PIN")
-        .help("The PIN shown on the TV; asked interactively if omitted")])
+        .help("The PIN shown on the TV, or its AirPlay password; asked interactively if omitted")])
     .args(&[Pos::new(PairArg::Target, "NAME|ADDR").help("Receiver name or address")]);
 
 static UNPAIR: Cli<UnpairArg> = Cli::new("unpair")
@@ -638,7 +638,7 @@ macro_rules! play_opts {
             Opt::new(PlayArg::Latency)
                 .long("latency")
                 .value("MS")
-                .help("Playout delay in ms, the same on every receiver (default: Cast 300, AirPlay automatic ~100-170, browser 100)"),
+                .help("Playout delay in ms, the same on every receiver (default: Cast 300, AirPlay automatic ~100-170 or 600 with sound on a non-Apple TV, browser 100)"),
             Opt::new(PlayArg::Size)
                 .long("size")
                 .value("WxH")

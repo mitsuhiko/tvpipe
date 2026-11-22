@@ -184,7 +184,10 @@ Some AirPlay receivers show a PIN the first time:
 ```js
 import { pair } from "@tvpipe/sdk";
 
-await pair("Living Room", { onPin: async ({ name }) => await ask(`PIN shown on ${name}?`) });
+await pair("Living Room", {
+  // `password`: the TV shows no PIN and wants its password instead.
+  onPin: async ({ name, password }) => await ask(password ? `Password of ${name}?` : `PIN shown on ${name}?`),
+});
 // or let a session pair when it needs to:
 await play("movie.mp4", { to: "Living Room", onPin: ({ name }) => ask(name) });
 ```
@@ -211,6 +214,9 @@ Every failure is a `TvpipeError` with a readable `message` and a stable
 | `no-receivers`, `ambiguous-receiver` | `to` was omitted and there is no single TV (`details.devices` lists them) |
 | `no-receiver` | no receiver with that name was found |
 | `pairing-required` | an Apple TV needs `pair()` (or `onPin`); `device` names it |
+| `home-only` | an AirPlay receiver in an Apple Home takes only the home's members (`device.homeOnly`); the message says what to change in the Home app |
+| `forbidden` | an AirPlay receiver refused pairing, or verified the pairing and refused the session (403); the message says what that may mean |
+| `password-unsupported` | an AirPlay receiver wants its password as HTTP Digest after pairing (401), which tvpipe does not send; the message says to turn Require Password off |
 | `input-not-found`, `ffmpeg-missing` | the input |
 | `binary-missing`, `unsupported-platform` | the binary is not installed (see below) |
 | `aborted`, `usage`, `invalid-argument`, `exited`, … | |
@@ -224,7 +230,7 @@ All options are optional.
 | Option | |
 |---|---|
 | `to` | receivers (above) |
-| `latency` | playout delay in ms, the same on every receiver (default: Cast 300, AirPlay automatic, browser 100) |
+| `latency` | playout delay in ms, the same on every receiver (default: Cast 300, AirPlay automatic or 600 with sound on a non-Apple TV, browser 100) |
 | `size`, `fps`, `bitrate` | output limits (`"1280x720"`, frames per second, kbit/s) |
 | `audio: false` | video only |
 | `reconnect` | seconds to reconnect a lost receiver (0: off) |

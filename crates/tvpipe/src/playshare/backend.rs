@@ -114,15 +114,21 @@ pub fn device_value(d: &crate::net::discover::DeviceInfo) -> Option<Value> {
         (false, false) => return None,
     };
     let paired = airplay.and_then(|a| a.paired);
+    let home_only =
+        kind == "airplay" && airplay.is_some_and(|a| a.home_only) && paired != Some(true);
     // A receiver that shows a PIN and has no pairing here needs one
     // (cast picks Cast for "both", so only AirPlay-only ones).
-    let needs_pin = kind == "airplay" && airplay.is_some_and(|a| a.pin) && paired != Some(true);
+    let needs_pin = kind == "airplay"
+        && !home_only
+        && airplay.is_some_and(|a| a.pin || a.password_pin)
+        && paired != Some(true);
     Some(
         Value::object()
             .with("name", d.name.as_str())
             .with("kind", kind)
             .with_opt("model", d.model.as_deref())
             .with("needsPairing", needs_pin)
+            .with("homeOnly", home_only)
             .with_opt("paired", paired),
     )
 }
@@ -150,7 +156,9 @@ impl Pair for RealPair {
         use crate::api::PairingState;
         match self.0.state() {
             PairingState::Connecting => Value::object().with("state", "connecting"),
-            PairingState::NeedPin(_) => Value::object().with("state", "pin"),
+            PairingState::NeedPin(req) => Value::object()
+                .with("state", "pin")
+                .with("password", req.password),
             PairingState::Done(_) => Value::object().with("state", "done"),
             PairingState::Failed(e) => Value::object()
                 .with("state", "failed")

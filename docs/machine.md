@@ -53,7 +53,7 @@ broke), by an `error`.
 | `keyframe` | a receiver needs an IDR (encoded SLRW with keyframe requests on, see below) | |
 | `stats` | every second while frames flow | `elapsed_ms`, `video_frames`, `audio_frames`, `receivers` (`name`, `pushed`, `dropped`, `dropped_full`, `dropped_waiting`) |
 | `devices` | `discover` (instead of the table or `--json`) | `devices`: the `discover --json` objects |
-| `pin-required` | `pair` needs the PIN the TV shows | `name`, `address` |
+| `pin-required` | `pair` needs the PIN the TV shows, or its password | `name`, `address`, `password` (true: the receiver has a password and shows no PIN; the password is the answer, taken as given but for a line ending, while a PIN is trimmed) |
 | `paired` | `pair` succeeded and the pairing verified | `name`, `model`, `file` (the credentials file) |
 | `unpaired` | `unpair` forgot a pairing | `name`, `id` |
 | `end` | the command is over | `reason` (`eof`, `stopped`, `receivers-gone`, `error`; `done` for commands without a stream); with a stream also `receivers` (`name`, `end`: `stopped`/`ended`/`failed`, `error`, the stats fields) |
@@ -76,6 +76,9 @@ With several receivers one that fails does not end the session.
 | `code` | |
 |---|---|
 | `pairing-required` | an AirPlay receiver needs `pair` first; `device` is the name to pass to `pair` |
+| `home-only` | an AirPlay receiver that advertises that its Apple Home takes sessions only from the home's members (`home_only` in `discover`; the Home app: Home Settings, Speakers & TV, Allow Speaker & TV Access): from `pair`, from a session without a stored pairing before it connects (given by address: after the receiver refused it, from its advertisement), and from a session whose stored pairing got 403; `device` is its name |
+| `forbidden` | an AirPlay receiver answered 403 without advertising why: to pair-setup, or to the session (or `/fp-setup` before it) after it verified the stored pairing; when it is in an Apple Home (status flag 0x400) the message names the Home setting, the known cause, and for a Mac that allows only its current user (`act=2`) that setting; `device` is its name. In a build without FairPlay, from a receiver that offers it, the code is `fairplay-required` and the message names both |
+| `password-unsupported` | an AirPlay receiver answered the session 401 after pairing: it wants its password as HTTP Digest, which tvpipe does not send (an Apple TV, HomePod or Mac with Require Password on); the message says to turn the password off; `device` is its name |
 | `no-receiver` | no receiver of that name was found; `device` is the name |
 | `input-not-found` | the input file does not exist |
 | `ffmpeg-missing` | the input needs ffmpeg and there is none |

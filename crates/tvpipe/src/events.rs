@@ -497,6 +497,8 @@ pub struct PinRequest {
     pub name: String,
     /// Its address (`ip:port`).
     pub address: String,
+    /// It asks for its AirPlay password and shows no PIN.
+    pub password: bool,
 }
 
 /// A pairing succeeded.
@@ -840,7 +842,8 @@ impl Event {
             ),
             Event::PinRequired(p) => v
                 .with("name", p.name.as_str())
-                .with("address", p.address.as_str()),
+                .with("address", p.address.as_str())
+                .with("password", p.password),
             Event::Paired(p) => v
                 .with("name", p.name.as_str())
                 .with_opt("model", p.model.as_deref())
@@ -975,6 +978,7 @@ impl Event {
             "pin-required" => Event::PinRequired(PinRequest {
                 name: v.require_str("name")?.to_owned(),
                 address: v.require_str("address")?.to_owned(),
+                password: v.get("password").and_then(Value::as_bool).unwrap_or(false),
             }),
             "paired" => Event::Paired(Paired {
                 name: v.require_str("name")?.to_owned(),

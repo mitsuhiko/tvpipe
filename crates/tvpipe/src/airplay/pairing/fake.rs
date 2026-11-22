@@ -38,6 +38,10 @@ pub(crate) struct Config {
     pub transient_hkp: String,
     /// SRP password of transient pair-setup.
     pub transient_pin: String,
+    /// `statusFlags` of `/info` (default 0x644).
+    pub status_flags: u64,
+    /// Answer `/pair-setup` with 403.
+    pub forbid_pair_setup: bool,
 }
 
 impl Default for Config {
@@ -50,6 +54,8 @@ impl Default for Config {
             name: "Fake TV".into(),
             transient_hkp: "4".into(),
             transient_pin: TRANSIENT_PIN.into(),
+            status_flags: 0x644,
+            forbid_pair_setup: false,
         }
     }
 }
@@ -196,6 +202,9 @@ fn handle(
             state.lock().unwrap().pin_starts += 1;
             (reply(req, 200, "OK", None, Vec::new()), None)
         }
+        ("POST", "/pair-setup") if cfg.forbid_pair_setup => {
+            (reply(req, 403, "Forbidden", None, Vec::new()), None)
+        }
         ("POST", "/pair-setup") => match pair_setup(req, cs, state, cfg) {
             Ok(r) => r,
             Err(e) => {
@@ -234,7 +243,7 @@ fn info(cfg: &Config, verified: bool) -> Plist {
         .with("features", 0x3C177FDE_4A7FDFD5u64 as i64)
         .with("pk", Plist::data(key.public_key().to_vec()))
         .with("sourceVersion", "960.13.1")
-        .with("statusFlags", 0x644i64);
+        .with("statusFlags", cfg.status_flags as i64);
     if verified {
         p = p.with(
             "displays",

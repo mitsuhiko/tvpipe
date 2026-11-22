@@ -10,6 +10,9 @@
 export type TvpipeErrorCode =
   // The binary's (docs/machine.md).
   | "pairing-required"
+  | "home-only"
+  | "forbidden"
+  | "password-unsupported"
   | "no-receiver"
   | "input-not-found"
   | "ffmpeg-missing"

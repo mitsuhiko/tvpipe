@@ -240,13 +240,13 @@ impl Pairing {
         }
     }
 
-    /// The PIN the TV shows.
+    /// The PIN the TV shows, or its password (as given but for a line ending).
     pub fn submit_pin(&self, pin: &str) -> Result<()> {
         if !matches!(*self.lock(), PairingState::NeedPin(_)) {
             return Err(Error::usage("the pairing does not wait for a PIN"));
         }
         self.pin
-            .send(Some(pin.trim().to_owned()))
+            .send(Some(pin.trim_end_matches(['\r', '\n']).to_owned()))
             .map_err(|_| Error::closed("the pairing ended"))
     }
 

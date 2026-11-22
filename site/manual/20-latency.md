@@ -34,11 +34,12 @@ Phones stamp photos late. Photograph a millisecond clock on its own first and su
 | Receivers | Default |
 |---|---|
 | AirPlay | video 100 ms, audio 170 ms |
+| AirPlay TV that is not an Apple TV, with sound | 600 ms |
 | Cast | 300 ms |
 | AirPlay and Cast | 300 ms |
 | Browser only | 100 ms |
 
-Lower values drop frames on busy Wi-Fi.
+Lower values drop frames on busy Wi-Fi. An LG TV crackled or lost the sound with less than about 600 ms, so other makers' AirPlay TVs get 600 ms when there is sound; `--no-audio` keeps the shorter delay.
 
 ## Player statistics
 

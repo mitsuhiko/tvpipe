@@ -177,7 +177,9 @@ enum Protocol {
 /// discovery (bare addresses are Cast on 8009, port 7000 is AirPlay).
 fn parse_target(query: &str) -> (Option<Protocol>, &str) {
     for (prefix, proto) in [("cast:", Protocol::Cast), ("airplay:", Protocol::AirPlay)] {
-        if query.len() > prefix.len() && query[..prefix.len()].eq_ignore_ascii_case(prefix) {
+        // `get`: a multi-byte character may sit where the prefix ends.
+        let head = query.get(..prefix.len());
+        if query.len() > prefix.len() && head.is_some_and(|h| h.eq_ignore_ascii_case(prefix)) {
             return (Some(proto), &query[prefix.len()..]);
         }
     }
@@ -840,14 +842,19 @@ fn connect_all(
                     .unwrap_or_else(|_| Err(Error::process("connect thread panicked")));
                 let name = target_name(t).to_owned();
                 match &r {
-                    Ok(_) => events.emit(Event::Receiver(
+                    Ok(sink) => events.emit(Event::Receiver(
                         ReceiverEvent::new(
                             &name,
                             Some(target_protocol(t)),
                             ReceiverState::Connected,
                             None,
                         )
-                        .with_delay(target_delay_ms(t, opts, mirror)),
+                        .with_delay(connected_delay_ms(
+                            t,
+                            sink.as_ref(),
+                            opts,
+                            mirror,
+                        )),
                     )),
                     Err(e) => events.receiver(
                         &name,
@@ -878,6 +885,19 @@ fn target_delay_ms(t: &Target, opts: &CastOptions, mirror: &crate::airplay::Mirr
         #[cfg(not(feature = "airplay"))]
         Target::AirPlay { .. } => mirror.latency_ms.unwrap_or(0),
         Target::Browser(o) => o.latency_ms,
+    }
+}
+
+/// [`target_delay_ms`], with an AirPlay session's own video lead.
+fn connected_delay_ms(
+    t: &Target,
+    sink: &dyn Sink,
+    opts: &CastOptions,
+    mirror: &crate::airplay::MirrorOptions,
+) -> u32 {
+    match (t, sink.capabilities().preferred_latency_ms) {
+        (Target::AirPlay { .. }, Some(ms)) => ms,
+        _ => target_delay_ms(t, opts, mirror),
     }
 }
 
@@ -2543,6 +2563,12 @@ mod tests {
         assert_eq!(t("Living Room"), None);
         assert_eq!(t("cast:Living Room"), None);
         assert_eq!(parse_target("cast:"), (None, "cast:"));
+        assert_eq!(
+            parse_target("John’s MacBook Pro"),
+            (None, "John’s MacBook Pro")
+        );
+        assert_eq!(parse_target("Ariplay’s"), (None, "Ariplay’s"));
+        assert_eq!(t("John’s MacBook Pro"), None);
     }
 
     #[test]
@@ -2574,6 +2600,16 @@ mod tests {
         };
         assert_eq!(target_delay_ms(&airplay, &opts, &given), 250);
         assert_eq!(target_delay_ms(&browser, &opts, &auto), 140);
+        let tv = ArrivalSink {
+            caps: Capabilities {
+                preferred_latency_ms: Some(600),
+                ..caps(1920, 1080, 30, 8000)
+            },
+            arrivals: Default::default(),
+            left: 0,
+        };
+        assert_eq!(connected_delay_ms(&airplay, &tv, &opts, &auto), 600);
+        assert_eq!(connected_delay_ms(&cast, &tv, &opts, &auto), 300);
     }
 
     #[test]
@@ -3194,7 +3230,7 @@ mod tests {
                     crate::net::rtsp::RtspClient::new(tcp),
                     addr,
                     secret.clone(),
-                    true,
+                    crate::airplay::session::ControlAuth::Verified,
                 ))
             },
         )?))

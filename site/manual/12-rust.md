@@ -83,7 +83,7 @@ let end = s.stop()?;
 tvpipe::pair("Living Room", |req| ask_user(&req.name))?;
 ```
 
-`Pairing::start()` does the same over several frames of a game's UI: show a PIN field when its state is `NeedPin`, then call `submit_pin()`. With `Options::on_pin`, `stream()` and `play()` pair a receiver that needs it when they first use it.
+A TV with an AirPlay password shows no PIN: `req.password` is true and the answer is that password. `Pairing::start()` does the same over several frames of a game's UI: show a PIN field when its state is `NeedPin`, then call `submit_pin()`. With `Options::on_pin`, `stream()` and `play()` pair a receiver that needs it when they first use it.
 
 Pairings live in a `Storage`. By default each program has its own directory, named by `Storage::app("com.example.mygame")`. `Storage::cli()` shares the command line tool's ([Configuration](config.md)), so `tvpipe pair` once works for both. `Storage::memory()` and `Storage::custom()` let a program keep them itself, in a save game or a keychain.
 

@@ -22,6 +22,8 @@ use tvpipe::__cli::Stop;
 
 use crate::ui::confirm::Key;
 
+/// [`link`] installed the handler.
+static LINKED: AtomicBool = AtomicBool::new(false);
 /// The stdin watcher runs (stdin is a terminal).
 static WATCHING: AtomicBool = AtomicBool::new(false);
 /// Where the watcher sends the next line that is not `q`, if [`ask`]
@@ -32,7 +34,14 @@ static ANSWER: Mutex<Option<mpsc::Sender<String>>> = Mutex::new(None);
 /// Returns false if the platform refused; Ctrl-C then kills the process
 /// as usual.
 pub fn link(stop: Stop) -> bool {
-    tvpipe::signals::on_signal(move || stop.request())
+    let linked = tvpipe::signals::on_signal(move || stop.request());
+    LINKED.store(linked, Ordering::SeqCst);
+    linked
+}
+
+/// [`link`] forwards Ctrl-C to a session's stop.
+pub fn linked() -> bool {
+    LINKED.load(Ordering::SeqCst)
 }
 
 /// Whether the stop came from Ctrl-C/SIGTERM (exit status 130; `q`
