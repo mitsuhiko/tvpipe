@@ -85,6 +85,10 @@ By default through a public link: OpenTunnel, which tvpipe sets up once and reus
 | `--browser PATH` | The browser for the window and for rendering the TV |
 | `--resolution RES` | The TV picture at the start: `auto` (up to 1080p, the default), `720p`, `1080p` or `4k`; the window can change it. The game looks the same, only sharper |
 | `--bitrate KBPS` | The TV picture's video bitrate, like `--bitrate 20000`. The default comes from the size and frame rate (about 6000 at 1080p30). Higher is sharper in motion but needs a good network; AirPlay takes up to 25000. When the network cannot keep up, tvpipe lowers it for a while and goes back up once it can |
+| `--fps N` | The TV picture's frame rate. Default 30 |
+| `--latency MS` | How long the TVs wait before they show a frame. See [Latency](latency.md) |
+| `--no-audio` | The TV picture without the game's sound |
+| `--reconnect SECS` | How long to reconnect a TV that dropped out. Default 120, `0` is off |
 | `--dev` | Test mode: the game may offer test tools in its window. Drawbluff, Garble, Jinx, Krakel, Shifty, Landgrab and Crosstalk get "Add a bot" buttons there: dummy players that join and play by themselves, to try a game alone |
 
 The QR code holds the link with the room's code and a key, so only people who can see the TV can join. On the Wi-Fi (`--lan`) the page is plain HTTP and the key crosses the network unencrypted: use the public link on networks with strangers. With Cloudflare, Cloudflare can read the game's traffic. With OpenTunnel, nobody else can.

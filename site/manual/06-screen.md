@@ -92,4 +92,4 @@ On macOS the browser needs permission to record the screen and the sound. The fi
 
 ## Without a browser
 
-`tvpipe screen --engine ffmpeg` records with ffmpeg instead, and tvpipe does this by itself when no browser is installed. It sends no sound on macOS and Windows. It shares windows only on Windows and on Linux with X11.
+`tvpipe screen --engine ffmpeg` records with ffmpeg instead, and tvpipe does this by itself when no browser is installed. It sends no sound on macOS and Windows. It shares windows only on Windows and on Linux with X11. `--encoder` picks ffmpeg's encoder, like `--encoder videotoolbox` on a Mac, and implies `--engine ffmpeg`; see [Encoders](options.md#s5).

@@ -70,7 +70,11 @@ enum PlayshareArg {
     Browser,
     Port,
     Resolution,
+    Fps,
     Bitrate,
+    Latency,
+    NoAudio,
+    Reconnect,
     Dev,
 }
 
@@ -172,6 +176,7 @@ enum ScreenArg {
     Engine,
     Browser,
     Ffmpeg,
+    Encoder,
     Port,
     Open,
     WaitForViewer,
@@ -347,10 +352,22 @@ static GAME_PLAY: Cli<PlayshareArg> = Cli::new("play")
             .long("resolution")
             .value("RES")
             .help("The TV picture: auto, 720p, 1080p or 4k (default auto; the window can change it)"),
+        Opt::new(PlayshareArg::Fps)
+            .long("fps")
+            .value("N")
+            .help("The TV picture's frame rate (default 30)"),
         Opt::new(PlayshareArg::Bitrate)
             .long("bitrate")
             .value("KBPS")
-            .help("The TV picture's video bitrate in kbit/s (default: from its size and frame rate)"),
+            .help("The TV picture's video bitrate in kbit/s, the most when the network is slow (default: from its size and frame rate)"),
+        Opt::new(PlayshareArg::Latency)
+            .long("latency")
+            .value("MS")
+            .help("Playout delay in ms, the same on every TV (default: the receivers')"),
+        Opt::new(PlayshareArg::NoAudio)
+            .long("no-audio")
+            .help("The TV picture without its sound"),
+        reconnect(PlayshareArg::Reconnect),
         Opt::new(PlayshareArg::Dev)
             .long("dev")
             .help("Test mode: the game's host page offers its test tools (bots: dummy players that join and play)"),
@@ -613,6 +630,24 @@ const fn interface<A>(id: A) -> Opt<A> {
         .help("Also browse from this local address (repeatable)")
 }
 
+const fn encoder<A>(id: A, help: &'static str) -> Opt<A> {
+    Opt::new(id)
+        .long("encoder")
+        .value("ENCODER")
+        .default_value("auto")
+        .possible_values(&[
+            "auto",
+            "builtin",
+            "x264",
+            "videotoolbox",
+            "nvenc",
+            "qsv",
+            "vaapi",
+            "mf",
+        ])
+        .help(help)
+}
+
 const fn ffmpeg_path<A>(id: A) -> Opt<A> {
     Opt::new(id)
         .long("ffmpeg")
@@ -656,21 +691,7 @@ macro_rules! play_opts {
                 .long("bitrate")
                 .value("KBPS")
                 .help("Video bitrate in kbit/s"),
-            Opt::new(PlayArg::Encoder)
-                .long("encoder")
-                .value("ENCODER")
-                .default_value("auto")
-                .possible_values(&[
-                    "auto",
-                    "builtin",
-                    "x264",
-                    "videotoolbox",
-                    "nvenc",
-                    "qsv",
-                    "vaapi",
-                    "mf",
-                ])
-                .help("Video encoder"),
+            encoder(PlayArg::Encoder, "Video encoder"),
             Opt::new(PlayArg::NoAudio)
                 .long("no-audio")
                 .help("Do not send audio"),
@@ -869,6 +890,10 @@ static SCREEN: Cli<ScreenArg> = Cli::new("screen")
             .value_hint(ValueHint::ExecutablePath)
             .help("The Chromium-based browser (default: $TVPIPE_BROWSER, then Chrome, Edge, Chromium, Brave)"),
         ffmpeg_path(ScreenArg::Ffmpeg),
+        encoder(
+            ScreenArg::Encoder,
+            "ffmpeg's video encoder (--engine ffmpeg; naming one picks that engine)",
+        ),
         player_port(ScreenArg::Port),
         player_open(ScreenArg::Open),
         wait_for_viewer(ScreenArg::WaitForViewer),
@@ -1117,7 +1142,19 @@ fn parse_playshare(mut p: Parser<PlayshareArg>) -> Result<Command, Error> {
                     None => return Err(p.error("--resolution: auto, 720p, 1080p or 4k")),
                 };
             }
-            PlayshareArg::Bitrate => o.bitrate_kbps = Some(p.value()?),
+            PlayshareArg::Fps => {
+                let fps: u32 = p.value()?;
+                if !(1..=120).contains(&fps) {
+                    return Err(p.error("--fps is 1-120"));
+                }
+                o.stream.fps = Some(fps);
+            }
+            PlayshareArg::Bitrate => o.stream.bitrate_kbps = Some(p.value()?),
+            PlayshareArg::Latency => {
+                o.stream.latency = Some(Duration::from_millis(p.value::<u64>()?))
+            }
+            PlayshareArg::NoAudio => o.stream.no_audio = true,
+            PlayshareArg::Reconnect => o.stream.reconnect = Some(reconnect_secs(&mut p)?),
         }
     }
     if no_tunnel && tunnel.is_some() {
@@ -1465,6 +1502,7 @@ fn parse_screen(mut p: Parser<ScreenArg>, g: &mut Global) -> Result<Command, Err
             }
             ScreenArg::Browser => o.browser = Some(p.value()?),
             ScreenArg::Ffmpeg => o.ffmpeg = Some(p.value()?),
+            ScreenArg::Encoder => o.encoder = parse_encoder(&p.value::<String>()?),
         }
     }
     if o.share.to.is_empty() {
@@ -1483,6 +1521,15 @@ fn parse_screen(mut p: Parser<ScreenArg>, g: &mut Global) -> Result<Command, Err
     if !has_browser_target(&o.share.to) && browser_opts != BrowserOptions::default() {
         return Err(p.error(PLAYER_ONLY));
     }
+    if o.encoder == Encoder::Builtin {
+        return Err(
+            p.error("--encoder builtin cannot take ffmpeg's capture: name an ffmpeg encoder")
+        );
+    }
+    // An ffmpeg encoder means ffmpeg's capture.
+    if o.encoder != Encoder::Auto && o.engine.is_none() {
+        o.engine = Some(ScreenEngine::Ffmpeg);
+    }
     match o.engine {
         Some(ScreenEngine::Ffmpeg) if o.browser.is_some() => {
             return Err(p.error("--browser is for --engine browser"));
@@ -1492,6 +1539,9 @@ fn parse_screen(mut p: Parser<ScreenArg>, g: &mut Global) -> Result<Command, Err
         }
         Some(ScreenEngine::Browser) if o.ffmpeg.is_some() => {
             return Err(p.error("--ffmpeg is for --engine ffmpeg"));
+        }
+        Some(ScreenEngine::Browser) if o.encoder != Encoder::Auto => {
+            return Err(p.error("--encoder is for --engine ffmpeg (the browser encodes itself)"));
         }
         _ => {}
     }
@@ -1767,13 +1817,29 @@ mod tests {
             "4k",
             "--bitrate",
             "20000",
+            "--fps",
+            "60",
+            "--latency",
+            "150",
+            "--no-audio",
+            "--reconnect",
+            "30",
             "--dev",
             "x.zip",
         ]) else {
             panic!()
         };
         assert_eq!(o.resolution, Resolution::P2160);
-        assert_eq!(o.bitrate_kbps, Some(20000));
+        assert_eq!(
+            o.stream,
+            tvpipe::__cli::playshare::StreamOptions {
+                fps: Some(60),
+                bitrate_kbps: Some(20000),
+                latency: Some(Duration::from_millis(150)),
+                no_audio: true,
+                reconnect: Some(Duration::from_secs(30)),
+            }
+        );
         assert!(o.dev);
         assert_eq!(o.tunnel, TunnelChoice::Provider(Provider::Cloudflare));
         assert_eq!(o.lan, Some(Some("192.168.1.5".parse().unwrap())));
@@ -1803,6 +1869,8 @@ mod tests {
             &["game", "play", "--lan=nope", "x"],
             &["game", "play", "--resolution", "8k", "x"],
             &["game", "play", "--bitrate", "fast", "x"],
+            &["game", "play", "--fps", "0", "x"],
+            &["game", "play", "--latency", "soon", "x"],
         ] {
             assert!(parse_from(bad).is_err(), "{bad:?}");
         }
@@ -1939,6 +2007,16 @@ mod tests {
         assert!(screen(&["--engine", "ffmpeg", "--pick"]).is_err());
         assert!(screen(&["--engine", "ffmpeg", "--browser", "x"]).is_err());
         assert!(screen(&["--engine", "browser", "--ffmpeg", "x"]).is_err());
+        // An ffmpeg encoder: ffmpeg's capture (named or implied).
+        let o = screen(&["--encoder", "videotoolbox"]).unwrap();
+        assert_eq!(
+            (o.engine, o.encoder),
+            (Some(ScreenEngine::Ffmpeg), Encoder::VideoToolbox)
+        );
+        assert_eq!(screen(&[]).unwrap().encoder, Encoder::Auto);
+        assert!(screen(&["--engine", "browser", "--encoder", "x264"]).is_err());
+        assert!(screen(&["--encoder", "x264", "--browser", "x"]).is_err());
+        assert!(screen(&["--encoder", "builtin"]).is_err());
         // The player's options only with --to browser.
         assert!(screen(&["--open"]).unwrap_err().contains("--to browser"));
         let o = parse_from(&["screen", "--to", "browser", "--open", "--port", "0"]).unwrap();

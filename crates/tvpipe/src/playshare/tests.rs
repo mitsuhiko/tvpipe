@@ -1701,7 +1701,7 @@ fn chrome_playshare_window_and_cast() {
     let backend = backend::Real {
         storage: crate::storage::Storage::memory(),
         browser: Some(bin.clone().into()),
-        bitrate_kbps: None,
+        stream: backend::StreamOptions::default(),
     };
     let running = Running::start(bundle, Box::new(backend), &opts, stop.clone()).unwrap();
     let hub = running.hub.clone();

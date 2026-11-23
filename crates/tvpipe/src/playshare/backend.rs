@@ -139,8 +139,48 @@ pub fn device_value(d: &crate::net::discover::DeviceInfo) -> Option<Value> {
 pub struct Real {
     pub storage: Storage,
     pub browser: Option<PathBuf>,
-    /// `--bitrate`: the TV page's stream (a surface's page picks its own).
+    pub stream: StreamOptions,
+}
+
+/// `game play`'s stream options (`--fps`, `--bitrate`, `--latency`,
+/// `--no-audio`, `--reconnect`). The TV page's stream takes them all; a
+/// surface's page picks its own frame rate, bitrate and sound, so it
+/// takes the latency and the reconnect window only.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StreamOptions {
+    pub fps: Option<u32>,
     pub bitrate_kbps: Option<u32>,
+    pub latency: Option<std::time::Duration>,
+    pub no_audio: bool,
+    pub reconnect: Option<std::time::Duration>,
+}
+
+impl StreamOptions {
+    /// Latency and reconnect (every stream).
+    fn common(&self, mut opts: crate::api::Options) -> crate::api::Options {
+        if let Some(l) = self.latency {
+            opts = opts.latency(l);
+        }
+        if let Some(r) = self.reconnect {
+            opts = opts.reconnect(r);
+        }
+        opts
+    }
+
+    /// Everything (the TV page).
+    fn tv(&self, mut opts: crate::api::Options) -> crate::api::Options {
+        opts = self.common(opts);
+        if let Some(f) = self.fps {
+            opts = opts.fps(f);
+        }
+        if let Some(k) = self.bitrate_kbps {
+            opts = opts.bitrate_kbps(k);
+        }
+        if self.no_audio {
+            opts = opts.no_audio();
+        }
+        opts
+    }
 }
 
 struct RealDiscover(crate::api::Discovery);
@@ -300,6 +340,7 @@ impl Backend for Real {
         if let Some(k) = spec.bitrate_kbps {
             opts = opts.bitrate_kbps(k);
         }
+        opts = self.stream.common(opts);
         Ok(Box::new(RealSurface {
             stream: crate::api::Stream::start(opts)?,
             error: None,
@@ -330,9 +371,7 @@ impl Backend for Real {
             opts = opts.to(t.as_str());
         }
         opts = picture_options(opts, picture);
-        if let Some(k) = self.bitrate_kbps {
-            opts = opts.bitrate_kbps(k);
-        }
+        opts = self.stream.tv(opts);
         if let Some(b) = &self.browser {
             opts = opts.browser_path(b.clone());
         }
@@ -373,6 +412,57 @@ mod tests {
             o.size.map(|s| (s.width, s.height)),
             o.page.and_then(|p| p.resolution),
         )
+    }
+
+    #[test]
+    fn stream_options_reach_the_tv_and_surfaces() {
+        use std::time::Duration;
+        let stream = StreamOptions {
+            fps: Some(60),
+            bitrate_kbps: Some(20_000),
+            latency: Some(Duration::from_millis(150)),
+            no_audio: true,
+            reconnect: Some(Duration::from_secs(30)),
+        };
+        let tv = stream
+            .tv(crate::api::Options::new())
+            .share_options(Some("http://x/"));
+        assert_eq!(tv.fps, Some(crate::util::ratio::Ratio::integer(60)));
+        assert_eq!(tv.bitrate_kbps, Some(20_000));
+        assert_eq!(tv.latency_ms, Some(150));
+        assert!(tv.no_audio);
+        assert_eq!(tv.reconnect, Duration::from_secs(30));
+        // A surface's page chooses its frame rate, bitrate and sound.
+        let surface = stream
+            .common(crate::api::Options::new())
+            .share_options(None);
+        assert_eq!(
+            (surface.fps, surface.bitrate_kbps, surface.no_audio),
+            (None, None, false)
+        );
+        assert_eq!(surface.latency_ms, Some(150));
+        assert_eq!(surface.reconnect, Duration::from_secs(30));
+        // None given: the defaults.
+        let none = StreamOptions::default()
+            .tv(crate::api::Options::new())
+            .share_options(None);
+        let default = crate::api::Options::new().share_options(None);
+        assert_eq!(
+            (
+                none.fps,
+                none.bitrate_kbps,
+                none.latency_ms,
+                none.no_audio,
+                none.reconnect
+            ),
+            (
+                default.fps,
+                default.bitrate_kbps,
+                default.latency_ms,
+                default.no_audio,
+                default.reconnect
+            )
+        );
     }
 
     #[test]

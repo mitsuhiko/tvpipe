@@ -763,6 +763,9 @@ when chosen (it costs the computer about nine times the rendering of
 720p, and TVs may refuse it: a Chromecast that does not allow 4K gets
 1080p). Changing it restarts the picture on the TVs. A game whose TV
 page must be exactly its size sets `"resolution": "fixed"`.
+`--fps N` (default 30), `--latency MS`, `--no-audio` and `--reconnect
+SECS` (default 120) are the TV picture's, like `share`'s; a surface takes
+the latency and the reconnect window, its page picks the rest.
 `--bitrate KBPS` sets the TV picture's bitrate (default: 0.1 bit per
 pixel and frame, 1000–20000 kbit/s), within what the TVs take (AirPlay:
 25000). It is the ceiling: while a TV's network is behind, tvpipe lowers

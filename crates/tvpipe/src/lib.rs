@@ -135,6 +135,7 @@ pub mod __cli {
     }
     #[cfg(feature = "playshare")]
     pub mod playshare {
+        pub use crate::playshare::backend::StreamOptions;
         pub use crate::playshare::remote::FetchOptions;
         pub use crate::playshare::resolution::Resolution;
         pub use crate::playshare::tool::{run as game_tool, ToolAction, ToolOptions};

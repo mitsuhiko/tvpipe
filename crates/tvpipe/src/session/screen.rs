@@ -164,7 +164,7 @@ fn screen_ffmpeg(opts: ScreenOptions, ctx: &Ctx) -> Result<()> {
             size: Some(s.size.unwrap_or(FFMPEG_SIZE)),
             fps: Some(fps),
             bitrate_kbps: s.bitrate_kbps,
-            encoder: Encoder::default(),
+            encoder: opts.encoder,
             no_audio: s.no_audio || !input.audio,
             looped: false,
             realtime: Some(false),

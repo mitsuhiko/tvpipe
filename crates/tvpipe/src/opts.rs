@@ -204,6 +204,8 @@ pub struct ScreenOptions {
     pub engine: Option<ScreenEngine>,
     pub browser: Option<PathBuf>,
     pub ffmpeg: Option<PathBuf>,
+    /// `--encoder`: ffmpeg's video encoder (the ffmpeg engine).
+    pub encoder: Encoder,
 }
 
 /// What `tvpipe screen` shares.
