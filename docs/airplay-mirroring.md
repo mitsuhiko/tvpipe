@@ -313,7 +313,13 @@ canvas itself is used (rounded down to even).
   instead of the canvas; `auto` keeps the canvas. Whether the receiver
   then shows the larger picture at full resolution or scales it is not
   verified, nor 4K H.264 at all (Apple's own senders seem to mirror 4K as
-  HEVC, feature 42). The 12000 kbit/s ceiling (§6.6) stays for now.
+  HEVC, feature 42).
+- tvpipe (not the reference): the bitrate ceiling is 25000 kbit/s, not
+  the reference's 12000 (§6.6), so `--bitrate` can go above it: AirPlay
+  receiver vendors quote 25 Mbit/s per mirroring stream as Apple's
+  recommended bandwidth (AirServer's network guide). tvpipe does not
+  adapt the bitrate; on a weak Wi-Fi a write that stalls for 2 s still
+  ends the session (§6.5).
 
 ### 2.7 Latency profile
 

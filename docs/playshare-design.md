@@ -465,8 +465,8 @@ Cast receiver. **Not verified on hardware:** whether an Apple TV shows a
 4K (or 1080p above its 1280x720 canvas) H.264 stream at full resolution
 (Apple's own senders seem to send 4K as HEVC); what a real Google TV or
 Chromecast ANSWERs to a 4K offer (openscreen's defaults are 1080p30);
-software encoding (no hardware encoder) at 4K; AirPlay's 12 Mbit/s
-ceiling at 4K (follow-up: a hardware test before raising it).
+software encoding (no hardware encoder) at 4K; AirPlay at 4K with
+its 25 Mbit/s ceiling (docs/airplay-mirroring.md §2.6).
 
 ## 10. Lifecycle
 

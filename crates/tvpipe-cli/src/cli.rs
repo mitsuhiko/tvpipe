@@ -70,6 +70,7 @@ enum PlayshareArg {
     Browser,
     Port,
     Resolution,
+    Bitrate,
     Dev,
 }
 
@@ -346,6 +347,10 @@ static GAME_PLAY: Cli<PlayshareArg> = Cli::new("play")
             .long("resolution")
             .value("RES")
             .help("The TV picture: auto, 720p, 1080p or 4k (default auto; the window can change it)"),
+        Opt::new(PlayshareArg::Bitrate)
+            .long("bitrate")
+            .value("KBPS")
+            .help("The TV picture's video bitrate in kbit/s (default: from its size and frame rate)"),
         Opt::new(PlayshareArg::Dev)
             .long("dev")
             .help("Test mode: the game's host page offers its test tools (bots: dummy players that join and play)"),
@@ -1112,6 +1117,7 @@ fn parse_playshare(mut p: Parser<PlayshareArg>) -> Result<Command, Error> {
                     None => return Err(p.error("--resolution: auto, 720p, 1080p or 4k")),
                 };
             }
+            PlayshareArg::Bitrate => o.bitrate_kbps = Some(p.value()?),
         }
     }
     if no_tunnel && tunnel.is_some() {
@@ -1759,12 +1765,15 @@ mod tests {
             "8000",
             "--resolution",
             "4k",
+            "--bitrate",
+            "20000",
             "--dev",
             "x.zip",
         ]) else {
             panic!()
         };
         assert_eq!(o.resolution, Resolution::P2160);
+        assert_eq!(o.bitrate_kbps, Some(20000));
         assert!(o.dev);
         assert_eq!(o.tunnel, TunnelChoice::Provider(Provider::Cloudflare));
         assert_eq!(o.lan, Some(Some("192.168.1.5".parse().unwrap())));
@@ -1793,6 +1802,7 @@ mod tests {
             &["game", "play", "--window", "tab", "x"],
             &["game", "play", "--lan=nope", "x"],
             &["game", "play", "--resolution", "8k", "x"],
+            &["game", "play", "--bitrate", "fast", "x"],
         ] {
             assert!(parse_from(bad).is_err(), "{bad:?}");
         }

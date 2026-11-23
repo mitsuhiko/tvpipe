@@ -93,8 +93,11 @@ const MAX_STALE_AT_START: u32 = 128;
 /// Burst pacing: packets per window (§8.4).
 const BURST_PACKETS: u32 = 12;
 const BURST_WINDOW: Duration = Duration::from_millis(5);
-/// Bitrate ceiling the reference uses (§6.6).
-const MAX_BITRATE_KBPS: u32 = 12_000;
+/// Bitrate ceiling. The reference stops at 12000 kbit/s (§6.6), with
+/// its own adaptation below; 25 Mbit/s per mirroring stream is the
+/// bandwidth AirPlay receivers' makers quote (§2.6). The defaults stay
+/// lower (1080p60: about 12 Mbit/s); `--bitrate` may go up to this.
+const MAX_BITRATE_KBPS: u32 = 25_000;
 
 /// The production stream type.
 pub type SecureMirrorSink = MirrorSink<SecureStream<TcpStream>>;

@@ -100,6 +100,9 @@ pub struct Options {
     /// `--resolution`: the TV picture's at the start (the launcher and
     /// the cast picker change it).
     pub resolution: resolution::Resolution,
+    /// `--bitrate`: the TV picture's video bitrate in kbit/s (default:
+    /// from its size and frame rate, within what the TVs take).
+    pub bitrate_kbps: Option<u32>,
     /// `--no-short-link`: no short link at tvpipe.party.
     pub no_short_link: bool,
     /// `--dev`: test mode, `info.dev` (a game's host page offers its test
@@ -315,6 +318,7 @@ pub fn run(opts: &Options, ctx: &Ctx, ask: Ask<'_>) -> Result<()> {
     let backend = backend::Real {
         storage: ctx.storage.clone(),
         browser: opts.browser.clone(),
+        bitrate_kbps: opts.bitrate_kbps,
     };
     let running = Running::start_with(
         first,

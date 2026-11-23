@@ -139,6 +139,8 @@ pub fn device_value(d: &crate::net::discover::DeviceInfo) -> Option<Value> {
 pub struct Real {
     pub storage: Storage,
     pub browser: Option<PathBuf>,
+    /// `--bitrate`: the TV page's stream (a surface's page picks its own).
+    pub bitrate_kbps: Option<u32>,
 }
 
 struct RealDiscover(crate::api::Discovery);
@@ -328,6 +330,9 @@ impl Backend for Real {
             opts = opts.to(t.as_str());
         }
         opts = picture_options(opts, picture);
+        if let Some(k) = self.bitrate_kbps {
+            opts = opts.bitrate_kbps(k);
+        }
         if let Some(b) = &self.browser {
             opts = opts.browser_path(b.clone());
         }

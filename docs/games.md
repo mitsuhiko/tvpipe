@@ -763,6 +763,9 @@ when chosen (it costs the computer about nine times the rendering of
 720p, and TVs may refuse it: a Chromecast that does not allow 4K gets
 1080p). Changing it restarts the picture on the TVs. A game whose TV
 page must be exactly its size sets `"resolution": "fixed"`.
+`--bitrate KBPS` sets the TV picture's bitrate (default: 0.1 bit per
+pixel and frame, 1000–20000 kbit/s), within what the TVs take (AirPlay:
+25000).
 
 ## Ending
 
