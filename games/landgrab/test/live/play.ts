@@ -291,7 +291,9 @@ try {
           await tapAt(D);
           await phoneShot(`r${s.round}-foe`);
           await tapAt(E);
-          if (await tap(`document.querySelector(".quick .q:last-child")`)) await tap(`document.querySelector(".amount-actions .send")`);
+          // All when there are quick amounts (a single army has none); sent either way.
+          await tap(`document.querySelector(".quick .q:last-child")`);
+          await tap(`document.querySelector(".amount-actions .send")`);
           await sleep(300);
         }
       }

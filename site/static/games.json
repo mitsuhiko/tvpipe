@@ -81,10 +81,10 @@
       "source": "gh:mitsuhiko/tvpipe/landgrab@landgrab-v*",
       "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/landgrab",
       "screenshots": [
-        { "src": "static/games/landgrab/tv-plan.webp", "alt": "The TV while five generals plan: the world as raised hex tiles in their colours and the parchment of the wild lands, an army count on every territory, the continents' bonuses written in the seas, four of five players ticked ready and 87 seconds left", "kind": "tv" },
-        { "src": "static/games/landgrab/tv-battle.webp", "alt": "A battle on the TV: the camera close on north-east Asia, the rest of the map dimmed, a green arrow carrying 4 armies marching from the coast into the parchment of the wild lands", "kind": "tv" },
-        { "src": "static/games/landgrab/phone-plan.png", "alt": "Planning on a phone: the world small with the orders as arrows, the fronts listed with their foes as chips (Central Europe marked for an attack with 4), plus and minus to place armies, Ready at the bottom", "kind": "phone" },
-        { "src": "static/games/landgrab/phone-attack.png", "alt": "One territory's sheet on a phone: Hudson Bay zoomed in with its neighbours, an attack on Quebec with 1 army and its 42 % chance to win, Attack buttons for the other neighbours", "kind": "phone" }
+        { "src": "static/games/landgrab/tv-plan.webp", "alt": "The TV while five generals plan: the world as raised hex tiles in their colours and the parchment of the wild lands, every territory named with its army count, the continents' bonuses written in the seas, four of five players ticked ready and 88 seconds left", "kind": "tv" },
+        { "src": "static/games/landgrab/tv-battle.webp", "alt": "A battle on the TV: the camera close on New Guinea and Indonesia, the rest of the map dimmed, the fight card with Lena's three dice against the wild lands' one and a banner: Conquered!", "kind": "tv" },
+        { "src": "static/games/landgrab/phone-plan.png", "alt": "Planning on a phone: the map fills the screen, close on Europe and Africa with the player's two orders drawn as arrows, the Move & attack step with 2 orders, Ready at the bottom", "kind": "phone" },
+        { "src": "static/games/landgrab/phone-attack.png", "alt": "An attack on a phone: tap Western Europe, then Britain, and the bar under the map becomes the amount, 4 armies with a 97 % chance to win, quick amounts Half, Safe and All, a slider and Attack with 4", "kind": "phone" }
       ]
     },
     {
