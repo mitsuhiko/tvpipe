@@ -199,12 +199,14 @@
     $('share').disabled = true;
     $('stop').disabled = false;
   });
-  cap.on('plan', function (p) {
+  function showPlan(p) {
     var c = p.content;
     $('plan').textContent = p.width + '×' + p.height + ' @ ' + p.fps + ', ' + Math.round(p.bitrate / 1000) + ' kbit/s' +
       (p.audio ? ', PCM ' + p.audio.sampleRate + ' Hz' : '') +
       (c && (c.width !== p.width || c.height !== p.height) ? ' (picture ' + c.width + '×' + c.height + ', black bars)' : '');
-  });
+  }
+  cap.on('plan', showPlan);
+  cap.on('bitrate', function () { showPlan(cap.plan); });
   cap.on('stats', function (s) {
     // For automation (the browser tests read these).
     window.tvpipeLastStats = s;

@@ -284,6 +284,20 @@ pub enum SinkStatus {
     Finished,
 }
 
+/// How far behind a sink's network is ([`Sink::backlog`]), for adaptive
+/// bitrate (`media::abr`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Backlog {
+    /// How long the oldest video that is not through yet has waited:
+    /// queued, being written, or sent and not acknowledged.
+    pub delay: std::time::Duration,
+    /// The delay at which frames come late or are dropped.
+    pub limit: std::time::Duration,
+    /// Video frames dropped so far because the network was behind (a
+    /// counter; it may start over when the sink reconnects).
+    pub dropped: u64,
+}
+
 /// A receiver we stream to. One implementation per protocol family.
 ///
 /// Lifecycle: construct + connect (protocol-specific, returns the sink) →
@@ -315,6 +329,13 @@ pub trait Sink: Send {
     /// True when the receiver asked for a keyframe (PLI, loss, join). The
     /// fanout then drops video for this sink until the next keyframe.
     fn wants_keyframe(&self) -> bool;
+
+    /// How far behind sending is, for adaptive bitrate; `None` when the
+    /// sink cannot tell. Sampled by the fanout after each video frame.
+    /// Wrappers must forward it.
+    fn backlog(&self) -> Option<Backlog> {
+        None
+    }
 
     /// Tears the session down so the TV leaves mirroring mode. Must be safe
     /// to call more than once.

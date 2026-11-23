@@ -229,6 +229,16 @@ impl StreamSender {
         crate::util::time::ticks_to_duration(ticks, self.cfg.rtp_timebase)
     }
 
+    /// The media duration from the oldest unacknowledged frame to the
+    /// newest one (adaptive bitrate's backlog; `max_in_flight` is where
+    /// frames are dropped).
+    pub fn backlog(&self) -> Duration {
+        match self.slot(self.last_enqueued) {
+            Some(newest) => self.in_flight_duration(newest.rtp_timestamp),
+            None => Duration::ZERO,
+        }
+    }
+
     /// The current in-flight window: the target delay plus the time an ACK
     /// takes to come back.
     pub fn max_in_flight(&self) -> Duration {

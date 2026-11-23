@@ -173,7 +173,7 @@
 
   // The video engine. `post(msg, transfer)` reports to the page, `every(ms,
   // fn)` returns a cancel function. Messages in: start, track, frame,
-  // keyframe, buffered, stop. Out: size, record, keySent, codec, stats, log,
+  // keyframe, bitrate, buffered, stop. Out: size, record, keySent, codec, stats, log,
   // fail, ended. Closed over nothing but its arguments (copied into a
   // worker as source).
   function engine(L, post, every) {
@@ -191,7 +191,7 @@
     // Constrained Baseline first: no B-frames anywhere, every encoder has it.
     var DEFAULT_PROFILES = ['42E0', '4D40', '6400'];
 
-    var plan = null, capture = null, enc = null, frameUs = 33333;
+    var plan = null, capture = null, enc = null, encCfg = null, frameUs = 33333;
     var lastFrame = null, lastEncodeAt = -1e15, lastSourceAt = -1e15, needKey = true, sinceKey = 0;
     var pace = null, captured = L.captureClock();
     var lastDesc = null, lastChunkTs = -1, sentKey = false, firstChunkAt = null;
@@ -329,6 +329,7 @@
           error: function (e) { fail('video encoder: ' + (e && e.message || e)); }
         });
         enc.configure(cfg);
+        encCfg = cfg;
         post({ type: 'codec', codec: codec });
         log('info', 'encoding ' + codec + ' ' + plan.width + 'x' + plan.height + '@' + plan.fps + ' ' +
           Math.round(plan.bitrate / 1000) + ' kbit/s');
@@ -358,6 +359,20 @@
       var t = L.clock();
       if (lastFrame && t - lastSourceAt >= 2 * frameUs && t - lastEncodeAt >= frameUs / 2) {
         encode(lastFrame, t, true);
+      }
+    }
+
+    // Adaptive bitrate: tvpipe's new target. WebCodecs takes a new bitrate
+    // on a configured encoder (same codec and size: no new stream).
+    function bitrate(bps) {
+      if (!(bps > 0)) return;
+      if (plan) plan.bitrate = bps;
+      if (!enc || enc.state !== 'configured' || !encCfg) return;
+      encCfg = Object.assign({}, encCfg, { bitrate: bps });
+      try {
+        enc.configure(encCfg);
+      } catch (e) {
+        log('warn', 'video encoder: cannot change the bitrate: ' + (e && e.message || e));
       }
     }
 
@@ -487,6 +502,7 @@
         fps: +(s.chunks / secs).toFixed(1),
         sourceFps: +(s.source / secs).toFixed(1),
         kbps: Math.round(s.bytes * 8 / secs / 1000),
+        targetKbps: plan ? Math.round(plan.bitrate / 1000) : 0,
         encodeMs: s.chunks ? +(s.latencySum / s.chunks).toFixed(1) : null,
         dropped: s.dropped, paced: s.paced, repeated: s.repeated, keyRequests: s.keyRequests, keys: s.keys,
         keyLatencyMs: s.keyLatencyMs, warmup: s.warmup,
@@ -515,6 +531,7 @@
         case 'readable': readFrames(m.readable); break;
         case 'frame': frame(m.frame); break;
         case 'keyframe': keyframe(); break;
+        case 'bitrate': bitrate(m.bitrate); break;
         case 'buffered': buffered = m.bytes; break;
         case 'stop': stop(); break;
       }
@@ -730,6 +747,13 @@
         break;
       case 'keyframe':
         this._toEngine({ type: 'keyframe' });
+        break;
+      case 'bitrate':
+        this._toEngine({ type: 'bitrate', bitrate: m.bitrate });
+        if (this.plan) {
+          this.plan.bitrate = m.bitrate;
+          this._emit('bitrate', m.bitrate);
+        }
         break;
       case 'busy':
         this._emit('error', 'another page is already sharing to tvpipe');

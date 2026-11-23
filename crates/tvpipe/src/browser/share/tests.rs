@@ -56,6 +56,8 @@ pub(crate) struct PageSeen {
     pub plan: Option<Value>,
     pub statuses: Vec<String>,
     pub keyframe_requests: usize,
+    /// `bitrate` messages (bit/s).
+    pub bitrates: Vec<u64>,
     pub busy: bool,
     pub end: Option<String>,
     pub closed: bool,
@@ -133,6 +135,9 @@ fn run_page(ws_url: &str, script: PageScript) -> PageSeen {
                         .statuses
                         .push(v.get("state").unwrap().as_str().unwrap().into()),
                     "keyframe" => g.keyframe_requests += 1,
+                    "bitrate" => g
+                        .bitrates
+                        .push(v.get("bitrate").and_then(Value::as_u64).unwrap()),
                     "busy" => g.busy = true,
                     "end" => g.end = Some(v.get("reason").unwrap().as_str().unwrap().into()),
                     _ => {}
@@ -469,6 +474,36 @@ fn keyframes_on_request() {
     let seen = page.join().unwrap();
     assert_eq!(seen.keyframe_requests, 1);
     assert_eq!(seen.requested_idrs, 1);
+}
+
+#[test]
+fn the_page_gets_new_bitrates() {
+    let server = ShareServer::bind(0).unwrap();
+    server.configure(&config(&[]));
+    let page = spawn_page(
+        server.ws_url(),
+        PageScript {
+            frames: 20,
+            audio: false,
+            ..PageScript::default()
+        },
+    );
+    server.wait_capture(&never()).unwrap();
+    let mut input = server
+        .start(&plan(160, 96, 30, false), input_opts(false), never())
+        .unwrap();
+    let planned = input.bitrate_kbps().unwrap();
+    let mut n = 0;
+    while input.next_frame().unwrap().is_some() {
+        n += 1;
+        if n == 5 {
+            input.set_bitrate(planned / 2);
+            assert_eq!(input.bitrate_kbps(), Some(planned / 2));
+        }
+    }
+    drop(input);
+    let seen = page.join().unwrap();
+    assert_eq!(seen.bitrates, [planned as u64 / 2 * 1000]);
 }
 
 #[test]

@@ -264,6 +264,14 @@ pub fn keyframe() -> String {
     Value::object().with("type", "keyframe").to_json()
 }
 
+/// The encoder's new target (adaptive bitrate), bit/s.
+pub fn bitrate(bps: u64) -> String {
+    Value::object()
+        .with("type", "bitrate")
+        .with("bitrate", bps as i64)
+        .to_json()
+}
+
 /// The key a page's worker opens its media socket with (`channel`).
 pub fn channel(key: &str) -> String {
     Value::object()

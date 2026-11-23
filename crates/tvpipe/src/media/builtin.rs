@@ -22,7 +22,7 @@
 //! colours via `media::convert`).
 
 use std::io::{self, Read};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -153,6 +153,9 @@ pub struct BuiltinInput {
     st: EncodedState,
     info: StreamInfo,
     keyframe: Arc<AtomicBool>,
+    /// A new target (kbit/s) for the encoder thread; 0: none.
+    new_bitrate: Arc<AtomicU32>,
+    kbps: u32,
     /// Set by the first `next_frame`: media time 0 starts then.
     go: Arc<AtomicBool>,
     last_request: Option<Instant>,
@@ -248,14 +251,19 @@ impl BuiltinInput {
         let (tx, rx) = mpsc::sync_channel(EVENT_QUEUE);
         let (job_tx, job_rx) = mpsc::sync_channel::<Job>(VIDEO_QUEUE);
         let keyframe = Arc::new(AtomicBool::new(false));
+        let new_bitrate = Arc::new(AtomicU32::new(0));
         let counters = Arc::new(Counters::default());
         let go = Arc::new(AtomicBool::new(false));
         let in_spec = opts.video_in.clone();
         {
-            let (tx, keyframe, counters) = (tx.clone(), keyframe.clone(), counters.clone());
+            let (tx, counters) = (tx.clone(), counters.clone());
+            let control = Control {
+                keyframe: keyframe.clone(),
+                bitrate: new_bitrate.clone(),
+            };
             std::thread::Builder::new()
                 .name("builtin-encoder".into())
-                .spawn(move || encode_loop(enc, fmt, in_spec, job_rx, tx, keyframe, counters))
+                .spawn(move || encode_loop(enc, fmt, in_spec, job_rx, tx, control, counters))
                 .map_err(|e| Error::io("spawn encoder thread", e))?;
         }
         {
@@ -288,6 +296,8 @@ impl BuiltinInput {
             info: st.stream_info()?,
             st,
             keyframe,
+            new_bitrate,
+            kbps: out.bitrate_kbps,
             go,
             last_request: None,
             counters,
@@ -438,6 +448,13 @@ fn read_loop(
     // The encoder thread ends the stream once it has drained its queue.
 }
 
+/// What the session asks of the encoder thread.
+struct Control {
+    keyframe: Arc<AtomicBool>,
+    /// A new target in kbit/s; 0: none.
+    bitrate: Arc<AtomicU32>,
+}
+
 /// Encoder thread: raw frame → I420 → scaled → H.264 access unit.
 fn encode_loop(
     mut enc: h264enc::Encoder,
@@ -445,11 +462,15 @@ fn encode_loop(
     spec: RawVideoSpec,
     jobs: Receiver<Job>,
     events: SyncSender<io::Result<Option<Packet>>>,
-    keyframe: Arc<AtomicBool>,
+    control: Control,
     counters: Arc<Counters>,
 ) {
     let (w, h) = (enc.config().width, enc.config().height);
     while let Ok(job) = jobs.recv() {
+        match control.bitrate.swap(0, Ordering::AcqRel) {
+            0 => {}
+            kbps => enc.set_bitrate(kbps),
+        }
         let t0 = Instant::now();
         let r = convert::to_i420(
             fmt,
@@ -466,7 +487,7 @@ fn encode_loop(
                 convert::scale(&f, w, h)
             }
         })
-        .and_then(|f| enc.encode(&f, keyframe.swap(false, Ordering::AcqRel)));
+        .and_then(|f| enc.encode(&f, control.keyframe.swap(false, Ordering::AcqRel)));
         let au = match r {
             Ok(au) => au,
             Err(e) => {
@@ -528,6 +549,15 @@ impl Input for BuiltinInput {
             self.keyframe.store(true, Ordering::Release);
         }
         true
+    }
+
+    fn bitrate_kbps(&self) -> Option<u32> {
+        Some(self.kbps)
+    }
+
+    fn set_bitrate(&mut self, kbps: u32) {
+        self.kbps = kbps.max(1);
+        self.new_bitrate.store(self.kbps, Ordering::Release);
     }
 
     fn describe(&self) -> String {

@@ -36,7 +36,7 @@ Every command lists all of its options with `--help`.
 | `--to NAME|ADDR` | Where to send. Repeat for several receivers. |
 | `--size WxH` | The largest picture size. |
 | `--fps N` | Frames per second. |
-| `--bitrate KBPS` | Video bitrate. |
+| `--bitrate KBPS` | Video bitrate. When tvpipe or the browser encodes, it is the most: a network that cannot keep up gets less for a while. |
 | `--encoder NAME` | The video encoder, below. |
 | `--no-audio` | Picture only. |
 | `--loop` | Start over at the end. |

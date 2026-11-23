@@ -49,6 +49,7 @@ use crate::events::{
     ReceiverEnd, ReceiverEndInfo, ReceiverEvent, ReceiverState, ReceiverStats, SharePageEvent,
     Started, Stats, Step, VideoStarted,
 };
+use crate::media::abr::{self, Abr};
 #[cfg(feature = "h264")]
 use crate::media::builtin::{BuiltinInput, BuiltinOptions, VideoOut};
 use crate::media::fanout::{Fanout, FanoutConfig, SinkEnd};
@@ -2116,6 +2117,23 @@ fn ffmpeg_source(
     })
 }
 
+/// An adaptive bitrate change: cuts at info, raises at debug.
+fn log_bitrate_change(c: &abr::Change, names: &[String]) {
+    let name = |i: usize| names.get(i).map_or("a receiver", String::as_str);
+    match c.cause {
+        abr::Cause::Dropped { sink } => {
+            info!("bitrate: {} kbit/s ({} dropped frames)", c.kbps, name(sink))
+        }
+        abr::Cause::Behind { sink, delay } => info!(
+            "bitrate: {} kbit/s ({} is {} ms behind)",
+            c.kbps,
+            name(sink),
+            delay.as_millis()
+        ),
+        abr::Cause::Clear => debug!("bitrate: {} kbit/s (the network keeps up)", c.kbps),
+    }
+}
+
 /// Steps 4 and 5: input → fanout, then teardown. Consumes the sinks; they
 /// are stopped on every path.
 fn stream(
@@ -2167,6 +2185,9 @@ fn stream(
     ctx.events
         .emit(Event::Started(started_event(route, &info, latency_ms)));
     let t0 = Instant::now();
+    // An input that can change its bitrate follows the network.
+    let mut abr = input.bitrate_kbps().map(|k| Abr::new(k, t0));
+    let names: Vec<String> = fanout.stats().into_iter().map(|(n, _)| n).collect();
     let mut frames = [0u64; 2];
     let mut video_bytes = 0u64;
     let mut input_error = None;
@@ -2193,6 +2214,13 @@ fn stream(
                 fanout.push(&f);
                 if fanout.keyframe_wanted() {
                     input.request_keyframe();
+                }
+                if let Some(c) = abr
+                    .as_mut()
+                    .and_then(|a| a.update(Instant::now(), &fanout.backlogs()))
+                {
+                    log_bitrate_change(&c, &names);
+                    input.set_bitrate(c.kbps);
                 }
                 if fanout.active() == 0 {
                     debug!("every receiver ended the session");
@@ -3202,6 +3230,9 @@ mod tests {
         fn wants_keyframe(&self) -> bool {
             self.inner.wants_keyframe()
         }
+        fn backlog(&self) -> Option<crate::types::Backlog> {
+            self.inner.backlog()
+        }
         fn stop(&mut self) -> Result<()> {
             self.inner.stop()
         }
@@ -3633,6 +3664,113 @@ mod tests {
                 "pts {due:?} arrived at {at:?}"
             );
         }
+    }
+
+    /// A sink whose network stays 200 ms behind (of 300).
+    struct Behind {
+        caps: Capabilities,
+        left: usize,
+    }
+
+    impl Sink for Behind {
+        fn name(&self) -> &str {
+            "behind"
+        }
+        fn capabilities(&self) -> &Capabilities {
+            &self.caps
+        }
+        fn start(
+            &mut self,
+            _v: &crate::types::VideoInfo,
+            _a: Option<&crate::types::AudioInfo>,
+        ) -> Result<()> {
+            Ok(())
+        }
+        fn push(&mut self, f: &crate::types::EncodedFrame) -> Result<crate::types::SinkStatus> {
+            if f.track == TrackKind::Video {
+                if self.left == 0 {
+                    return Ok(crate::types::SinkStatus::Finished);
+                }
+                self.left -= 1;
+            }
+            Ok(crate::types::SinkStatus::Accepted)
+        }
+        fn wants_keyframe(&self) -> bool {
+            false
+        }
+        fn backlog(&self) -> Option<crate::types::Backlog> {
+            Some(crate::types::Backlog {
+                delay: Duration::from_millis(200),
+                limit: Duration::from_millis(300),
+                dropped: 0,
+            })
+        }
+        fn stop(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// The built-in encoder, and the bitrates the session gave it.
+    struct Rated {
+        inner: BuiltinInput,
+        rates: std::sync::Arc<std::sync::Mutex<Vec<u32>>>,
+    }
+
+    impl Input for Rated {
+        fn info(&self) -> &crate::types::StreamInfo {
+            self.inner.info()
+        }
+        fn next_frame(&mut self) -> Result<Option<crate::types::EncodedFrame>> {
+            self.inner.next_frame()
+        }
+        fn bitrate_kbps(&self) -> Option<u32> {
+            self.inner.bitrate_kbps()
+        }
+        fn set_bitrate(&mut self, kbps: u32) {
+            self.rates.lock().unwrap().push(kbps);
+            self.inner.set_bitrate(kbps);
+        }
+        fn describe(&self) -> String {
+            self.inner.describe()
+        }
+        fn finish(self: Box<Self>, clean_eof: bool) -> Result<()> {
+            Box::new(self.inner).finish(clean_eof)
+        }
+    }
+
+    /// A receiver that stays behind brings the encoder's bitrate down: a
+    /// cut at the end of the first window, the next after the hold.
+    #[test]
+    fn a_receiver_behind_lowers_the_bitrate() {
+        let out = VideoOut {
+            size: Size {
+                width: 160,
+                height: 90,
+            },
+            fps: Ratio::integer(30),
+            bitrate_kbps: 4000,
+            gop: 30,
+        };
+        let inner = BuiltinInput::test_pattern(out, 48_000, vec![], never().stop).unwrap();
+        let rates = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let input = Rated {
+            inner,
+            rates: rates.clone(),
+        };
+        let sink = Behind {
+            caps: caps(1920, 1080, 60, 10_000),
+            left: 75,
+        };
+        stream(
+            Box::new(input),
+            events::Route::Builtin,
+            0,
+            vec![Box::new(sink)],
+            &never(),
+        )
+        .unwrap();
+        let rates = rates.lock().unwrap();
+        assert!(rates.starts_with(&[3200, 2560]), "{rates:?}");
     }
 
     #[test]

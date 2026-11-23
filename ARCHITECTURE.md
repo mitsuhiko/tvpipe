@@ -409,6 +409,33 @@ stalls the others. The rules:
 - A failed sink is removed and the others continue; one that lost its
   receiver is first reconnected (see [Several Receivers](#several-receivers)).
 
+## Adaptive Bitrate
+
+An input that can change its bitrate while it runs follows the network:
+the browser pages (`share`, `screen`, a game's TV picture; WebCodecs
+takes a new bitrate on a configured encoder) and the built-in encoder.
+ffmpeg cannot (a subprocess), and passthrough and a game's own H.264 have
+nothing to change. The plan's bitrate (`--bitrate` or the default) is the
+start and the ceiling.
+
+- **Signal.** Each sink reports a backlog (`Sink::backlog`): how long its
+  oldest video that is not through yet has waited, against the delay at
+  which frames come late or are dropped, and a count of frames dropped
+  because the network was behind. AirPlay: the writer's queue and a write
+  that does not return (TCP: the kernel's send buffer hides up to its size
+  more), against the video lead. Cast: the media sent and not
+  acknowledged, against the in-flight window. The fanout adds its own
+  queue; a sink that tells nothing gets 500 ms.
+- **Controller** (`media/abr.rs`). Like CoDel, the least backlog over
+  500 ms is the standing queue, so a keyframe or a burst of feedback does
+  not count. A drop or a standing backlog past the limit cuts the bitrate
+  to 60 %, one past 30 % of the limit to 80 % (then waits 1 s); 3 s below
+  10 % raise it by 6 % a second (2 % within 10 % of where the last cut
+  came), up to the plan. The floor is an eighth of the plan, at least
+  500 kbit/s. The slowest receiver decides: there is one encode.
+- Cuts are logged at info (`bitrate: 1414 kbit/s (Apple TV is 210 ms
+  behind)`), raises at debug.
+
 ## Discovery
 
 `tvpipe` uses **legacy-unicast mDNS** (RFC 6762 §6.7): queries go to
@@ -639,7 +666,8 @@ blocked `recv`, socket timeouts per handle, PowerShell pipes) are handled in por
 - **Cast:** testing on real hardware is in progress.
 - **Not implemented:** HEVC, AAC-ELD (so AAC files are re-encoded for
   AirPlay), HTTP Digest for password-protected AirPlay receivers,
-  adaptive bitrate, and IPv6 discovery.
+  adaptive bitrate for ffmpeg, a game's own H.264 and surfaces
+  (`tvpipe.surface()`), and IPv6 discovery.
 - **B-frames** on real receivers are still untested.
 - **Further ffmpeg-free paths** were considered and not taken: OS encoders
   (VideoToolbox, Media Foundation, VAAPI) break the platform-neutral rule;

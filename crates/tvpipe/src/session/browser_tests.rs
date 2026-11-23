@@ -6,6 +6,7 @@
 //!
 //! ```sh
 //! TVPIPE_TEST_CHROME=/path/to/chrome cargo test --release chrome_share -- --ignored --nocapture
+//! TVPIPE_TEST_CHROME=/path/to/chrome cargo test --release chrome_share_adapts_bitrate -- --ignored --nocapture
 //! TVPIPE_TEST_FIREFOX=/path/to/firefox cargo test --release firefox_share -- --ignored --nocapture
 //! TVPIPE_TEST_SAFARI=1 cargo test --release safari_share -- --ignored --nocapture
 //! ```
@@ -56,6 +57,61 @@ static STOP: std::sync::LazyLock<crate::util::stop::Stop> =
 /// Runs `share` while `drive(url, report)` works the browser on another
 /// thread; the session stops when `drive` returns.
 fn share_in_browser(drive: impl FnOnce(String, Report) + Send + 'static) {
+    share_in_browser_with(None, drive)
+}
+
+/// The AirPlay fake as a network that is 200 ms behind (of 300) for
+/// `behind` after its start, then keeps up.
+struct Lagging {
+    inner: Box<dyn Sink>,
+    behind: Duration,
+    started: Option<Instant>,
+}
+
+impl Sink for Lagging {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+    fn capabilities(&self) -> &Capabilities {
+        self.inner.capabilities()
+    }
+    fn set_clock(&mut self, clock: crate::media::clock::SessionClock) {
+        self.inner.set_clock(clock)
+    }
+    fn start(
+        &mut self,
+        v: &crate::types::VideoInfo,
+        a: Option<&crate::types::AudioInfo>,
+    ) -> Result<()> {
+        self.started = Some(Instant::now());
+        self.inner.start(v, a)
+    }
+    fn push(&mut self, f: &crate::types::EncodedFrame) -> Result<crate::types::SinkStatus> {
+        self.inner.push(f)
+    }
+    fn wants_keyframe(&self) -> bool {
+        self.inner.wants_keyframe()
+    }
+    fn backlog(&self) -> Option<crate::types::Backlog> {
+        match self.started {
+            Some(t) if t.elapsed() < self.behind => Some(crate::types::Backlog {
+                delay: Duration::from_millis(200),
+                limit: Duration::from_millis(300),
+                dropped: 0,
+            }),
+            _ => self.inner.backlog(),
+        }
+    }
+    fn stop(&mut self) -> Result<()> {
+        self.inner.stop()
+    }
+}
+
+/// [`share_in_browser`], the AirPlay fake [`Lagging`] for `behind`.
+fn share_in_browser_with(
+    behind: Option<Duration>,
+    drive: impl FnOnce(String, Report) + Send + 'static,
+) {
     let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     STOP.clear();
     if env("DEBUG").is_some() {
@@ -78,11 +134,16 @@ fn share_in_browser(drive: impl FnOnce(String, Report) + Send + 'static) {
                     ptp: false,
                     ..m.clone()
                 };
-                Tallied::boxed(
-                    fake_airplay(&fake, "fake-airplay", &m)?,
-                    None,
-                    &airplay_tally,
-                )
+                let sink = fake_airplay(&fake, "fake-airplay", &m)?;
+                let sink: Box<dyn Sink> = match behind {
+                    Some(behind) => Box::new(Lagging {
+                        inner: sink,
+                        behind,
+                        started: None,
+                    }),
+                    None => sink,
+                };
+                Tallied::boxed(sink, None, &airplay_tally)
             }
         })
     };
@@ -394,6 +455,85 @@ fn chrome_share_to_fakes() {
         report.lock().unwrap().push(format!("captureDisplay: {r}"));
         watch(&mut eval, &report);
         drop(chrome);
+    });
+}
+
+/// Adaptive bitrate with Chrome's encoder: while the AirPlay fake is
+/// behind, tvpipe lowers the page's target (`bitrate` messages, the
+/// encoder reconfigured in place) and the stream goes on; once it keeps
+/// up, the target comes back. The page keeps painting random boxes, so
+/// the encoder spends about the whole target.
+#[test]
+#[ignore]
+fn chrome_share_adapts_bitrate() {
+    let Ok(bin) = std::env::var("TVPIPE_TEST_CHROME") else {
+        eprintln!("TVPIPE_TEST_CHROME not set");
+        return;
+    };
+    share_in_browser_with(Some(Duration::from_secs(4)), move |url, report| {
+        let mut chrome = chrome(&bin, &url);
+        let mut eval = |s: &str| chrome.eval(s);
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while eval("return !!(window.tvpipeShare && window.tvpipeShare.config)")
+            != Value::Bool(true)
+        {
+            assert!(Instant::now() < deadline, "the page got no config");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        eval(
+            "const c = document.createElement('canvas'); c.width = 1280; c.height = 720; \
+             document.body.prepend(c); const g = c.getContext('2d'); \
+             (function draw() { for (let i = 0; i < 60; i++) { \
+             g.fillStyle = `hsl(${Math.random() * 360},70%,${20 + Math.random() * 60}%)`; \
+             g.fillRect(Math.random() * 1280, Math.random() * 720, 20 + Math.random() * 120, 20 + Math.random() * 120); } \
+             requestAnimationFrame(draw); })(); return 1",
+        );
+        let r = eval(
+            "tvpipeShare.opts.preferCurrentTab = true; tvpipeShare.opts.selfBrowserSurface = 'include'; \
+             return tvpipeShare.captureDisplay().then(() => 'ok', e => 'error: ' + e.name + ': ' + e.message)",
+        );
+        report.lock().unwrap().push(format!("captureDisplay: {r}"));
+        // (target, output) kbit/s from the page's stats, every 2 s.
+        let mut seen: Vec<(i64, i64)> = Vec::new();
+        let t0 = Instant::now();
+        let mut last = String::new();
+        while t0.elapsed() < Duration::from_secs(22) {
+            std::thread::sleep(Duration::from_millis(250));
+            let s = eval("return JSON.stringify(window.tvpipeLastStats || null)");
+            let s = s.as_str().unwrap_or("null").to_owned();
+            if s == last || s == "null" {
+                continue;
+            }
+            last = s.clone();
+            let v = Value::parse(&s).unwrap();
+            let k = |n: &str| v.get(n).and_then(Value::as_i64).unwrap_or(-1);
+            seen.push((k("targetKbps"), k("kbps")));
+            report.lock().unwrap().push(format!(
+                "{:>5.1} s: target {} kbit/s, output {} kbit/s, plan '{}'",
+                t0.elapsed().as_secs_f64(),
+                k("targetKbps"),
+                k("kbps"),
+                eval("return document.getElementById('plan').textContent")
+                    .as_str()
+                    .unwrap_or("")
+            ));
+        }
+        let log = eval(
+            "return [...document.getElementById('log').children].map(e => e.textContent).join('\\n')",
+        );
+        report
+            .lock()
+            .unwrap()
+            .push(format!("log: {}", log.as_str().unwrap_or("")));
+        drop(chrome);
+        let first = seen.first().map_or(0, |s| s.0);
+        let least = seen.iter().map(|s| s.0).min().unwrap_or(0);
+        let end = seen.last().map_or(0, |s| s.0);
+        assert!(
+            least > 0 && least < first * 3 / 4,
+            "never lowered: {seen:?}"
+        );
+        assert!(end > least, "never came back: {seen:?}");
     });
 }
 

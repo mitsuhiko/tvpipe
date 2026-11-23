@@ -12,6 +12,9 @@
 //! - When the sink reports [`Sink::wants_keyframe`] (PLI, loss), queued and
 //!   new non-key video is dropped until the next keyframe.
 //! - [`SinkStatus::Finished`] or an error removes the sink; the others go on.
+//! - [`Fanout::backlogs`]: how far behind each sink is (its own
+//!   [`Sink::backlog`], sampled after each video frame, plus this queue),
+//!   for adaptive bitrate (`media::abr`).
 //!
 //! Timing (ARCHITECTURE.md, "Several Receivers"): the fanout owns the session's [`MediaClock`]
 //! and hands it to every sink ([`Sink::set_clock`]) before `start()`.
@@ -32,8 +35,14 @@ use crate::error::{Error, Result};
 use crate::events::{Events, ReceiverState};
 use crate::media::clock::{MediaClock, SessionClock, Tolerance};
 use crate::types::StreamInfo;
-use crate::types::{AudioFamily, EncodedFrame, Sink, SinkStatus, TrackKind, VIDEO_CLOCK_RATE};
+use crate::types::{
+    AudioFamily, Backlog, EncodedFrame, Sink, SinkStatus, TrackKind, VIDEO_CLOCK_RATE,
+};
 use crate::util::stop::Stop;
+
+/// The backlog limit of a sink that reports none: past it, about half of
+/// the default queue is full at 60 fps.
+pub const FANOUT_BACKLOG_LIMIT: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone)]
 pub struct FanoutConfig {
@@ -85,6 +94,8 @@ struct Queued {
     frame: EncodedFrame,
     /// `(rate, instant)`; `None` for audio of a family without a track.
     at: Option<(u32, Instant)>,
+    /// When it was queued (the queue's age, [`Fanout::backlogs`]).
+    queued: Instant,
 }
 
 struct State {
@@ -103,6 +114,8 @@ struct State {
     /// What the sink's `wants_keyframe()` said when last polled (before
     /// pushing a video frame).
     sink_wants_key: bool,
+    /// What the sink's `backlog()` said after its last video frame.
+    backlog: Option<Backlog>,
     stats: SinkStats,
 }
 
@@ -157,6 +170,7 @@ impl Fanout {
                     dead: false,
                     started: false,
                     sink_wants_key: false,
+                    backlog: None,
                     stats: SinkStats::default(),
                 }),
                 cond: Condvar::new(),
@@ -214,10 +228,11 @@ impl Fanout {
                 .find(|(family, _)| *family == f)
                 .map(|(_, r)| *r),
         };
+        let now = Instant::now();
         let at = rate.map(|rate| {
             let t = self
                 .clock
-                .schedule(frame.pts, rate, Instant::now(), Tolerance::DEFAULT);
+                .schedule(frame.pts, rate, now, Tolerance::DEFAULT);
             (rate, t)
         });
         for h in &self.sinks {
@@ -254,6 +269,7 @@ impl Fanout {
             st.queue.push_back(Queued {
                 frame: frame.clone(),
                 at,
+                queued: now,
             });
             drop(st);
             h.shared.cond.notify_one();
@@ -299,6 +315,37 @@ impl Fanout {
             let st = h.shared.lock();
             !st.dead && !st.closed && (st.waiting_for_key || st.sink_wants_key)
         })
+    }
+
+    /// How far behind each sink is (adaptive bitrate, `media::abr`), in
+    /// the fanout's order; `None` for sinks that ended. The fanout's own
+    /// queue comes on top of what the sink says (a sink that cannot tell
+    /// gets [`FANOUT_BACKLOG_LIMIT`]), and frames dropped on a full queue
+    /// count as dropped.
+    pub fn backlogs(&self) -> Vec<Option<Backlog>> {
+        let now = Instant::now();
+        self.sinks
+            .iter()
+            .map(|h| {
+                let st = h.shared.lock();
+                if st.dead || st.closed || !st.started {
+                    return None;
+                }
+                let queued = st
+                    .queue
+                    .front()
+                    .map_or(Duration::ZERO, |q| now.saturating_duration_since(q.queued));
+                let sink = st.backlog.unwrap_or(Backlog {
+                    limit: FANOUT_BACKLOG_LIMIT,
+                    ..Backlog::default()
+                });
+                Some(Backlog {
+                    delay: sink.delay + queued,
+                    limit: sink.limit,
+                    dropped: sink.dropped + st.stats.dropped_full,
+                })
+            })
+            .collect()
     }
 
     /// Sinks still running.
@@ -398,7 +445,7 @@ fn run_sink(
                 st = shared.cond.wait(st).unwrap_or_else(|e| e.into_inner());
             }
         };
-        let Some(Queued { frame, at }) = frame else {
+        let Some(Queued { frame, at, .. }) = frame else {
             break;
         };
         let wants_key = frame.track == TrackKind::Video && sink.wants_keyframe();
@@ -437,7 +484,12 @@ fn run_sink(
         if let Some((rate, t)) = at {
             clock.pin(frame.pts, rate, t);
         }
-        match sink.push(&frame) {
+        let pushed = sink.push(&frame);
+        if frame.track == TrackKind::Video {
+            let b = sink.backlog();
+            shared.lock().backlog = b;
+        }
+        match pushed {
             Ok(SinkStatus::Accepted) => shared.lock().stats.pushed += 1,
             Ok(SinkStatus::Dropped) => {
                 let mut st = shared.lock();
@@ -721,6 +773,14 @@ mod tests {
         // The slow sink is stuck in push(0) with 1..=3 queued; 4 hit the
         // full queue, so 5..=11 were skipped as well (5 and 10 because the
         // queue was still full, the rest waiting for a keyframe).
+        // Its backlog: the queue's age, the full-queue drops; a mock tells
+        // nothing itself, so the fanout's limit.
+        std::thread::sleep(Duration::from_millis(30));
+        let b = f.backlogs();
+        let slow_b = b[0].unwrap();
+        assert!(slow_b.delay >= Duration::from_millis(30), "{slow_b:?}");
+        assert_eq!((slow_b.limit, slow_b.dropped), (FANOUT_BACKLOG_LIMIT, 3));
+        assert_eq!(b[1].unwrap().delay, Duration::ZERO);
         for _ in 0..4 {
             gate_tx.send(()).unwrap();
         }

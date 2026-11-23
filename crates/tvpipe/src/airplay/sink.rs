@@ -58,8 +58,8 @@ use crate::error::{Error, Result};
 use crate::media::clock::{SessionClock, SinkClock, Tolerance};
 use crate::media::h264::{self, AvcConfig};
 use crate::types::{
-    AudioCodec, AudioFamily, AudioFormat, AudioInfo, Capabilities, EncodedFrame, Sink, SinkStatus,
-    TrackKind, VideoCodec, VideoInfo, VIDEO_CLOCK_RATE,
+    AudioCodec, AudioFamily, AudioFormat, AudioInfo, Backlog, Capabilities, EncodedFrame, Sink,
+    SinkStatus, TrackKind, VideoCodec, VideoInfo, VIDEO_CLOCK_RATE,
 };
 use crate::util::ratio::Ratio;
 use crate::util::time::ticks_to_duration;
@@ -82,6 +82,9 @@ const STOP_JOIN: Duration = Duration::from_secs(1);
 /// After a failed write: how long the writer waits for the reader to see
 /// the receiver closing the connection (which makes it no failure).
 const WRITE_FAILURE_GRACE: Duration = Duration::from_millis(250);
+/// The least backlog limit (a short video lead would make every keyframe
+/// look like congestion).
+const MIN_BACKLOG_LIMIT: Duration = Duration::from_millis(100);
 /// Video packets queued for the writer before frames are dropped.
 const MAX_QUEUED: usize = 32;
 const MAX_QUEUED_BYTES: usize = 8 << 20;
@@ -216,6 +219,9 @@ impl Sink for AnyMirrorSink {
     fn wants_keyframe(&self) -> bool {
         any!(self, s => s.wants_keyframe())
     }
+    fn backlog(&self) -> Option<Backlog> {
+        any!(self, s => s.backlog())
+    }
     fn stop(&mut self) -> Result<()> {
         any!(self, s => s.stop())
     }
@@ -333,6 +339,8 @@ enum Item {
         payload: Vec<u8>,
         ts: u64,
         idr: bool,
+        /// When it was queued (the backlog's age).
+        queued: Instant,
     },
 }
 
@@ -353,6 +361,22 @@ struct Queue {
     /// After `closed`: queued packets are written until then, the rest
     /// is dropped (a slow receiver must not hold up a stop).
     drain_until: Option<Instant>,
+    /// When the frame the writer is writing was queued.
+    writing: Option<Instant>,
+    /// Video frames dropped on a full queue.
+    dropped: u64,
+}
+
+impl Queue {
+    /// The backlog's age: the frame being written, else the oldest queued.
+    fn oldest(&self) -> Option<Instant> {
+        self.writing.or_else(|| {
+            self.items.iter().find_map(|it| match it {
+                Item::Frame { queued, .. } => Some(*queued),
+                Item::Codec(_) => None,
+            })
+        })
+    }
 }
 
 /// State shared between the sink and its threads.
@@ -424,6 +448,7 @@ fn writer_loop(shared: &Shared, mut sock: TcpStream, mut cipher: VideoCipher, ti
     loop {
         let next = {
             let mut q = shared.queue();
+            q.writing = None;
             loop {
                 if q.closed && q.drain_until.is_some_and(|t| Instant::now() >= t) {
                     if !q.items.is_empty() {
@@ -437,6 +462,9 @@ fn writer_loop(shared: &Shared, mut sock: TcpStream, mut cipher: VideoCipher, ti
                 }
                 if let Some(it) = q.items.pop_front() {
                     q.bytes -= it.len();
+                    if let Item::Frame { queued, .. } = &it {
+                        q.writing = Some(*queued);
+                    }
                     break Next::Item(it);
                 }
                 if q.closed {
@@ -467,7 +495,9 @@ fn writer_loop(shared: &Shared, mut sock: TcpStream, mut cipher: VideoCipher, ti
                 debug!("airplay: codec packet ({} bytes)", p.len());
                 write_packet(&mut sock, &p, CODEC_WRITE_TIMEOUT)
             }
-            Next::Item(Item::Frame { payload, ts, idr }) => cipher
+            Next::Item(Item::Frame {
+                payload, ts, idr, ..
+            }) => cipher
                 .frame_packet(payload, ts, idr, timeline.timeline_id())
                 .and_then(|pkt| {
                     write_packet(&mut sock, &pkt, FRAME_WRITE_TIMEOUT)?;
@@ -1079,6 +1109,7 @@ impl<S: ControlStream> MirrorSink<S> {
             return SinkStatus::Dropped;
         }
         if q.items.len() + items.len() > MAX_QUEUED || q.bytes + bytes > MAX_QUEUED_BYTES {
+            q.dropped += 1;
             if !shared.need_key.swap(true, Ordering::AcqRel) {
                 debug!("airplay: video queue full; skipping to the next keyframe");
             }
@@ -1138,6 +1169,7 @@ impl<S: ControlStream> MirrorSink<S> {
             payload: p.data,
             ts,
             idr: p.idr,
+            queued: now,
         });
         let status = Self::queue_video(&self.shared, items, p.idr);
         if status == SinkStatus::Accepted && p.idr {
@@ -1294,6 +1326,23 @@ impl<S: ControlStream> Sink for MirrorSink<S> {
             TrackKind::Audio(AudioFamily::AirPlay) => self.push_audio(frame),
             TrackKind::Audio(_) => Ok(SinkStatus::Dropped),
         }
+    }
+
+    /// The writer's backlog (§6.5: write durations and the queue are the
+    /// congestion signal): how long the frame being written, or the
+    /// oldest queued one, has waited; past the video lead it is late.
+    /// The kernel's send buffer hides up to its size more.
+    fn backlog(&self) -> Option<Backlog> {
+        self.media.as_ref()?;
+        let q = self.shared.queue();
+        let now = Instant::now();
+        Some(Backlog {
+            delay: q
+                .oldest()
+                .map_or(Duration::ZERO, |t| now.saturating_duration_since(t)),
+            limit: Duration::from_millis(self.session.leads.video_ms as u64).max(MIN_BACKLOG_LIMIT),
+            dropped: q.dropped,
+        })
     }
 
     fn wants_keyframe(&self) -> bool {
@@ -2010,7 +2059,11 @@ mod tests {
             ..Behaviour::default()
         });
         let mut sink = connect(&fake, &MirrorOptions::default());
+        assert_eq!(sink.backlog(), None, "before start");
         sink.start(&video_info(), None).unwrap();
+        let idle = sink.backlog().unwrap();
+        assert_eq!((idle.delay, idle.dropped), (Duration::ZERO, 0));
+        assert!(idle.limit >= MIN_BACKLOG_LIMIT);
         let (_, sps, pps) = avcc();
         let big = |i: u64| {
             let mut f = video(i, &sps, &pps);
@@ -2032,6 +2085,11 @@ mod tests {
         };
         assert!(dropped > 0, "queue never filled");
         assert!(sink.wants_keyframe());
+        // The writer has been stuck on one frame: the backlog is its age,
+        // and the frames dropped on the full queue count.
+        let b = sink.backlog().unwrap();
+        assert!(b.delay >= Duration::from_millis(500), "{b:?}");
+        assert!(b.dropped > 0, "{b:?}");
         assert_eq!(err.kind(), crate::error::ErrorKind::Timeout, "{err}");
         let t = Instant::now();
         sink.stop().unwrap();

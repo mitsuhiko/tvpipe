@@ -317,9 +317,10 @@ canvas itself is used (rounded down to even).
 - tvpipe (not the reference): the bitrate ceiling is 25000 kbit/s, not
   the reference's 12000 (§6.6), so `--bitrate` can go above it: AirPlay
   receiver vendors quote 25 Mbit/s per mirroring stream as Apple's
-  recommended bandwidth (AirServer's network guide). tvpipe does not
-  adapt the bitrate; on a weak Wi-Fi a write that stalls for 2 s still
-  ends the session (§6.5).
+  recommended bandwidth (AirServer's network guide). Where the encoder
+  can change its rate, tvpipe lowers it while the writer's queue stands
+  (§6.5's signal; ARCHITECTURE.md, "Adaptive Bitrate"); a write that
+  stalls for 2 s still ends the session.
 
 ### 2.7 Latency profile
 

@@ -402,6 +402,13 @@ impl Sink for Rejoining {
         }
     }
 
+    fn backlog(&self) -> Option<crate::types::Backlog> {
+        match &self.state {
+            State::Live { sink, .. } => sink.backlog(),
+            State::Away { .. } | State::Gone => None,
+        }
+    }
+
     fn stop(&mut self) -> Result<()> {
         match std::mem::replace(&mut self.state, State::Gone) {
             State::Live { mut sink, .. } => sink.stop(),

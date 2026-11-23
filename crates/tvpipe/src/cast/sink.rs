@@ -54,8 +54,8 @@ use crate::crypto::ring::random_array;
 use crate::error::{Error, ErrorKind, Result};
 use crate::media::clock::{SessionClock, SinkClock, Tolerance};
 use crate::types::{
-    AudioCodec, AudioFamily, AudioInfo, Capabilities, EncodedFrame, Sink, SinkStatus, TrackKind,
-    VideoCodec, VideoInfo, VIDEO_CLOCK_RATE,
+    AudioCodec, AudioFamily, AudioInfo, Backlog, Capabilities, EncodedFrame, Sink, SinkStatus,
+    TrackKind, VideoCodec, VideoInfo, VIDEO_CLOCK_RATE,
 };
 use crate::util::time::{rescale, NtpTime};
 
@@ -765,6 +765,19 @@ impl Sink for StreamingSink {
             }
             None => true,
         }
+    }
+
+    /// The video media in flight (sent or waiting for the pacer, not
+    /// acknowledged) against the window past which frames are dropped.
+    fn backlog(&self) -> Option<Backlog> {
+        let m = self.media.as_ref()?;
+        let st = lock(&m.state.0);
+        let s = &st.video.as_ref()?.sender;
+        Some(Backlog {
+            delay: s.backlog(),
+            limit: s.max_in_flight(),
+            dropped: s.stats().dropped,
+        })
     }
 
     fn stop(&mut self) -> Result<()> {

@@ -82,7 +82,7 @@ Page → tvpipe:
 |---|---|
 | `hello` | `version` (1), `clock` (the page's media clock, µs), `agent` (user agent), `features` (what the browser has; informational) |
 | `capture` | `width`, `height` (of the first frame; the track's settings if none comes within 1.5 s), `fps` (or null), `audio` (bool: an audio track was shared), `surface` (`browser`/`window`/`monitor`), `label` |
-| `stats` | `fps`, `sourceFps`, `kbps`, `audioKbps`, `audioPeak` (the loudest sample since the last stats, 0–1), `encodeMs`, `dropped`, `paced` (skipped for the cadence), `repeated`, `keyRequests`, `queue`, `buffered`, `codec`, `width`, `height` (logged at `--debug`; sound that stays at peak 0 for 10 s is noted once) |
+| `stats` | `fps`, `sourceFps`, `kbps`, `targetKbps` (the current `bitrate`), `audioKbps`, `audioPeak` (the loudest sample since the last stats, 0–1), `encodeMs`, `dropped`, `paced` (skipped for the cadence), `repeated`, `keyRequests`, `queue`, `buffered`, `codec`, `width`, `height` (logged at `--debug`; sound that stays at peak 0 for 10 s is noted once) |
 | `ended` | `reason` |
 | `log` | `level` (`error`/`warn`/`info`), `message` (shown in tvpipe's log) |
 | `media` | `key`: the first message of a *media socket* (below), not of a page |
@@ -96,6 +96,7 @@ tvpipe → page:
 | `status` | `state` (`waiting`, `connecting`, `streaming`), `message`, `receivers` |
 | `plan` | `width`, `height` (encode size), `content` (`{x, y, width, height}`: where the capture goes, black around it), `fps`, `bitrate` (bit/s), `keyInterval` (frames between IDRs), `audio` (`{sampleRate, channels}` or null: send no audio) |
 | `keyframe` | — make the next frame an IDR (soon: a still screen re-encodes its last frame) |
+| `bitrate` | `bitrate` (bit/s): encode at this from now on (adaptive bitrate: the encoder is configured again with only the bitrate changed, no new stream); a page that shares later gets it in its `plan` |
 | `media` | — the media socket's key was taken; records may follow on it |
 | `busy` | — another page is the source |
 | `end` | `reason`: tvpipe stopped (Ctrl-C, receivers gone, an error) |

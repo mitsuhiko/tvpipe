@@ -765,7 +765,9 @@ when chosen (it costs the computer about nine times the rendering of
 page must be exactly its size sets `"resolution": "fixed"`.
 `--bitrate KBPS` sets the TV picture's bitrate (default: 0.1 bit per
 pixel and frame, 1000–20000 kbit/s), within what the TVs take (AirPlay:
-25000).
+25000). It is the ceiling: while a TV's network is behind, tvpipe lowers
+the bitrate and raises it again once it keeps up (ARCHITECTURE.md,
+"Adaptive Bitrate").
 
 ## Ending
 

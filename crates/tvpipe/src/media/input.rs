@@ -85,6 +85,19 @@ pub trait Input: Send {
         false
     }
 
+    /// The video bitrate (kbit/s) this input encodes at, when it can
+    /// change it ([`Input::set_bitrate`]): the session then adapts it to
+    /// the network (`media::abr`). `None`: fixed (ffmpeg, passthrough, a
+    /// game's own H.264).
+    fn bitrate_kbps(&self) -> Option<u32> {
+        None
+    }
+
+    /// Encodes the next frames at `kbps`.
+    fn set_bitrate(&mut self, kbps: u32) {
+        let _ = kbps;
+    }
+
     /// For logs: `"ffmpeg (libx264)"`, `"passthrough MP4"`, ...
     fn describe(&self) -> String;
 

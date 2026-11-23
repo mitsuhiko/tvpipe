@@ -1083,6 +1083,22 @@ impl Input for ShareInput {
         self.sender.send_text(&protocol::keyframe()).is_ok()
     }
 
+    fn bitrate_kbps(&self) -> Option<u32> {
+        Some((self.plan.bitrate_bps / 1000).min(u32::MAX as u64) as u32)
+    }
+
+    /// The page reconfigures its encoder; a page that shares later (rejoin
+    /// mode) gets it with its plan.
+    fn set_bitrate(&mut self, kbps: u32) {
+        self.plan.bitrate_bps = kbps as u64 * 1000;
+        if let Err(e) = self
+            .sender
+            .send_text(&protocol::bitrate(self.plan.bitrate_bps))
+        {
+            debug!("share: bitrate to the page: {e}");
+        }
+    }
+
     fn describe(&self) -> String {
         let agent = crate::browser::agent::browser_name(&self.agent);
         format!(

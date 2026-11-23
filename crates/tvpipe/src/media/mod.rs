@@ -6,6 +6,7 @@ pub mod aacenc;
 #[cfg(not(feature = "aac"))]
 #[path = "aacenc_off.rs"]
 pub mod aacenc;
+pub mod abr;
 #[cfg(feature = "h264")]
 pub mod builtin;
 pub mod clock;
