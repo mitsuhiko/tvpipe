@@ -31,7 +31,7 @@ A folder of games (folders with `tvpipe.json`, or zips), or several paths, come 
 Downloaded games stay in tvpipe's cache folder (`TVPIPE_CACHE_DIR` moves it). `tvpipe game list` shows them.
 :::
 
-Games are not part of tvpipe: each one comes out on its own. A name from the [list of games](game-list.md) downloads the newest release of that game made for your tvpipe:
+Games are not part of tvpipe: each one comes out on its own. A name from the [games list](/games/) downloads the newest release of that game made for your tvpipe:
 
 ```sh
 $ tvpipe game play drawbluff
@@ -48,7 +48,7 @@ Other sources work the same way:
 
 | Source | |
 |---|---|
-| `NAME` | a game from the [list](game-list.md) |
+| `NAME` | a game from the [list](/games/) |
 | `https://…/game.zip` | a zip on a website |
 | `gh:OWNER/REPO` | the zip of a GitHub repository's latest release; `gh:OWNER/REPO@TAG` a given release. Links to the repository or release on github.com work too |
 | `…#sha256=HEX` | only this zip (a pin): tvpipe checks it and does not ask |
@@ -59,7 +59,7 @@ Other sources work the same way:
 | `--refresh` | Look for a new release even of a game played before |
 | `--offline` | Only games downloaded before: no network |
 
-`tvpipe game fetch SOURCE` downloads a game without running it, checks it and prints the source pinned to its SHA-256 (`-o FILE` also writes the zip). The next `game play` of that pin needs no network. When the network fails, tvpipe plays the copy it has and says so.
+The names come from [games.json](https://tvpipe.party/games.json) on this site, which tvpipe reads when you play a game by name (`TVPIPE_GAMES_URL` names another list). `tvpipe game fetch SOURCE` downloads a game without running it, checks it and prints the source pinned to its SHA-256 (`-o FILE` also writes the zip). The next `game play` of that pin needs no network. When the network fails, tvpipe plays the copy it has and says so.
 
 ## Playing
 
@@ -104,6 +104,17 @@ tvpipe serves the game, casts its TV page and passes the phones' messages on. Th
 ## Making a game
 
 A game is a small web app: a host page with the rules, a TV page, a phone page and a `tvpipe.json` that names them. [Making party games](making-games.md) covers writing one, checking it and packing it into a zip.
+
+## Adding a game to the list
+
+A game on the [games list](/games/) is a game anyone can play by name. Publish it as a release (see [Share it](making-games.md#s7)), then open a pull request that adds it to `site/static/games.json` in the [repository](https://github.com/mitsuhiko/tvpipe), with its screenshots in `site/static/games/NAME/`: at least one, the first of the TV the cover (on the games page and in tvpipe's window). Take them while playing a real round with a few people:
+
+| Kind | Size | |
+|---|---|---|
+| `tv` | 1280×720 | the TV page at a lively moment: a vote, a reveal, the results |
+| `phone` | 390×844 | the phone page: what a player does, one or two |
+
+Each a PNG, JPEG or WebP of at most 400 KiB, with an `alt` text that says what it shows. `node site/social.mjs NAME` then makes the game's link preview from its title, players, cover and first phone picture (`site/static/social/games/NAME.jpg`, the picture chat apps and social sites show for a link to its page). `python3 site/build.py` checks the entry, the pictures and the preview. Everyone can also play a game from its release without the list: `tvpipe game play gh:OWNER/REPO`.
 
 ## Safety
 

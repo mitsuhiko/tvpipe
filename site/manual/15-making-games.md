@@ -174,6 +174,6 @@ A GitHub release is the easiest place: attach `my-game.zip` (the release's only 
 
 Several games in one repository, or a repository with releases of its own, give every game its own tags, `my-game-v1.2.0`, and players name the stream: `gh:you/games/my-game@my-game-v*` takes the newest of them that fits their tvpipe. A line `<!-- tvpipe: 0.4 -->` in the release notes says which tvpipe version the release is for, so a player with an older tvpipe gets the newest release that still runs on it.
 
-To have a game played by name, add it to the [list of games](game-list.md).
+To have a game played by name, add it to the [list of games](party.md#s5).
 
 The whole guide, with the manifest's limits and every check, is [docs/games.md](https://github.com/mitsuhiko/tvpipe/blob/main/docs/games.md).

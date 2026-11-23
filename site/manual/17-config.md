@@ -44,7 +44,7 @@ tvpipe has no configuration file. It keeps a few files, a cache of downloaded ga
 |---|---|
 | `TVPIPE_CONFIG_DIR` | The config directory. |
 | `TVPIPE_CACHE_DIR` | The cache directory. |
-| `TVPIPE_GAMES_URL` | Another [games list](game-list.md) for `tvpipe game play NAME`. |
+| `TVPIPE_GAMES_URL` | Another [games list](party.md#s1) for `tvpipe game play NAME`. |
 | `GITHUB_TOKEN`, `GH_TOKEN` | Sent to GitHub's API when finding a game's release, for more than 60 requests an hour. |
 | `TVPIPE_FFMPEG` | The ffmpeg to use. |
 | `TVPIPE_BROWSER` | The browser for `share URL`. |

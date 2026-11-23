@@ -4,7 +4,7 @@
 around it: `debug pattern`, `debug pipeline`, `debug tunnel` and
 `debug qr`. How to use them, with their options and examples, is the
 manual's [Debug commands](https://tvpipe.party/manual/debug-commands/)
-page (source: `site/manual/22-debug-commands.md`); `tvpipe debug COMMAND
+page (source: `site/manual/21-debug-commands.md`); `tvpipe debug COMMAND
 --help` lists every option. This file only points at what lies behind
 them in the repository.
 
