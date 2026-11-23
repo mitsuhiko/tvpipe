@@ -1,6 +1,6 @@
 ---
-title: Games to play
-summary: Party games to play by name, downloaded when you play them.
+title: The games list
+summary: Games played by name: where they come from, and adding yours.
 group: Use
 spec:
   Command: `tvpipe game play NAME`
@@ -8,14 +8,7 @@ spec:
   Pictures: [the games page](/games/)
 ---
 
-Party games are not part of tvpipe. Each one comes out on its own, and `tvpipe game play NAME` downloads the newest release that fits your tvpipe, asks you once whether to run it, and keeps it for next time. [Party games](party.md) covers playing.
-
-## The games
-
-With pictures of each: [the games page](/games/).
-
-:::games
-:::
+Party games are not part of tvpipe. Each one comes out on its own, and `tvpipe game play NAME` downloads the newest release that fits your tvpipe, asks you once whether to run it, and keeps it for next time. The games, with pictures of each: [the games page](/games/). [Party games](party.md) covers playing.
 
 ## Playing one
 

@@ -19,7 +19,7 @@ Every command lists all of its options with `--help`.
 | `share` | Shares a browser tab or a web page. See [Sharing the screen](screen.md#s3) and [A web page on the TV](web-page.md). |
 | `preview` | Plays in a browser tab. See [Playing to a browser](browser.md). |
 | `game play` | Plays a party game: a web app on the TV, phones join with a QR code. See [Party games](party.md). |
-| `game fetch`, `game list` | Downloads a game from the internet without playing it, or lists the downloaded ones. See [Games from the internet](party.md#s1) and [Games to play](game-list.md). |
+| `game fetch`, `game list` | Downloads a game from the internet without playing it, or lists the downloaded ones. See [Games from the internet](party.md#s1) and [The games list](game-list.md). |
 | `game new`, `game check`, `game pack` | Starts a party game, checks it, or packs it into a zip. See [Making party games](making-games.md). |
 | `debug` | `pattern`, `pipeline`, `tunnel`, `qr`. See [Debug commands](debug-commands.md). |
 

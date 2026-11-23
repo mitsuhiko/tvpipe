@@ -55,8 +55,6 @@ Containers:
   :::install :::             the install commands, for the visitor's platform
   :::figure CAPTION ... :::  raw HTML (an inline SVG) as a numbered figure
   :::index :::               the list of manual sections
-  :::games :::               the games list (site/static/games.json), short,
-                             linking to the games' pages (/games/NAME/)
   :::covers :::              the games' covers in a row, linking to the
                              games' pages
 
@@ -294,18 +292,6 @@ def players(p):
 
 def languages(g):
     return ", ".join(LANGUAGES[lang] for lang in g.get("languages", []))
-
-
-def games_html(ctx):
-    """The short list (the manual's "Games to play"): a row per game, its
-    pictures on the game's page."""
-    out = []
-    for g in games_list():
-        facts = [players(g["players"])] + ([languages(g)] if g.get("languages") else [])
-        out.append(f'<div class="game"><h3><a href="{ctx.to(game_dir(g))}">{html.escape(g["title"])}</a></h3>'
-                   f'<p>{html.escape(g["summary"])}</p><p class="facts">{" · ".join(facts)}</p>'
-                   + code_block("sh", [f'$ tvpipe game play {g["name"]}']) + "</div>")
-    return "".join(out)
 
 
 def covers_html(ctx):
@@ -715,8 +701,6 @@ def container(kind, arg, body, ctx):
         return install_html()
     if kind == "figure":
         return figure('<div class="frame">' + "\n".join(body) + "</div>", arg, ctx)
-    if kind == "games":
-        return games_html(ctx)
     if kind == "covers":
         return covers_html(ctx)
     if kind == "index":

@@ -846,7 +846,7 @@ games workflow writes the marker; other publishers may.
 home}]}`, each `source` a remote form above (drawbluff:
 `gh:mitsuhiko/tvpipe/drawbluff@drawbluff-v*`). Fetched with its ETag when a
 name is played, kept in the cache; offline the cached copy; never compiled
-into tvpipe. The manual's "Games to play" page is rendered from it.
+into tvpipe. The website's games pages (`/games/`) are rendered from it.
 
 **Fetching** (`net/fetch.rs`, on `net/tls.rs`, the TLS dialer the tunnels
 share): blocking HTTP/1.1 GET, rustls with Mozilla's roots plus
