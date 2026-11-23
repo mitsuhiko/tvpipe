@@ -1,0 +1,5 @@
+/* Worldquiz's look on tvpipe's standard host page (@tvpipe/party's HostPage draws the rest): the sea, cream cards, the toy logo. */
+@font-face { font-family: "Grandstander"; src: url("../phone/fonts/grandstander-latin.woff2") format("woff2"); font-weight: 100 900; }
+:root { --bg: #1d5f86; --card: #fff8e8; --line: #e2d3b0; --text: #263450; --muted: #6b7690; --accent: #ff6b00; --accent-text: #fff; --error: #c0392b; }
+body { background: #6cc7e8 radial-gradient(circle at 20% 10%, #8fd8f0, #6cc7e8 60%); }
+.logo { font-family: "Grandstander", sans-serif; font-weight: 900; font-size: 32px; line-height: 1; color: #ffcf4a; -webkit-text-stroke: 3px #263450; paint-order: stroke fill; text-shadow: 0 3px 0 #263450; transform: rotate(-3deg); display: inline-block; }

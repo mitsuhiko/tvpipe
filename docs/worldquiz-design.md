@@ -1,0 +1,414 @@
+# Worldquiz (design)
+
+Status: built (`games/worldquiz`). Decisions taken are in §10.
+
+A geography card game for 2–10 players in `games/worldquiz`, in English
+and German: a web app on `@tvpipe/party`, like `games/landgrab`. Every
+country of the world is a card: its name, its capital, its flag, where
+it is, and five numbers (population, area, neighbours, highest point,
+GDP per person), each with its world rank.
+Each round a player either **competes** with the cards (the highest
+number wins, as in Top Trumps) or calls a **challenge** that the whole
+room answers against the clock (a capital, a country by its flag, a
+country on the map). Each win moves a player's plane one stop on a trip
+around the world; whoever gets furthest in 15, 30 or 45 rounds wins.
+
+The look is a cartoon world on real geography: real borders and real
+data, drawn in thick ink with flat bright colours, a map or a planet that
+the camera flies over, cards like postcards, chunky toy buttons.
+
+## 1. Why it is fun
+
+- **You learn the world while you play.** Every card shows everything
+  about its country, on the map and on the planet, and every challenge
+  ends with the answer.
+- **Two kinds of rounds.** Comparing cards is luck plus a bit of
+  judgement (which number is strong?); challenges are knowledge and
+  speed. The captain picks which, knowing only their own card.
+- **Everyone plays every challenge.** Nobody waits for another player's
+  turn; the captain only decides what comes next.
+- **The map pin is for everyone.** Not knowing a capital still leaves
+  "somewhere in West Africa", which scores when nobody is closer.
+
+## 2. A game
+
+- **Players: 2–10.** **Rounds: 15, 30 or 45** (§2.4).
+- **Difficulty**: easy, normal (default), hard (§6).
+- **Map**: flat (Mercator) or globe; each phone switches for itself, the
+  host page sets the TV's.
+- **Disputed states** (off by default): adds Kosovo, Palestine, Taiwan
+  and Western Sahara to the deck (§3.1).
+- **The deck** is every country (§3.1), shuffled. Drawn cards go to the
+  discard pile; the deck is reshuffled from it only when it runs out, so
+  every country comes up before any comes back. Cards in hand and
+  challenge countries come from the same deck.
+
+### 2.1 A round
+
+```
+draw ─▶ captain chooses ─▶ compete:   reveal ─▶ steps
+         ≤ 20 s            challenge: question ─▶ answers ─▶ reveal ─▶ steps
+                                       15 s (normal)
+```
+
+1. **Draw.** Everyone draws a card at the same time, the captain and
+   everyone else, and everyone sees their own card at once. The phone
+   shows it whole: the flag, the name and capital(s) in the game's
+   language, the five numbers with their ranks (§3.5), and the country
+   on a small map/globe.
+   Players only ever see their own card: the TV shows the backs of
+   everyone's cards and who is captain.
+2. **The captain** (in turn, one player a round) chooses on the phone:
+   - **Compete** with one of the five numbers, or
+   - **Challenge**.
+   After 20 s without a choice it is a challenge.
+3. **Compete.** Only now does every card turn over, the captain's too:
+   the TV shows them all, sorted by the number, and flies the map from
+   country to country. The highest number wins one step; equal highest
+   all step.
+4. **Challenge.** First the hands go to the discard pile, shown on the
+   TV on their way (§2.2). Then a random new country comes from the
+   deck with a random kind of challenge (§4).
+   Everyone answers; right answers step one. If nobody is right the TV
+   shows the answer and another random country with another random kind
+   comes; after three without a winner the round ends with no steps.
+5. Every card of the round goes to the discard pile.
+
+### 2.2 Knowing what is gone
+
+Which strong cards have left the deck matters: with the United States
+gone, a high population is worth less. So every card that goes to the
+discard pile is seen, in compete rounds and before a challenge alike:
+
+- **The reveal before a challenge** (about 6 s) shows each hand face
+  up over its holder with all five numbers, and calls out the strong
+  ones: a card with any number in the top 10 gets a gold badge per such
+  number ("#3 population", "#1 area") and is shown a moment longer,
+  with a sound. Nothing is compared and nobody steps. Then the cards
+  slide onto the pile.
+- **The pile on the TV** shows, while the captain chooses, five rows
+  (one per number) of the strong cards that are gone: their flags with
+  their rank ("#1" population: China), and how many cards the deck
+  still has. It resets when the deck is reshuffled.
+- **On the phone** the same table is a tab next to one's card, so the
+  captain can check it before choosing.
+- **Ranks stay secret until a card is shown.** A hand comes without its
+  ranks: one's card says 83.5 million, not that it is #19; how strong
+  that is, is for the player to judge. Ranks (and the gold badges) are
+  on cards that were compared or discarded, and in the pile's table,
+  which only lists cards that are gone.
+
+### 2.3 The board
+
+Each player is a little plane on a dotted route around the world, one
+stop per step, so the leader is visibly ahead. The route is decoration;
+the stops are not countries (nothing to learn wrong).
+
+### 2.4 Rounds and the end
+
+15/30/45 rounds; the game rounds up to a multiple of the players so that
+everyone is captain equally often (6 players, 15 rounds: 18). The
+furthest plane wins; a tie is broken by one location challenge among the
+tied players (closest wins, a further one on another tie).
+
+Late joiners start at the last place's stop from the next round; a player
+who leaves keeps their plane until the end; fewer than two players ends
+the game.
+
+## 3. The data
+
+All data is fetched by a script once, curated by hand where the sources
+disagree, and **checked in** (`data/countries.txt`, `data/world.txt`,
+`data/flags/`). The game never fetches anything at play time.
+`node scripts/data.ts` refetches and rewrites; `--check` fails when the
+checked-in files differ from what it would write (as landgrab's
+`world.ts`). Sources and licences go to `CREDITS.md`.
+
+| What | Source | Licence | Notes |
+|---|---|---|---|
+| names, capitals (en, de), aliases | Wikidata | CC0 | labels are often formal ("People's Republic of China"): short names are curated |
+| flags | Wikimedia Commons SVG (Wikidata P41) | 193 public domain, Oman OGL-om (attribution) | 2.7 MB as SVG; 169 are under 20 KB, the big ones (coats of arms: Ecuador, El Salvador, Oman, Spain …) rasterised |
+| shapes | Natural Earth admin 0, 1:50m | public domain | every UN member is in it; already split at the antimeridian |
+| neighbours | computed from Natural Earth 1:10m, checked against Wikipedia's *List of countries and territories by number of land borders* | facts | §3.2 |
+| highest point | Wikipedia's *List of elevation extremes by country*, checked against Wikidata P610/P2044 | facts | §3.3 |
+| population | World Bank SP.POP.TOTL, latest year; Taiwan from its statistics office if in the deck | CC BY 4.0 | summed over the country's parts (§3.5) |
+| area | World Bank AG.SRF.TOTL.K2 (total: land and inland water), checked against Wikipedia | CC BY 4.0 | km²; summed over the parts (§3.5) |
+| GDP per person | World Bank NY.GDP.PCAP.CD, latest year with a value; IMF WEO where missing (Taiwan if in the deck); North Korea a UN estimate | CC BY 4.0 | current US$, nominal; the card shows the year |
+
+**Why not OpenStreetMap.** OSM's boundaries are huge (country
+relations in full detail), need simplifying that keeps shared borders
+shared, and come under the ODbL (share-alike, attribution for derived
+databases). Natural Earth is made for small-scale maps, is in the public
+domain, and has its shared borders built in (neighbouring polygons
+share their vertices, which is also how §3.2 finds land borders). OSM
+map tiles are out too: they need the internet at play time and look like
+a road map, not a cartoon.
+
+**Wikidata alone is not enough** (checked on the 194 UN members):
+GDP per person (P2132) is missing for most and mixes nominal and PPP
+(Hungary: 37,128 = PPP; nominal is about 26,000); capitals are missing
+(Nigeria, Norway in the query with German labels) or several (Bolivia,
+South Africa, Sri Lanka, Eswatini, Yemen's two); the United States and
+Argentina have no highest point, ten countries two elevations for it;
+"shares border with" (P47) includes sea borders.
+
+### 3.1 The deck
+
+The 193 UN member states, plus the Vatican (an observer, and Italy's
+neighbour; "the smallest country" is classic trivia).
+
+The **disputed states** option adds Kosovo, Palestine, Taiwan and
+Western Sahara (the Sahrawi Republic's claim, drawn as Natural Earth's
+Western Sahara). Off, they are simply not in the game: their land is
+nobody's (drawn plain, no country's), and they are nobody's neighbour;
+no country is given their land. So a country's neighbours in
+`data/countries.json` include them, and the game counts only those in
+its deck: Serbia 7 off, 8 with Kosovo; Israel 4 (Egypt, Jordan,
+Lebanon, Syria), 5 with Palestine; Morocco 2 (Algeria, Spain), 3 with
+Western Sahara. The numbers on the cards (population, area) are the
+World Bank's either way (Serbia's without Kosovo). Tests pin both.
+
+### 3.2 Neighbours (the careful part)
+
+The rule: **countries in the deck whose land touches the country's land,
+where the country is everything constitutionally part of it** (overseas
+departments and collectivities, constituent countries of a kingdom,
+exclaves) **but not its dependencies** (British Overseas Territories,
+Crown Dependencies, Australia's external territories). This is the
+reading Wikipedia's elevation list uses for highest points too, so both
+numbers describe the same land.
+
+What it gives where people disagree (each with the reason on the card's
+back, §7):
+
+| Country | Count | Because |
+|---|---|---|
+| France | 11 | the 8 in Europe, Brazil and Suriname (French Guiana), the Netherlands (Saint Martin) |
+| Brazil | 10 | 9 in South America and France (French Guiana) |
+| Netherlands | 3 | Belgium, Germany, France (Sint Maarten) |
+| Denmark | 2 | Germany, Canada (Greenland, Hans Island since 2022) |
+| Canada | 2 | the United States, Denmark |
+| Spain | 4 | Portugal, France, Andorra, Morocco (Ceuta, Melilla); Gibraltar is a dependency |
+| United Kingdom | 1 | Ireland; Gibraltar and Akrotiri & Dhekelia are dependencies |
+| Cyprus | 0 | the UK bases are a dependency |
+| Russia | 14 | Poland and Lithuania via Kaliningrad, North Korea included |
+| China | 14 | Hong Kong and Macau are China |
+| Italy | 6 | San Marino and the Vatican count |
+
+The generator compares its adjacency (Natural Earth 1:10m, every
+admin-0 unit mapped to its sovereign, dependencies dropped) with
+Wikipedia's list; every difference must be settled in
+`data/decisions.txt` with a line of reasoning, or the check fails.
+Natural Earth draws some disputed areas as their own units (Kashmir,
+Bir Tawil, Somaliland, Northern Cyprus, the Brazilian Island); each needs
+a decision there. Known-answer tests pin the table above.
+
+### 3.3 Highest point
+
+Wikipedia's list, same rule: Mount Scenery (887 m, Saba) for the
+Netherlands, Gunnbjørn Fjeld (3,694 m, Greenland) for Denmark, Ben Nevis
+for the UK, Kosciuszko for Australia. Shared summits count for both
+(Everest: Nepal and China; Mont Blanc: France and Italy, 4,806 m, as
+Wikipedia's list gives them). Metres, rounded.
+
+### 3.5 Population, area and ranks
+
+The same rule decides what is summed. The World Bank counts territories
+separately, so a country is the sum of its parts: Denmark is Denmark,
+Greenland and the Faroe Islands (2.2 million km², not 43,000); the
+Netherlands adds Aruba, Curaçao and Sint Maarten; France adds Saint
+Martin, Saint Barthélemy, Saint Pierre and Miquelon, Wallis and Futuna,
+French Polynesia and New Caledonia; China adds Hong Kong and Macau. The
+United States does not add Puerto Rico or Guam (dependencies), the UK
+not Gibraltar. GDP per person for such a country is the parts' GDP over
+their population. The parts are listed in `data/decisions.txt`.
+
+A trap found while checking: the World Bank gives Greenland's area as
+410,449 km² (ice-free land only); the total, 2,166,086 km², comes from
+Wikipedia. Every area is checked against Wikipedia's list and a
+difference over 2 % needs a decision.
+
+Each number has its **rank** among the cards in the deck (#1 highest;
+ties share a rank), recomputed when the disputed-states option changes
+the deck. A shown card says "#16" next to "$60,496"; a hand does not
+(§2.2). Population is shown rounded
+(83.5 million / 83,5 Mio.), area to the km².
+
+### 3.4 Names and answers
+
+Each country has, per language, a display name, a capital (or several:
+§4.1), and accepted aliases from Wikidata plus our own ("USA",
+"Amerika", "Holland", "Kiew/Kyiv/Kiev", "Elfenbeinküste/Côte d'Ivoire/
+Ivory Coast", "Tschechien/Tschechische Republik/Czechia/Czech
+Republic"). **Cards show only the game's language**: a German game
+says Deutschland, Berlin, Zugspitze and nothing in English, and the
+reverse. Answers in either language are still accepted (knowing "Italy"
+in a German game is knowing it).
+
+## 4. Challenges
+
+Time: 25 s easy, 15 s normal, 10 s hard. A phone can lock its answer in
+early; the challenge ends when everyone has, or at the deadline.
+
+### 4.1 Capital
+
+The TV and the phones show the country's name, flag and place on the
+map; type the capital. Where it is not clear-cut, the card lists them
+all and each is right: the constitutional capital and the seat of
+government, or a capital in dispute. Bolivia: Sucre, La Paz; South
+Africa: Pretoria, Cape Town, Bloemfontein; the Netherlands: Amsterdam,
+The Hague; Switzerland (no capital in law): Bern, the federal city;
+Côte d'Ivoire: Yamoussoukro, Abidjan; Benin: Porto-Novo, Cotonou;
+Tanzania: Dodoma, Dar es Salaam; Malaysia: Kuala Lumpur, Putrajaya; Sri
+Lanka: Sri Jayawardenepura Kotte, Colombo; Eswatini: Mbabane, Lobamba;
+Israel: Jerusalem, Tel Aviv. The list is curated in
+`data/decisions.txt`, each with its reason; the first name is the one
+the card shows big.
+
+### 4.2 Flag
+
+Only the flag; type the country.
+
+### 4.3 Where?
+
+The country's name only; tap it on the phone's map (flat or globe,
+pinch to zoom, the pin can be moved until locked in). Scored by the
+great-circle distance from the pin to the nearest point of the country,
+so flat and globe are equally fair; **inside the country is 0**
+(a hit), and so is anything within 25 km (fingers are bigger than
+Liechtenstein). A pin further than 1,500 km (easy 3,000, hard 800)
+never wins: "nobody knows" exists here too. Borders are drawn on easy
+and normal, only coastlines on hard; names never.
+
+**Closest wins, with tolerance.** A tap is not precise to the
+kilometre, so near-equal pins tie: everyone within **25 km or 10 %**
+(whichever is more) of the best distance wins a step. Best 0 (a hit):
+everyone within 25 km. Best 300 km: up to 330 km. Best 1,200 km: up to
+1,320 km. The margin is relative to the best, not to each other, so it
+cannot chain (300, 330, 363 do not all tie). The TV shows the
+distances rounded the same way the tie is judged ("≈ 310 km", with the
+winners' band as a ring around the country), so a tie looks like one.
+The 10 % is a starting point to check in play tests.
+
+### 4.4 Spell fixing
+
+Matching (`game/answer.ts`, pure, with known-answer tests):
+
+1. Normalise: lower case, accents off (ä→a and ä→ae both tried, ß→ss),
+   punctuation and "the/die/der/republic of/republik" dropped,
+   "st."→"saint/sankt".
+2. Compare with every name and alias of **every** country (or capital),
+   by Damerau–Levenshtein distance: 0 for up to 4 letters, 1 up to 8,
+   2 above.
+3. Right only when the closest name is the wanted one and no other
+   country's name is as close. An exact name of another country is
+   wrong, however close.
+
+Pairs the tests pin: Niger/Nigeria, Iran/Iraq, Austria/Australia,
+Slovenia/Slovakia, Gambia/Zambia, Guinea/Guyana/Guinea-Bissau,
+Mali/Malta, Dominica/Dominican Republic, Sudan/South Sudan,
+Congo (ambiguous: wrong for both unless §10 says otherwise),
+Korea (ambiguous). The reveal shows how an answer was read ("Nigera →
+Nigeria ✓").
+
+## 5. Who sees what
+
+The host page is the only authority (as in every game here). A phone
+gets its own card; the TV gets the backs until a reveal. Challenge
+answers reach only the host until the reveal; the TV shows who has
+locked in. The flag challenge sends the phones only the flag (the
+country's code is not in the message: flags are addressed by an index
+shuffled per game, so the file name gives nothing away).
+
+## 6. Difficulty
+
+| | easy | normal | hard |
+|---|---|---|---|
+| answer time | 25 s | 15 s | 10 s |
+| challenge countries | the ~80 best known | the ~150 best known | all |
+| location: max distance | 3,000 km | 1,500 km | 800 km |
+| location: borders shown | yes | yes | coastlines only |
+
+"Best known" is ranked by Wikipedia page views (both languages, the median month of a year, so that one big event does not count),
+fetched with the rest and checked in. Hands in compete rounds always
+come from the whole deck: learning a little country is the point.
+
+## 7. Looks
+
+`screen/map.js` draws the map for the TV and the phones.
+
+- **The map is the stage.** Canvas 2D, our own projections: Mercator
+  (84°N to 60°S, Antarctica left out: it is not a country) and an
+  orthographic globe with clipping at the horizon (visible stretches of a
+  border joined along the rim in the ring's own direction). No WebGL,
+  no map library, no tiles. The flat map repeats left and right, so the
+  Pacific is never cut; countries are coloured so that neighbours differ
+  (countries whose points lie within a few km touch).
+- **Cartoon on real shapes**: countries in five pastel colours (a
+  greedy colouring so neighbours differ), a thick ink coast drawn under
+  the fills so only its outer half shows, thin ink borders, a dark sea
+  shadow under the land, dashed graticule and little waves in a bright
+  sea. The drawn country pops up: hot orange, lifted with a shadow,
+  bobbing, a cartoon pin; countries too small to see get a pulsing ring.
+  The globe sits in a starry sky with an atmosphere glow and soft
+  shading.
+- **The camera flies** between countries (zooming out mid-flight); the
+  globe turns and zooms.
+- **Cards** are postcards: cream, rounded, a lip under them, the flag as
+  a tilted sticker, the name and capital in the game's language only,
+  the five numbers as rows with icons and their rank (a gold badge in
+  the top 10). The back of a card (TV, on reveal) lists the neighbours
+  by name with small flags.
+- **Buttons** are chunky toys: a bright fill, a darker lip under it
+  (6 px), a soft shadow, uppercase heavy type with wide letter spacing,
+  a white icon; pressed, they sink into the lip. Palette: blue, green,
+  red, orange, yellow, teal, pink, purple, slate, amber, white (blue
+  text). Players' colours come from the same palette. Square icon
+  buttons for the map toggle and zoom.
+- **Type**: Grandstander (bold and childlike, SIL OFL, bundled) for the
+  logo, headings, numbers and buttons; Sue Ellen Francisco (a hand,
+  SIL OFL) for little hand-written notes.
+- **Phone**: one's card fills the screen (the map on top, the card
+  below); in a challenge the question on top and a big field or the map;
+  the captain's choice as big buttons.
+- **Sound**: synthesized (a stamp, a plane's whoosh, a ding, a buzzer).
+
+Size: shapes at most 400 KB (delta-coded integers), flags the Commons
+SVGs as they are (about 2.7 MB, loaded one at a time), fonts ~90 KB.
+
+## 8. Code
+
+As the other games: `game/` (deck, rules, answer matching, distance,
+pure and tested), `host/`, `screen/` (TV), `phone/`, `scripts/data.ts`
+(the fetch and checks), `scripts/build.ts`, `test/` (rules, data
+invariants: every country has every field, the neighbour relation is
+symmetric, the table in §3.2, answer pairs in §4.4, distance against
+known pairs of cities), `test/live/play.ts` (a game in headless Chrome
+with screenshots).
+
+## 9. Not now
+
+More challenge kinds (outline only, capital → country, which is bigger),
+continents as a filter, team play.
+
+## 10. Decisions
+
+Taken with the owner:
+
+1. Disputed states are a rule option, off by default (§3.1).
+2. Dependencies do not count (§3.2).
+3. Location: closest wins, near-equal pins tie (§4.3).
+4. Everyone draws at the same time and only ever sees their own card
+   (§2.1). Compete turns every card over, the captain's included. A
+   challenge discards the hands, shown face up on the TV first so
+   everyone knows which countries (and which strong cards) are gone
+   (§2.2), and draws a random new country with a random kind of
+   challenge; the captain does not pick the kind.
+5. Where a capital is not clear-cut, all are on the card and all are
+   right (§4.1).
+6. Rounds go up to a multiple of the players (§2.4).
+7. Five facts: population and area join neighbours, highest point and
+   GDP per person (§3.5).
+8. Cards show only the game's language (§3.4).
+9. Ranks are secret until a card is shown (§2.2).
+10. Off, the disputed states' land is nobody's (§3.1).

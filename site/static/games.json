@@ -148,6 +148,21 @@
         { "src": "static/games/pinch/phone-thief.png", "alt": "The thief's phone: a lit bedroom in colour amid the dark blueprint, a GPS-tagged item in the sack, an arrow towards the car, and buttons to take a diamond ring or a lava lamp", "kind": "phone" },
         { "src": "static/games/pinch/phone-guard.png", "alt": "A guard's phone: lit rooms around the corridor, two guards in bowler hats with their flashlights, the blueprint beyond, and the buttons for the flashlight, a door and the lights", "kind": "phone" }
       ]
+    },
+    {
+      "name": "worldquiz",
+      "title": "Worldquiz",
+      "summary": "Every country is a card: compete with its numbers (population, area, neighbours, highest point, GDP per person) or answer challenges against the clock: name the capital, name the flag, or pin it on a cartoon map or globe",
+      "players": { "min": 2, "max": 10 },
+      "languages": ["en", "de"],
+      "source": "gh:mitsuhiko/tvpipe/worldquiz@worldquiz-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/worldquiz",
+      "screenshots": [
+        { "src": "static/games/worldquiz/tv-compete.png", "alt": "Comparing population: four country cards turned over on a cartoon map of the Caribbean, Venezuela's card big on the right with its five numbers and their ranks, and Mia wins", "kind": "tv" },
+        { "src": "static/games/worldquiz/tv-where.png", "alt": "The answer to where the Seychelles are: the players' pins in the Indian Ocean around the islands, their distances listed, the two closest winning", "kind": "tv" },
+        { "src": "static/games/worldquiz/phone-card.png", "alt": "The captain's phone: the Czech Republic's card with its flag and capital, the country on a small map, and the five numbers as buttons to compete with, or a challenge", "kind": "phone" },
+        { "src": "static/games/worldquiz/phone-where.png", "alt": "A phone answering where the United Arab Emirates are on a cartoon world map, a pin dropped, a Lock in button", "kind": "phone" }
+      ]
     }
   ]
 }

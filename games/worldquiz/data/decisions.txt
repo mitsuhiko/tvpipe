@@ -1,0 +1,366 @@
+# Worldquiz's data: what a human decided (docs/worldquiz-design.md §3).
+# scripts/data.ts reads this with the sources and fails, naming the case,
+# wherever the sources need a decision that is not here.
+#
+# One decision per line: `SUBJECT KEY: VALUE -- REASON`. `#` starts a
+# comment line. Most decisions need their reason; the script says which.
+# Lists are `;`-separated, a pair of lists is `English | German`.
+#
+#   deck Q…: XX [disputed]      a Wikidata item in the deck with id XX
+#                               (the UN's members come from Wikidata; these
+#                               are the rest, and UN members without a code)
+#   unit ABC: XX | - | drop     a Natural Earth admin-0 unit (ADM0_A3) is
+#                               country XX's, nobody's, or not drawn; units
+#                               of a sovereign country in the deck need none
+#   piece ABC W S E N: XX | -   the polygons of unit ABC whose extent's
+#                               middle is in the box go to XX or nobody
+#   border XX YY: yes | no      whether XX and YY are neighbours, where
+#                               Natural Earth and Wikipedia's list disagree
+#   wiki NAME: XX [part] | -    who a name in a Wikipedia list stands for;
+#                               `part`: a row for part of XX (its borders
+#                               count for XX, its area is not XX's row)
+#   ABC area: N                 a part's figures where the World Bank has
+#   ABC population: N YEAR      none: km², people, GDP per person (US$)
+#   ABC gdp: N YEAR
+#
+#   XX item: Q…                 Wikidata item for names, aliases, articles,
+#                               capitals and flag, instead of the deck's
+#   XX name: EN | DE            the short name, where Wikidata's is formal
+#   XX aliases: … | …           more accepted answers
+#   XX drop-aliases: …          Wikidata aliases that are no answer
+#   XX capitals: … | …          the capitals, the first shown big
+#   XX capital-aliases: … | …   more accepted spellings of the capitals
+#   XX parts: ABC DEF …         World Bank codes summed for the country
+#                               (default: its own); the first is the main
+#   XX area: N | ok | wikipedia the area: a number, the World Bank's sum
+#                               after all, or Wikipedia's figure
+#   XX population: N YEAR       override
+#   XX gdp: N YEAR              override (GDP per person, current US$)
+#   XX highest: M EN | DE       the highest point, metres and name
+#   XX via YY: EN | DE          why YY is a neighbour
+#   XX flag: File.svg | Q…      the flag, a Commons file or another item's
+#   XX flag-licence: LICENCE    a flag that is not in the public domain
+
+# ---------------------------------------------------------------- the deck
+
+deck Q756617: DK -- the Danish Realm, the UN member, has no ISO code in Wikidata
+deck Q237: VA -- the Vatican: a UN observer, Italy's neighbour, the smallest country
+deck Q1246: XK disputed
+deck Q219060: PS disputed
+deck Q865: TW disputed
+deck Q6250: EH disputed
+
+# ---------------------------------------------------------------- Natural Earth's units
+
+# integral parts
+unit GRL: DK -- Greenland: a constituent country of the Danish Realm
+unit FRO: DK -- the Faroe Islands: a constituent country of the Danish Realm
+unit ABW: NL -- Aruba: a constituent country of the Kingdom of the Netherlands
+unit CUW: NL -- Curaçao: a constituent country of the Kingdom of the Netherlands
+unit SXM: NL -- Sint Maarten: a constituent country of the Kingdom of the Netherlands
+unit MAF: FR -- Saint Martin: an overseas collectivity of France
+unit BLM: FR -- Saint Barthélemy: an overseas collectivity of France
+unit SPM: FR -- Saint Pierre and Miquelon: an overseas collectivity of France
+unit WLF: FR -- Wallis and Futuna: an overseas collectivity of France
+unit PYF: FR -- French Polynesia: an overseas collectivity of France
+unit NCL: FR -- New Caledonia: a sui generis collectivity of France
+unit ATF: FR -- the French Southern and Antarctic Lands: an overseas territory, part of the Republic
+unit CLP: FR -- Clipperton: state property of France, part of the Republic
+unit HKG: CN -- Hong Kong: a special administrative region of China
+unit MAC: CN -- Macau: a special administrative region of China
+unit ALD: FI -- Åland: an autonomous region of Finland
+unit KAB: KZ -- Baikonur: Kazakh land leased to Russia
+unit USG: CU -- Guantanamo Bay: Cuban land leased to the United States
+unit BRI: BR -- the Brazilian Island: Brazil's, claimed by Uruguay
+unit KAS: IN -- the Siachen Glacier: held by India
+unit ISR: IL -- Israel as Natural Earth draws it (with the Golan Heights; the border with Syria is there either way)
+# the UN's view
+unit SOL: SO -- Somaliland: Somalia's for the UN
+unit CYN: CY -- Northern Cyprus: Cyprus's for the UN
+unit CNM: CY -- the UN buffer zone in Cyprus
+piece RUS 32 44 37 46.5: UA -- Crimea: Ukraine's for the UN (General Assembly resolution 68/262)
+# the disputed states: their own cards with the option, nobody's land without
+unit KOS: XK -- Kosovo
+unit PSX: PS -- the West Bank and Gaza
+unit SAH: EH -- Western Sahara
+# nobody's
+unit ATA: drop -- Antarctica: nobody's, and not on the map
+unit SPI: - -- the Southern Patagonian Ice Field: the Argentina–Chile border there is not drawn
+unit BRT: - -- Bir Tawil: claimed by nobody
+unit PGA: - -- the Spratly Islands: disputed reefs
+unit BJN: - -- Bajo Nuevo Bank: a disputed reef
+unit SER: - -- Serranilla Bank: a disputed reef
+unit SCR: - -- Scarborough Shoal: a disputed reef
+# dependencies (§3.2): not part of the country
+unit ESB: - -- Dhekelia: a British Overseas Territory
+unit WSB: - -- Akrotiri: a British Overseas Territory
+unit GIB: - -- Gibraltar: a British Overseas Territory
+unit AIA: - -- Anguilla: a British Overseas Territory
+unit BMU: - -- Bermuda: a British Overseas Territory
+unit VGB: - -- the British Virgin Islands: a British Overseas Territory
+unit CYM: - -- the Cayman Islands: a British Overseas Territory
+unit FLK: - -- the Falkland Islands: a British Overseas Territory
+unit IOT: - -- the British Indian Ocean Territory: a British Overseas Territory
+unit MSR: - -- Montserrat: a British Overseas Territory
+unit PCN: - -- the Pitcairn Islands: a British Overseas Territory
+unit SHN: - -- Saint Helena, Ascension and Tristan da Cunha: a British Overseas Territory
+unit SGS: - -- South Georgia and the South Sandwich Islands: a British Overseas Territory
+unit TCA: - -- the Turks and Caicos Islands: a British Overseas Territory
+unit JEY: - -- Jersey: a Crown Dependency
+unit GGY: - -- Guernsey: a Crown Dependency
+unit IMN: - -- the Isle of Man: a Crown Dependency
+unit PRI: - -- Puerto Rico: a territory of the United States
+unit VIR: - -- the US Virgin Islands: a territory of the United States
+unit GUM: - -- Guam: a territory of the United States
+unit MNP: - -- the Northern Mariana Islands: a territory of the United States
+unit ASM: - -- American Samoa: a territory of the United States
+unit UMI: - -- the US Minor Outlying Islands: territories of the United States
+unit HMD: - -- Heard Island and McDonald Islands: an external territory of Australia
+unit IOA: - -- Christmas Island and the Cocos Islands: external territories of Australia
+unit NFK: - -- Norfolk Island: an external territory of Australia
+unit CSI: - -- the Coral Sea Islands: an external territory of Australia
+unit ATC: - -- Ashmore and Cartier Islands: an external territory of Australia
+unit COK: - -- the Cook Islands: in free association with New Zealand
+unit NIU: - -- Niue: in free association with New Zealand
+piece NZL -173 -10 -171 -8: - -- Tokelau: a dependent territory of New Zealand
+
+# ---------------------------------------------------------------- Wikipedia's lists
+
+wiki Bahamas: BS
+wiki Micronesia: FM
+wiki Kingdom of Denmark: DK
+wiki MYA: MM
+wiki SKN: KN
+wiki SUD: SD
+wiki TOG: TG
+wiki SADR: EH
+wiki Greenland: DK part
+wiki Faroe Islands: DK part
+wiki Aruba: NL part
+wiki Curaçao: NL part
+wiki Sint Maarten: NL part
+wiki Bonaire: NL part
+wiki Saba: NL part
+wiki Sint Eustatius: NL part
+wiki French Guiana: FR part
+wiki Saint Martin: FR part
+wiki Saint Barthélemy: FR part
+wiki Saint Pierre and Miquelon: FR part
+wiki Wallis and Futuna: FR part
+wiki French Polynesia: FR part
+wiki New Caledonia: FR part
+wiki French Southern Territories: FR part
+wiki Clipperton Island: FR part
+wiki Hong Kong: CN part
+wiki Macau: CN part
+wiki Åland: FI part
+wiki Svalbard: NO part
+wiki Jan Mayen: NO part
+wiki Azores: PT part
+wiki Madeira: PT part
+wiki Easter Island: CL part
+wiki England: GB part
+wiki Scotland: GB part
+wiki Wales: GB part
+wiki Northern Ireland: GB part
+wiki Somaliland: SO part
+wiki Northern Cyprus: CY part
+wiki Abkhazia: GE part
+wiki South Ossetia: GE part
+wiki Transnistria: MD part
+wiki West Bank: PS part
+wiki Gaza Strip: PS part
+wiki United Nations: -
+wiki Adélie Land: -
+wiki Argentine Antarctica: -
+wiki British Antarctic Territory: -
+wiki Peter I Island: -
+wiki Queen Maud Land: -
+wiki Bouvet Island: -
+wiki Akrotiri and Dhekelia: -
+wiki Gibraltar: -
+wiki Anguilla: -
+wiki Bermuda: -
+wiki British Virgin Islands: -
+wiki Cayman Islands: -
+wiki Falkland Islands: -
+wiki British Indian Ocean Territory: -
+wiki Montserrat: -
+wiki Pitcairn Islands: -
+wiki Saint Helena, Ascension and Tristan da Cunha: -
+wiki South Georgia and the South Sandwich Islands: -
+wiki Turks and Caicos Islands: -
+wiki Jersey: -
+wiki Bailiwick of Guernsey: -
+wiki Isle of Man: -
+wiki Puerto Rico: -
+wiki U.S. Virgin Islands: -
+wiki Guam: -
+wiki Northern Mariana Islands: -
+wiki American Samoa: -
+wiki United States Minor Outlying Islands: -
+wiki Heard Island and McDonald Islands: -
+wiki Christmas Island: -
+wiki Norfolk Island: -
+wiki Coral Sea Islands: -
+wiki Ashmore and Cartier Islands: -
+wiki Cook Islands: -
+wiki Niue: -
+wiki Tokelau: -
+
+# ---------------------------------------------------------------- borders
+
+border ES GB: no -- Gibraltar is a dependency
+border CY GB: no -- Akrotiri and Dhekelia are a dependency
+border CU US: no -- Guantanamo Bay is Cuban land leased to the United States
+border BH SA: no -- only the King Fahd Causeway (the border is on an artificial island in it)
+border CA DK: yes -- Hans Island, split between Canada and Greenland in 2022 (Natural Earth 5.1.2 does not have it yet)
+border BW ZM: yes -- at Kazungula on the Zambezi, about 150 m (too small for Natural Earth)
+
+# ---------------------------------------------------------------- the countries
+
+AG capitals: St. John's | St. John's -- Wikidata's capital has no labels in the query
+NG capitals: Abuja | Abuja -- Wikidata's capital has no German label in the query
+NO capitals: Oslo | Oslo -- Wikidata's capital has no English label in the query
+
+BI capitals: Gitega; Bujumbura | Gitega; Bujumbura -- Gitega is the capital since 2019, Bujumbura the economic capital and seat of most of the government
+BJ capitals: Porto-Novo; Cotonou | Porto-Novo; Cotonou -- Porto-Novo is the capital, Cotonou the seat of government
+BO capitals: Sucre; La Paz | Sucre; La Paz -- Sucre is the constitutional capital, La Paz the seat of government
+CH capitals: Bern | Bern -- Switzerland has no capital in law; Bern is the federal city
+CI capitals: Yamoussoukro; Abidjan | Yamoussoukro; Abidjan -- Yamoussoukro is the capital, Abidjan the seat of government
+EH capitals: Laayoune; Tifariti | El Aaiún; Tifariti -- the Sahrawi Republic's claimed capital, and its temporary one
+GQ capitals: Ciudad de la Paz; Malabo | Ciudad de la Paz; Malabo -- Ciudad de la Paz is the designated capital (Wikidata), Malabo the capital people know
+IL capitals: Jerusalem; Tel Aviv | Jerusalem; Tel Aviv -- Jerusalem is the proclaimed capital, Tel Aviv where most embassies are
+LK capitals: Sri Jayawardenepura Kotte; Colombo | Sri Jayewardenepura Kotte; Colombo -- Kotte is the legislative capital, Colombo the executive and commercial
+MY capitals: Kuala Lumpur; Putrajaya | Kuala Lumpur; Putrajaya -- Kuala Lumpur is the capital, Putrajaya the seat of government
+NL capitals: Amsterdam; The Hague | Amsterdam; Den Haag -- Amsterdam is the capital, The Hague the seat of government
+NR capitals: Yaren | Yaren -- Nauru has no capital in law; the government sits in Yaren
+PS capitals: East Jerusalem; Ramallah | Ostjerusalem; Ramallah -- East Jerusalem is the proclaimed capital, Ramallah the seat of the Palestinian Authority
+SZ capitals: Mbabane; Lobamba | Mbabane; Lobamba -- Mbabane is the executive capital, Lobamba the royal and legislative
+TZ capitals: Dodoma; Dar es Salaam | Dodoma; Daressalam -- Dodoma is the capital, Dar es Salaam the largest city and seat of much of the government
+YE capitals: Sanaa; Aden | Sanaa; Aden -- Sanaa is the constitutional capital, Aden the recognised government's temporary capital
+ZA capitals: Pretoria; Cape Town; Bloemfontein | Pretoria; Kapstadt; Bloemfontein -- executive, legislative and judicial capital
+
+UA capital-aliases: Kiev; Kiew | Kiew; Kyjiw; Kiev
+NL capital-aliases: Den Haag; 's-Gravenhage | The Hague; 's-Gravenhage
+KI capital-aliases: Tarawa | Tarawa
+EH capital-aliases: El Aaiún; Laâyoune; El Aaiun | Laayoune; Laâyoune; El Aaiun
+PS capital-aliases: Jerusalem | Jerusalem
+KZ capital-aliases: Nur-Sultan | Nur-Sultan
+CN capital-aliases: Peking | Beijing
+IN capital-aliases: Delhi | Delhi; New Delhi
+US capital-aliases: Washington | Washington
+PW capital-aliases: Melekeok | Melekeok
+
+CN name: China | China -- Wikidata: People's Republic of China
+DK item: Q35 -- Denmark, not the Danish Realm, for names, articles, capital and flag
+NL item: Q55 -- the Netherlands, not the Kingdom, for names, articles, capital and flag
+FM name: Micronesia | Mikronesien -- Wikidata: Federated States of Micronesia
+NR name: Nauru | Nauru -- Wikidata's German label is Naoero
+PS name: Palestine | Palästina -- Wikidata: State of Palestine
+TL name: East Timor | Osttimor -- Wikipedia's name; Timor-Leste stays an answer
+EH flag: Q40362 -- the Sahrawi Republic's flag
+
+US aliases: USA; US; America; United States of America | USA; US; Amerika; Vereinigte Staaten von Amerika
+GB aliases: UK; Britain; Great Britain | UK; Großbritannien; Britannien
+NL aliases: Holland | Holland
+CI aliases: Côte d'Ivoire; Ivory Coast | Côte d'Ivoire; Elfenbeinküste
+CZ aliases: Czechia; Czech Republic | Tschechien; Tschechische Republik
+AE aliases: UAE; Emirates | VAE; Emirate
+CD aliases: DRC; DR Congo; Congo-Kinshasa; Congo | DR Kongo; Kongo-Kinshasa; Kongo
+CG aliases: Congo-Brazzaville; Congo | Kongo-Brazzaville; Kongo
+KP aliases: Korea; DPRK | Korea; Nordkorea
+KR aliases: Korea | Korea
+CF aliases: CAR | ZAR
+SZ aliases: Swaziland | Swasiland
+MM aliases: Burma | Birma
+VA aliases: Vatican; Holy See | Vatikan; Heiliger Stuhl
+BA aliases: Bosnia | Bosnien
+TL aliases: Timor-Leste | Timor-Leste
+CV aliases: Cabo Verde | Cabo Verde
+MK aliases: Macedonia | Mazedonien
+TR aliases: Türkiye | Türkiye
+TW aliases: Republic of China | Republik China
+PS aliases: State of Palestine | Staat Palästina
+DE aliases: Germany | Deutschland
+RU aliases: Russian Federation | Russische Föderation
+BY aliases: Byelorussia; White Russia | Weißrussland; Weissrussland
+DO aliases: Dominican Rep. | Dom. Rep.
+VN aliases: Viet Nam | Viet Nam
+LA aliases: Lao | Lao
+FM aliases: Federated States of Micronesia | Föderierte Staaten von Mikronesien
+# not answers: country codes, sports codes and old ones that are another place's
+TD drop-aliases: GUM
+DM drop-aliases: DOM
+EG drop-aliases: Misr
+
+DK parts: DNK GRL FRO
+NL parts: NLD ABW CUW SXM
+FR parts: FRA MAF PYF NCL
+CN parts: CHN HKG MAC
+XK parts: XKX
+PS parts: PSE
+TW parts: TWN
+EH parts: ESH
+
+# the World Bank's France is metropolitan France with the five overseas
+# departments; Saint Barthélemy, Saint Pierre and Miquelon and Wallis and
+# Futuna (together about 27,000 people) are not in its data and so not in
+# France's numbers, though their land is France's on the map
+
+ESH population: 590000 2024 -- UN World Population Prospects 2024, rounded
+ESH area: 266000 -- Wikipedia's list of countries by area
+ESH gdp: 2500 2007 -- CIA World Factbook estimate; nobody publishes a recent one
+VAT population: 882 2023 -- Wikipedia (2023 estimate)
+VA gdp: 0 0 -- the Vatican has no GDP (a budget, no economy): 0 means no figure
+VAT area: 0.44 -- Wikipedia's list of countries by area
+TWN area: 36197 -- Taiwan's official figure (Wikipedia's list)
+PRK gdp: 590 2022 -- UN Statistical Yearbook 2024 (SYB67, from the UNSD's National Accounts Main Aggregates); the World Bank and the IMF have none
+ERI gdp: 647 2022 -- UN Statistical Yearbook 2024 (SYB67); the World Bank's latest is from 2011, the IMF has none
+
+NL highest: 887 Mount Scenery | Mount Scenery -- on Saba; Wikipedia's list says 870, the mountain's own article and the Dutch survey 887
+KW highest: 291 Unnamed point in the west | Namenloser Punkt im Westen -- Wikipedia's list has no name for it
+EH highest: 701 Unnamed peak | Namenloser Gipfel -- the territory's highest; Wikipedia's list gives 620 m, the highest in the Sahrawi-held Free Zone
+
+FR via BR: via French Guiana | über Französisch-Guayana
+FR via SR: via French Guiana | über Französisch-Guayana
+FR via NL: via Saint Martin | über Saint-Martin
+BR via FR: via French Guiana | über Französisch-Guayana
+SR via FR: via French Guiana | über Französisch-Guayana
+NL via FR: via Sint Maarten | über Sint Maarten
+DK via CA: via Greenland (Hans Island) | über Grönland (Hans-Insel)
+CA via DK: via Hans Island (Greenland) | über die Hans-Insel (Grönland)
+ES via MA: via Ceuta and Melilla | über Ceuta und Melilla
+MA via ES: via Ceuta and Melilla | über Ceuta und Melilla
+RU via PL: via Kaliningrad | über Kaliningrad
+RU via LT: via Kaliningrad | über Kaliningrad
+PL via RU: via Kaliningrad | über Kaliningrad
+LT via RU: via Kaliningrad | über Kaliningrad
+AO via CG: via Cabinda | über Cabinda
+CG via AO: via Cabinda | über Cabinda
+OM flag-licence: OGL-om 1.0 -- Oman's open government licence: free use with attribution (CREDITS.md)
+
+# areas: the World Bank's surface area counts some sea (Canada's Hudson
+# Bay, Croatia's and Sweden's inner coastal waters, Norway's Svalbard …);
+# where it is more than 2 % off Wikipedia's list, the list's figure is
+# taken (it is what people look up)
+AE area: wikipedia -- World Bank 98,648 (with coastal islands and waters)
+BH area: wikipedia -- World Bank 800
+CA area: wikipedia -- World Bank 15,634,410 (with Hudson Bay and the Arctic channels)
+DK area: wikipedia -- Wikipedia's row for the Kingdom: Denmark, Greenland (2,166,086; the World Bank's 410,449 is ice-free land only) and the Faroes
+DO area: wikipedia -- World Bank 146,839 (with coastal waters)
+EC area: wikipedia -- World Bank 256,370
+ER area: wikipedia -- World Bank 121,630
+ET area: wikipedia -- World Bank 1,129,819
+FR area: 674800 -- Wikipedia's 643,801 (metropolitan France and the five overseas regions) + New Caledonia 18,575 + French Polynesia 4,167 + the French Southern Lands without Adélie Land about 7,800 + Saint Pierre and Miquelon 242 + Wallis and Futuna 142 + Saint Martin 53 + Saint Barthélemy 25
+HR area: wikipedia -- World Bank 88,070 (with the sea between the islands)
+IR area: wikipedia -- World Bank 1,745,150
+LK area: wikipedia -- World Bank 65,610
+MC area: wikipedia -- World Bank 75 (with the sea)
+MU area: wikipedia -- World Bank 2,010
+NO area: wikipedia -- World Bank 624,500; Wikipedia's 386,224 is Norway with Svalbard and Jan Mayen, without Bouvet Island
+PK area: wikipedia -- World Bank 796,100 is without Azad Kashmir and Gilgit-Baltistan, which the map gives Pakistan
+SE area: wikipedia -- World Bank 528,860 (with coastal waters)
+US area: wikipedia -- World Bank 9,831,510 is with coastal and territorial waters; the list's 9,525,067 is without
+YE area: wikipedia -- World Bank 527,968
+XK area: wikipedia -- not in the World Bank's areas
