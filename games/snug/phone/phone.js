@@ -430,11 +430,12 @@ function play() {
   const shapeNo = h("span", { class: "shapeno" });
   const doneNo = h("span", { class: "doneno" });
   const hud = h("div", { class: "hud" }, shapeNo, h("div", { class: "clock" }, bar, time), doneNo);
-  const stuck = h("p", { class: "stuck" }, t.stuck);
+  const answer = h("p", { class: "answer" });
   const tray = h("div", { class: "tray" });
-  const trayTitle = h("h2", { class: "traytitle" }, t.yourPieces);
+  const checkBtn = /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: "check" }));
+  const trayTitle = h("div", { class: "trayhead" }, h("h2", { class: "traytitle" }, t.yourPieces), checkBtn);
   const overlay = h("div", { class: "overlay" });
-  const wrap = h("div", { class: "play" }, hud, boardBox, stuck, trayTitle, tray, overlay);
+  const wrap = h("div", { class: "play" }, hud, boardBox, answer, trayTitle, tray, overlay);
   show(wrap);
 
   // Local state: the orientation of each piece in hand, what was dropped and waits for the host, lifts on their way.
@@ -455,6 +456,7 @@ function play() {
   let gotKey = 0;
   let pings = 0;
   let solutionShown = false;
+  let checking = false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let solutionTimer;
   cleanups.push(() => clearTimeout(solutionTimer));
@@ -773,6 +775,41 @@ function play() {
     redraw();
   };
 
+  // --- Checking: can it still work out? -----------------------------------------------------
+
+  checkBtn.addEventListener("click", () => {
+    if (phase !== "board" || checking) return;
+    if (room().checks === 0) {
+      toast(room().level === "hard" ? t.noChecksHard : t.noChecks, "info");
+      return;
+    }
+    checking = true;
+    drawCheck();
+    client.act("check", { board: room().board }).then(
+      (r) => {
+        const res = /** @type {any} */ (r);
+        if (res?.ok === false) toast(res.reason === "time" ? t.timeUp : room().level === "hard" ? t.noChecksHard : t.noChecks, "info");
+        else if (res?.result === "unsure") toast(t.unsure, "info");
+        else buzz(res?.result === "stuck" ? [30, 50, 30] : 15);
+      },
+      (e) => toast(message(e), "bad"),
+    ).finally(() => {
+      checking = false;
+      drawCheck();
+    });
+  });
+
+  /** The check button (what is left of the team's checks) and the last answer, while the board is as it was. */
+  const drawCheck = () => {
+    const n = room().checks;
+    checkBtn.textContent = n === null || n === undefined ? t.check : t.checkN(n);
+    checkBtn.classList.toggle("out", n === 0);
+    checkBtn.disabled = checking || phase !== "board";
+    const c = room().check;
+    answer.className = `answer${c && phase === "board" ? ` show ${c.result}` : ""}`;
+    answer.textContent = c ? (c.result === "stuck" ? t.stuck(nameOf(c.by), c.by === myId()) : t.open(nameOf(c.by), c.by === myId())) : "";
+  };
+
   // --- Pointing -----------------------------------------------------------------------------
 
   let pointing = /** @type {{ pointer: number, x0: number, y0: number, start: number } | null} */ (null);
@@ -858,7 +895,7 @@ function play() {
       document.body.dataset["phase"] = phase;
       if (phase === "board" && r.deadline) total = Math.max(1000, r.deadline - client.now());
       if (phase === "solved") {
-        overlay.replaceChildren(h("div", { class: "msg" }, h("b", {}, t.snug), r.bonus ? h("span", {}, t.back(Math.round(r.bonus / 1000))) : null));
+        overlay.replaceChildren(h("div", { class: "msg" }, h("b", {}, t.snug), r.bonus ? h("span", {}, t.back(Math.round(r.bonus / 1000))) : null, r.earned ? h("span", {}, t.earned) : null));
         buzz([30, 60, 30, 60, 80]);
       }
       if (phase === "over") {
@@ -870,7 +907,7 @@ function play() {
     }
     shapeNo.textContent = t.shapeN(r.board ?? 1);
     doneNo.textContent = t.doneN(r.solved ?? 0);
-    stuck.classList.toggle("show", !!r.stuck && phase === "board");
+    drawCheck();
     trayTitle.hidden = phase !== "board";
     tray.hidden = phase !== "board";
     if (m.got && m.got.key !== gotKey) {

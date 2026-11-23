@@ -7,7 +7,7 @@ import { dropOuts, MemoryRelay } from "@tvpipe/party/testing";
 
 import { Bot, bots } from "../game/bots.ts";
 import { Snug, type Phase, type Timings } from "../game/game.ts";
-import { key, LIFT_COST, parseRows, PIECES, seeded, type Board, type Cell, type Kind, type Level } from "../game/rules.ts";
+import { key, LIFT_COST, parseRows, PIECES, placements, seeded, shapeCells, type Board, type Cell, type Kind, type Level } from "../game/rules.ts";
 
 const fast: Partial<Timings> = { celebrate: 20, over: 20, handoff: 150, cursor: 10, start: 1500, bonus: 0 };
 
@@ -70,7 +70,7 @@ async function game(n: number, opts: Opts = {}) {
 function example(): Board {
   const { shape, pieces } = parseRows(["_s__y__", "ss_yyyy", "sIIIIZv", "TTTZZZv", "_T_Zvvv"].map((r) => r.replaceAll("_", ".")));
   const kinds: Record<string, Kind> = { s: "S4", y: "Y5", I: "I4", Z: "Z5", v: "V5", T: "T4" };
-  return { shape, solution: [...pieces].map(([l, cells]) => ({ kind: kinds[l]!, cells })), spares: ["V3", "I3"], ways: 1, complete: true };
+  return { shape, solution: [...pieces].map(([l, cells]) => ({ kind: kinds[l]!, cells })), spares: ["V3", "I3"], ways: 1, complete: true, dead: 0.96 };
 }
 
 test("a whole game with 2 players: boards solved until the clock runs out, then time's up and the end", async () => {
@@ -270,7 +270,7 @@ test("hard: lifting and moving cost 3 s each", async () => {
   }
 });
 
-test("easy: the design's dead end is called out, and lifting the piece clears it", async () => {
+test("easy: a check calls out the design's dead end, as often as the team likes; a lift clears it", async () => {
   const { g, party, phone, screen, close } = await game(0, { level: "easy", script: [example()], timings: { start: 60_000 } });
   const ann = await phone("Ann");
   const ben = await phone("Ben");
@@ -278,20 +278,95 @@ test("easy: the design's dead end is called out, and lifting the piece clears it
     await ann.act("start");
     await until(() => g.phase === "board" && !!ann.view?.me?.["hand"]);
     const c = g.current!;
+    const room = () => party.room.peek() as Record<string, any>;
     const byKind = (k: Kind) => [...c.pieces.values()].find((x) => x.kind === k && x.home)!;
     const place = (k: Kind, cells: Cell[]) => {
       const p = byKind(k);
       return (p.owner === ann.you!.id ? ann : ben).act("place", { board: c.n, piece: p.id, cells });
     };
+    assert.equal(room()["checks"], null);
     await place("S4", byKind("S4").home!);
     await place("V5", byKind("V5").home!);
-    assert.equal((party.room.peek() as Record<string, any>)["stuck"], false);
+    assert.deepEqual(await ben.act("check", { board: c.n }), { ok: true, result: "open", checks: null });
+    assert.equal(room()["check"]["result"], "open");
     await place("Z5", [[3, 1], [3, 2], [4, 2], [5, 2], [5, 3]]);
-    assert.equal((party.room.peek() as Record<string, any>)["stuck"], true);
-    assert.equal(screen()["stuck"], true);
+    assert.equal(room()["check"], null, "a placement clears the answer");
+    assert.deepEqual(await ann.act("check", { board: c.n }), { ok: true, result: "stuck", checks: null });
+    assert.deepEqual(room()["check"], { result: "stuck", by: ann.you!.id, n: 2 });
+    assert.equal(screen()["check"]["result"], "stuck");
     const z = byKind("Z5");
     await (z.owner === ann.you!.id ? ann : ben).act("lift", { board: c.n, piece: z.id });
-    assert.equal((party.room.peek() as Record<string, any>)["stuck"], false);
+    assert.equal(room()["check"], null);
+    await assert.rejects(ann.act("check", { board: c.n + 1 }), { code: "not-now" });
+  } finally {
+    ann.close();
+    ben.close();
+    close();
+  }
+});
+
+/** Fills the running board with its solution, each piece by its owner. */
+async function solve(g: Snug, phones: PartyClient[]): Promise<void> {
+  const c = g.current!;
+  for (const p of [...c.pieces.values()].filter((x) => x.home)) await phones.find((ph) => ph.you!.id === p.owner)!.act("place", { board: c.n, piece: p.id, cells: p.home! });
+}
+
+test("normal: three checks, an answer again for free while nothing moved, a filled shape earns one back", async () => {
+  const { g, party, phone, close } = await game(0, { level: "normal", script: [example(), example()], timings: { start: 60_000, celebrate: 50 } });
+  const ann = await phone("Ann");
+  const ben = await phone("Ben");
+  try {
+    const room = () => party.room.peek() as Record<string, any>;
+    assert.equal(ann.view.room["checks"], 3);
+    await ann.act("start");
+    await until(() => g.phase === "board" && !!ann.view?.me?.["hand"]);
+    let c = g.current!;
+    const mine = [...c.pieces.values()].find((x) => x.owner === ann.you!.id)!;
+    const spots = placements(shapeCells(c.board.shape), PIECES[mine.kind]);
+    assert.equal(((await ann.act("check", { board: c.n })) as any).checks, 2);
+    assert.equal(((await ben.act("check", { board: c.n })) as any).checks, 2, "nothing moved: the same answer, free");
+    for (const spot of spots.slice(0, 2)) {
+      await ann.act("place", { board: c.n, piece: mine.id, cells: spot });
+      await ann.act("check", { board: c.n });
+    }
+    assert.equal(room()["checks"], 0);
+    await ann.act("lift", { board: c.n, piece: mine.id });
+    assert.deepEqual(await ann.act("check", { board: c.n }), { ok: false, reason: "none" });
+    await solve(g, [ann, ben]);
+    await until(() => g.phase === "solved");
+    assert.equal(room()["earned"], true);
+    assert.equal(room()["checks"], 1);
+    await until(() => g.phase === "board" && g.boardNo === 2);
+    c = g.current!;
+    assert.equal(((await ann.act("check", { board: c.n })) as any).checks, 0);
+  } finally {
+    ann.close();
+    ben.close();
+    close();
+  }
+});
+
+test("hard: no checks until a filled shape earns one, and never more than one", async () => {
+  const { g, party, phone, close } = await game(0, { level: "hard", script: [example(), example(), example()], timings: { start: 60_000, celebrate: 50 } });
+  const ann = await phone("Ann");
+  const ben = await phone("Ben");
+  try {
+    const room = () => party.room.peek() as Record<string, any>;
+    await ann.act("start");
+    await until(() => g.phase === "board" && !!ann.view?.me?.["hand"]);
+    assert.equal(room()["checks"], 0);
+    assert.deepEqual(await ann.act("check", { board: 1 }), { ok: false, reason: "none" });
+    await solve(g, [ann, ben]);
+    await until(() => g.phase === "solved");
+    assert.equal(room()["earned"], true);
+    await until(() => g.phase === "board" && g.boardNo === 2);
+    assert.equal(room()["checks"], 1);
+    await solve(g, [ann, ben]);
+    await until(() => g.phase === "solved");
+    assert.equal(room()["earned"], false);
+    assert.equal(room()["checks"], 1);
+    await until(() => g.phase === "board" && g.boardNo === 3);
+    assert.deepEqual(await ben.act("check", { board: 3 }), { ok: true, result: "open", checks: 0 });
   } finally {
     ann.close();
     ben.close();

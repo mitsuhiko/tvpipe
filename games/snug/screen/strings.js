@@ -39,7 +39,14 @@ export function strings(lang) {
       spares: "Nicht gebraucht",
       timesUp: "Die Zeit ist um!",
       couldHave: "So hätte es gepasst",
-      stuck: "Hmm … da hakt was. So geht es nicht mehr auf.",
+      /** @param {string} name */
+      stuck: (name) => `${name} hat geprüft: Da hakt was. So geht es nicht mehr auf.`,
+      /** @param {string} name */
+      open: (name) => `${name} hat geprüft: Das kann noch aufgehen!`,
+      /** @param {number} n */
+      checksN: (n) => `Prüfen: ${n}`,
+      checksAny: "Prüfen: beliebig",
+      earned: "+1 Prüfen",
       /** @param {string} name */
       finished: (name) => `${name} hat das letzte Teil gelegt`,
       /** @param {string} name @param {number} n */
@@ -92,7 +99,14 @@ export function strings(lang) {
     spares: "Not needed",
     timesUp: "Time's up!",
     couldHave: "It would have gone like this",
-    stuck: "Hmm… something's stuck. It can't work out like this.",
+    /** @param {string} name */
+    stuck: (name) => `${name} checked: something's stuck. It can't work out like this.`,
+    /** @param {string} name */
+    open: (name) => `${name} checked: it can still work out!`,
+    /** @param {number} n */
+    checksN: (n) => `Checks: ${n}`,
+    checksAny: "Checks: any",
+    earned: "+1 check",
     /** @param {string} name */
     finished: (name) => `${name} placed the last piece`,
     /** @param {string} name @param {number} n */

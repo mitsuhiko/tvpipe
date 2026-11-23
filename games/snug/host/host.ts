@@ -25,8 +25,8 @@ function settings(game: Snug): Field[] {
       type: "buttons",
       label: { en: "Level", de: "Stufe" },
       hint: {
-        en: "Easy: small pieces, many ways to fill a shape, help. Hard: mostly big pieces, one or few ways, no help, lifting a piece costs 3 seconds.",
-        de: "Leicht: kleine Teile, viele Lösungen, Hilfe. Schwer: meist große Teile, eine oder wenige Lösungen, keine Hilfe, Hochheben kostet 3 Sekunden.",
+        en: "Where the shapes start; every filled shape makes the next one a little harder. Easy: small pieces, check as often as you like. Normal: 3 checks, a filled shape gives one back. Hard: big pieces, few ways, a check only when a filled shape earns one, lifting a piece costs 3 seconds.",
+        de: "Wo die Formen anfangen; jede volle Form macht die nächste etwas schwerer. Leicht: kleine Teile, Prüfen so oft ihr wollt. Normal: 3-mal Prüfen, eine volle Form bringt eins zurück. Schwer: große Teile, wenige Lösungen, Prüfen nur, wenn eine volle Form es verdient, Hochheben kostet 3 Sekunden.",
       },
       choices: [
         { value: "easy", label: { en: "easy", de: "leicht" } },

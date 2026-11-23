@@ -1,8 +1,9 @@
 /**
  * Snug's rules as pure functions (docs/snug-design.md): the pieces and
- * their orientations, the generator (grow a shape out of the needed
- * pieces, add the spares, count the ways to fill it, keep one by the
- * level), the deal, checking a placement, the solver that counts
+ * their orientations, the difficulty ladder and the checks, the generator
+ * (grow a shape out of the needed pieces, add the spares, count the ways
+ * to fill it, estimate its dead first placements, keep one by the rung),
+ * the deal, checking a placement, the solver that counts
  * fillings and proves dead ends, and a seeded random source. No party,
  * no timers: `game.ts` plays these.
  *
@@ -54,12 +55,62 @@ export const TROMINOES: readonly Kind[] = ["I3", "V3"];
 export const TETROMINOES: readonly Kind[] = ["I4", "O4", "T4", "L4", "S4"];
 export const PENTOMINOES: readonly Kind[] = ["F5", "I5", "L5", "N5", "P5", "T5", "U5", "V5", "W5", "X5", "Y5", "Z5"];
 
-/** A level's mix: the share of pieces drawn from the big pool, the rest from the small one. */
-const MIX: Record<Level, { small: readonly Kind[]; big: readonly Kind[]; share: number }> = {
-  easy: { small: TROMINOES, big: TETROMINOES, share: 0.75 },
-  normal: { small: TETROMINOES, big: PENTOMINOES, share: 0.5 },
-  hard: { small: TETROMINOES, big: PENTOMINOES, share: 2 / 3 },
+/** A mix of pieces: the share drawn from the big pool, the rest from the small one. */
+export interface Mix {
+  small: readonly Kind[];
+  big: readonly Kind[];
+  share: number;
+}
+
+const SMALL: Mix = { small: TROMINOES, big: TETROMINOES, share: 0.75 };
+const TETRO: Mix = { small: TETROMINOES, big: TETROMINOES, share: 1 };
+const HALF: Mix = { small: TETROMINOES, big: PENTOMINOES, share: 0.5 };
+const BIG: Mix = { small: TETROMINOES, big: PENTOMINOES, share: 2 / 3 };
+
+/** A rung of the ladder: the pieces, and which of the tries to keep (0 the most forgiving, 1 the least, by {@link deadShare}). */
+export interface Rung {
+  mix: Mix;
+  rank: number;
+}
+
+/**
+ * The difficulty ladder (docs/snug-design.md §7): every solved shape
+ * climbs a rung, the level only says where a game starts. With two
+ * players the rungs leave about 47, 60, 73, 77, 88, 93, 95 and 97 % of
+ * first placements dead.
+ */
+export const LADDER: readonly Rung[] = [
+  { mix: SMALL, rank: 0.1 },
+  { mix: SMALL, rank: 0.35 },
+  { mix: SMALL, rank: 0.65 },
+  { mix: TETRO, rank: 0.5 },
+  { mix: HALF, rank: 0.5 },
+  { mix: BIG, rank: 0.5 },
+  { mix: BIG, rank: 0.8 },
+  { mix: BIG, rank: 1 },
+];
+
+/** The rung a level starts on. */
+export const START_RUNG: Record<Level, number> = { easy: 0, normal: 3, hard: 4 };
+
+/** The rung of a game's shape after `solved` filled ones. */
+export function rungOf(level: Level, solved: number): number {
+  return Math.min(LADDER.length - 1, START_RUNG[level] + Math.max(0, Math.floor(solved)));
+}
+
+/**
+ * The checks ("can this still work out?") a level gives the team: how many
+ * at the start and how many it can hold (null: as many as it likes); every
+ * filled shape earns one, up to `max`.
+ */
+export const CHECKS: Record<Level, { start: number; max: number } | null> = {
+  easy: null,
+  normal: { start: 3, max: 3 },
+  hard: { start: 0, max: 1 },
 };
+
+/** A check's solver steps: about 50 ms; a check that runs out says nothing and is not used up. */
+export const CHECK_BUDGET = 300_000;
 
 // ---------------------------------------------------------------------------
 // Random
@@ -333,6 +384,15 @@ export function countFillings(free: readonly Cell[], pieces: readonly (readonly 
   return { count, complete: complete || count >= limit, first };
 }
 
+/** What a check says: the pieces in hand cannot fill the free cells (`stuck`), they can (`open`), or the search ran out (`unsure`). */
+export type Verdict = "stuck" | "open" | "unsure";
+
+/** Whether `pieces` can still fill exactly the cells `free` (each at most once, some may stay unused). */
+export function verdict(free: readonly Cell[], pieces: readonly (readonly Cell[])[], budget = CHECK_BUDGET): Verdict {
+  const c = countFillings(free, pieces, { limit: 1, budget });
+  return c.count > 0 ? "open" : c.complete ? "stuck" : "unsure";
+}
+
 /** Every place a shape fits within `free` cells (absolute cells per placement). */
 export function placements(free: readonly Cell[], shape: readonly Cell[]): Cell[][] {
   const set = new Set(free.map(([x, y]) => key(x, y)));
@@ -370,9 +430,8 @@ export function piecesEach(players: number): number {
   return players <= 3 ? 3 : 2;
 }
 
-/** The kinds of `n` pieces of a level's mix. */
-export function drawKinds(level: Level, n: number, rng: () => number): Kind[] {
-  const m = MIX[level];
+/** The kinds of `n` pieces of a mix. */
+export function drawKinds(m: Mix, n: number, rng: () => number): Kind[] {
   const big = Math.round(n * m.share);
   return shuffle([...Array.from({ length: big }, () => pick(m.big, rng)), ...Array.from({ length: n - big }, () => pick(m.small, rng))], rng);
 }
@@ -468,11 +527,14 @@ export interface Board {
   /** Ways to fill it with every dealt piece (a lower bound when `complete` is false). */
   ways: number;
   complete: boolean;
+  /** The share of first placements that leave it unsolvable, estimated ({@link deadShare}). */
+  dead: number;
 }
 
 export interface GenerateOptions {
   players: number;
-  level: Level;
+  /** The rung of {@link LADDER} ({@link rungOf}). */
+  rung: number;
   rng: () => number;
   /** Boards to make and choose from (default 24, fewer for big boards). */
   tries?: number;
@@ -486,14 +548,46 @@ export function effort(players: number): { tries: number; budget: number } {
   return needed <= 6 ? { tries: 24, budget: 40_000 } : needed <= 9 ? { tries: 12, budget: 20_000 } : { tries: 8, budget: 10_000 };
 }
 
+/** The samples and the solver steps per sample of {@link deadShare}. */
+export const DEAD_SAMPLES = 32;
+export const DEAD_BUDGET = 3000;
+
 /**
- * One try: a shape grown out of the level's pieces for `players`, without
- * holes and filling 70 % of its box or more, with spares and its count of
- * fillings. Null when the try failed (grow again).
+ * Estimates how much of a board is a trap: of `samples` first placements
+ * (a random piece of all dealt ones, at a random place it fits), the share
+ * after which the other pieces cannot fill the rest. A sample whose
+ * search runs out of `budget` steps counts as dead (a hard place to
+ * start). This, not the number of ways, is what a team feels (§8), and it
+ * compares across board sizes, where counting ways runs out.
+ */
+export function deadShare(shape: Shape, pieces: readonly (readonly Cell[])[], rng: () => number, samples = DEAD_SAMPLES, budget = DEAD_BUDGET): number {
+  const free = shapeCells(shape);
+  const all: { i: number; cells: Cell[] }[] = [];
+  pieces.forEach((p, i) => {
+    for (const cells of placements(free, p)) all.push({ i, cells });
+  });
+  if (all.length === 0 || samples <= 0) return 1;
+  let dead = 0;
+  for (let s = 0; s < samples; s++) {
+    const { i, cells } = all[Math.floor(rng() * all.length)]!;
+    const taken = new Set(cells.map(([x, y]) => key(x, y)));
+    const left = free.filter(([x, y]) => !taken.has(key(x, y)));
+    const c = countFillings(left, pieces.filter((_, j) => j !== i), { limit: 1, budget });
+    if (c.count === 0) dead++;
+  }
+  return dead / samples;
+}
+
+/**
+ * One try: a shape grown out of the rung's pieces for `players`, without
+ * holes and filling 70 % of its box or more, with spares, its count of
+ * fillings and its share of dead first placements. Null when the try
+ * failed (grow again).
  */
 export function candidate(o: GenerateOptions): Board | null {
+  const mix = LADDER[Math.max(0, Math.min(LADDER.length - 1, o.rung))]!.mix;
   const needed = piecesEach(o.players) * Math.max(1, o.players);
-  const kinds = drawKinds(o.level, needed, o.rng);
+  const kinds = drawKinds(mix, needed, o.rng);
   const cells = kinds.reduce((a, k) => a + PIECES[k].length, 0);
   const grown = grow(kinds, boxFor(cells, o.rng), o.rng);
   if (!grown) return null;
@@ -509,22 +603,27 @@ export function candidate(o: GenerateOptions): Board | null {
   const solution = grown.map((p) => ({ kind: p.kind, cells: p.cells.map(([x, y]) => [x - mx, y - my] as Cell) }));
   const shape = shapeOf(solution.flatMap((p) => p.cells));
   if (all.length / (shape.w * shape.h) < 0.7) return null;
-  const spares = drawKinds(o.level, Math.max(1, o.players), o.rng);
-  const c = countFillings(shapeCells(shape), [...solution.map((p) => PIECES[p.kind]), ...spares.map((k) => PIECES[k])], { limit: 50, budget: o.budget ?? effort(o.players).budget });
-  return { shape, solution, spares, ways: Math.max(1, c.count), complete: c.complete };
+  const spares = drawKinds(mix, Math.max(1, o.players), o.rng);
+  const pieces = [...solution.map((p) => PIECES[p.kind]), ...spares.map((k) => PIECES[k])];
+  const c = countFillings(shapeCells(shape), pieces, { limit: 50, budget: o.budget ?? effort(o.players).budget });
+  const dead = deadShare(shape, pieces, o.rng);
+  return { shape, solution, spares, ways: Math.max(1, c.count), complete: c.complete, dead };
 }
 
-/** The board a level keeps of several: easy the most ways to fill it, hard the fewest, normal the middle. A count that ran out sorts above every finished one. */
-export function choose(boards: readonly Board[], level: Level): Board {
+/**
+ * The board a rung keeps of several: sorted from the most forgiving (the
+ * fewest dead first placements, then the most ways; a count that ran out
+ * is "many") to the least, the one at the rung's rank.
+ */
+export function choose(boards: readonly Board[], rung: number): Board {
   if (boards.length === 0) throw new Error("snug: no board grew");
-  const score = (b: Board) => (b.complete ? b.ways : 1000 + b.ways);
-  const sorted = [...boards].sort((a, b) => score(a) - score(b));
-  if (level === "easy") return sorted[sorted.length - 1]!;
-  if (level === "hard") return sorted[0]!;
-  return sorted[Math.floor(sorted.length / 2)]!;
+  const ways = (b: Board) => (b.complete ? b.ways : 1000 + b.ways);
+  const sorted = [...boards].sort((a, b) => a.dead - b.dead || ways(b) - ways(a));
+  const rank = LADDER[Math.max(0, Math.min(LADDER.length - 1, rung))]!.rank;
+  return sorted[Math.round(rank * (sorted.length - 1))]!;
 }
 
-/** One board for `players` at a level, at once (`game.ts` makes its boards a try at a time). */
+/** One board for `players` on a rung, at once (`game.ts` makes its boards a try at a time). */
 export function generate(o: GenerateOptions): Board {
   const tries = o.tries ?? effort(o.players).tries;
   const boards: Board[] = [];
@@ -532,7 +631,7 @@ export function generate(o: GenerateOptions): Board {
     const b = candidate(o);
     if (b) boards.push(b);
   }
-  return choose(boards, o.level);
+  return choose(boards, o.rung);
 }
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ team plays against one clock.
   shows what they hold. Only its owner can move it again, so the others
   steer: "Ben, turn yours over and push it one to the left."
 - **Dead ends nobody sees alone.** Most placements that fit make the
-  board unsolvable (§8: 78–97 % of the first ones), and many only show it
+  board unsolvable (§7, §8: about half to 97 % of the first ones), and many only show it
   once the hands are compared: Anna knows her pieces do not fill the
   L-shaped gap, Ben knows his do not, and only saying so tells them both.
 - **Against the clock, not each other.** One team clock; every solved
@@ -115,43 +115,104 @@ refused with `time`.
 
 ## 7. Difficulty
 
+Difficulty climbs during a game: the shapes stand on a **ladder** of
+eight rungs, every filled shape takes the next one a rung up (to the
+top), and the level only says where a game starts and how much the game
+helps.
+
 | | Easy | Normal | Hard |
 |---|---|---|---|
-| Pieces | 3–4 cells | 4–5 cells, half and half | 4–5 cells, two thirds pentominoes |
-| Boards | the most ways to fill it of the tries (§8) | the middle | the fewest |
+| The first shape | rung 0 | rung 3 | rung 4 |
+| Checks (§7.1) | as many as the team likes | 3; a filled shape gives one back (at most 3) | none; a filled shape earns one (at most 1) |
 | Pieces that fit nowhere | greyed out on the phone | greyed out | not shown |
-| A board that can no longer be solved | the TV says so (after a check, §8) | — | — |
 | Lifting and moving | free | free | 3 s |
+
+The rungs (§8 says how a rung picks its shape; dead: the share of first
+placements that leave the board unsolvable, ways: the ways to fill it,
+both medians of generated boards with two players):
+
+| Rung | Pieces | Kept of the tries | Dead | Ways |
+|---|---|---|---|---|
+| 0 | 3–4 cells, ¾ tetrominoes | the most forgiving tenth | 47 % | ~100 |
+| 1 | the same | 35 % of the way | 60 % | ~50 |
+| 2 | the same | 65 % | 73 % | ~15 |
+| 3 | tetrominoes | the middle | 77 % | ~8 |
+| 4 | 4–5 cells, half and half | the middle | 88 % | ~9 |
+| 5 | 4–5 cells, ⅔ pentominoes | the middle | 93 % | ~3 |
+| 6 | the same | 80 % | 95 % | ~2 |
+| 7 | the same | the least forgiving | 97 % | 1 |
+
+With more players the boards have more pieces and a first placement
+kills less (rung 0 about 26 %, rung 7 about 90 % with three or four),
+but the order of the rungs holds.
+
+**Why a ladder.** The first version had one fixed kind of board per
+level: easy the most forgiving of 24 tries (about rung 0), normal the
+middle (about rung 4) and hard the least forgiving (rung 7). Easy never
+ended, because a solved board gave back more time than the next one
+took; normal was already close to hard; and hard's one-solution boards,
+97 % dead from the first move, often lost the first shape. Now easy
+starts as before and reaches normal's start by the fourth shape, so its
+games end; normal starts between the old easy and the old normal; hard
+starts at the old normal without its help and reaches the old hard by
+the fourth shape. The clock is unchanged: on a high enough rung a board
+takes longer than the time it gives back, and the game runs down.
 
 Hands are secret on every level: the levels change how much the game
 helps, never that. **The most restrictive setting is Hard with two
 players**: six needed pieces plus two spares, mostly pentominoes, boards
-with one or a few solutions, no help, lifting costs. It stays fair
-because every dead end is visible to the pair once they compare what they
-hold, and the clock gives each board about a minute and a half.
+with one or a few solutions from the fourth shape on, checks only as
+earned, lifting costs. It stays fair because every dead end is visible
+to the pair once they compare what they hold, and the clock gives each
+board about a minute and a half.
+
+### 7.1 Checks
+
+Any player on the board may tap **Check** on the phone: the host runs
+the solver on what is left (the free cells, every piece still in a hand,
+at most 300 000 steps, about 50 ms) and answers on the TV and every
+phone, with who asked: **"it can still work out"** or **"it can't work
+out like this"** (then a piece has to come off). The answer stays until
+the board changes (a placement, a move, a lift, a hand-off), since it is
+only true of the board as it was. A check uses one of the team's: easy
+has as many as it likes, normal starts with 3 and hard with none, and
+each filled shape earns one up to the level's limit (normal 3, hard 1).
+Asking again while nothing moved answers again for free; a search that
+runs out ("too many ways to tell yet", rare: the boards that are hard to
+search are the open ones) uses nothing. No check left: the phone says
+so (on hard, that a filled shape earns one).
 
 ## 8. The generator
 
 `game/rules.ts`, pure functions with a seeded random source:
 
-1. **Grow**: pick the needed pieces from the level's mix; place the first
+1. **Grow**: pick the needed pieces from the rung's mix; place the first
    near the middle of a box (`w × h` with `w·h ≈ 1.3 × cells`, wider
    than high by 1.35 to 1.85), each next one in any orientation and
    place inside the box that touches what is there, the likelier the
    more edges it shares (weighted by that number squared: compact but
    not square), never one that would close a hole. Reject the shape if
    it fills less than 70 % of its box.
-2. **Spares**: one random piece of the level's mix per player.
+2. **Spares**: one random piece of the rung's mix per player.
 3. **Count** the ways to fill the shape with all dealt pieces (an exact
    cover by backtracking: the first empty cell in reading order, every
    unused piece in every orientation that covers it), up to 50 and at
    most 40 000 steps; a count that runs out is "many".
-4. Make several such boards and keep one by the level (§7): 24 with up to
-   6 needed pieces (40 000 steps each), 12 with up to 9 (20 000), else 8
-   (10 000); for big boards the counts mostly run out, and a count that
-   ran out sorts as "many". The host makes them a try at a time, giving
-   the page a turn between tries (a board takes 30–110 ms of work), and
-   makes the next board during the celebration.
+4. **Estimate the dead share**: 32 first placements drawn at random (a
+   random dealt piece at a random place it fits), each followed by the
+   solver on the rest within 3 000 steps; the share where nothing fills
+   the rest, a search that runs out counting as dead. Within 3–6 points
+   of the full count on boards of 2–4 players, 2–30 ms. This, not the
+   ways, is what a team feels, and unlike the ways it is not capped (big
+   boards have hundreds of ways, past the count's limit).
+5. Make several such boards and keep one by the rung (§7): sorted from
+   the fewest dead first placements to the most (ties: the most ways
+   first), the one at the rung's rank. 24 tries with up to 6 needed
+   pieces (40 000 steps each for the count), 12 with up to 9 (20 000),
+   else 8 (10 000). The host makes them a try at a time, giving the page
+   a turn between tries (a board takes 30–140 ms of work), and makes the
+   next board during the celebration, on the rung the shapes solved so
+   far reached.
 
 The generator's own tiling is the board's **solution** (shown at time's
 up, used by the bots).
@@ -190,11 +251,7 @@ lifted on every level: a board whose placed pieces were final would be
 lost on its first move. Hard makes second thoughts cost; it cannot
 forbid them.
 
-**Easy's warning**: after each placement the host runs the solver on
-what is left (free cells, every piece still in a hand) within the step
-budget; when it proves that nothing fills it, the TV and the phones say
-"Hmm, something is stuck" until a piece is lifted. A count that runs out
-says nothing.
+Checks (§7.1) run the same solver on what is left, on demand.
 
 ## 9. Players who come, go and come back
 
@@ -216,7 +273,8 @@ header comment):
 
 - `party.room` (every phone): the phase, the board's shape, the pieces
   on it (id, owner, cells), how many pieces each player holds, the
-  cursors, the clock, the level and the pace, boards solved.
+  cursors, the clock, the level and the pace, boards solved, the checks
+  left and the last check's answer.
 - `player.state` (one phone): the task and **the hand** (each piece's id
   and cells).
 - `party.screen` (the TV): the same board, counts and cursors; at the
@@ -243,15 +301,18 @@ bow sits on the logo's g. No characters, no cats: the faces are the
 pieces'. Fredoka (rounded, SIL OFL) for everything; colours from a
 palette of eight candy tones that stay apart on a pink ground.
 
-**The TV** (1280×720): the logo, the shape's number, the shapes done and
-the level top left, the clock top right (a candy ring that drains, red
+**The TV** (1280×720): the logo, the shape's number, the shapes done,
+the level and the checks left top left, the clock top right (a candy ring that drains, red
 under 15 s, throbbing and ticking each second under 10 s; the time back
-pops up beside it), the board in the middle as large as fits, the team
+pops up beside it), the board in the middle as large as fits (a
+check's answer above it, yellow for stuck, green for can still work
+out), the team
 down the left (a candy chip each with the name and a wrapped sweet per
 piece still in hand), tvpipe's join badge bottom left under it. Cursors
 are rounded arrows with the initial; pings are rings. Solved: the faces
 close their eyes and smile, the board bounces, "Snug!", confetti, who
-placed the last piece, and the spares beside their owners. Time's up:
+placed the last piece (and "+1 check" when the shape earned one), and
+the spares beside their owners. Time's up:
 "Time's up!", the faces go sleepy, then the placed pieces fade and the
 solution drops in with every hand beside its owner. The lobby: the logo,
 the tagline, how to play in three steps, the level and the clock, the
@@ -261,7 +322,9 @@ a jar.
 **The phone** (portrait): the clock and the board number on top, the
 board as large as the width allows, the hand below (each piece in its own
 slot: tap to turn it a quarter, the flip button under it; pieces that fit
-nowhere greyed on easy and normal). Dragging a piece lifts it above the
+nowhere greyed on easy and normal); above the hand, at the right of its
+title, the **Check** button with the checks left, and between the board
+and the hand the last check's answer while it holds. Dragging a piece lifts it above the
 finger (so the finger does not hide it) and shows where it would land,
 snapped, on the board (dashed in one's colour, grey where it does not
 fit); letting go places it at once on the phone, and the host's answer
@@ -270,7 +333,8 @@ the board lifts it, dragging it moves it. Touching anywhere else on the
 board is the cursor. Buzzes: a short one on placing, two on a refusal.
 
 **Sound** (TV, synthesized): a soft pop for a placement, a squeak for a
-lift, a boing for a collision, a chime for a ping, a ticking clock under
+lift, a chime for a ping, a rising pair when a check says the board can
+still work out and an "uh-oh" when it cannot, a ticking clock under
 10 s, a sparkle and a fanfare for a solved board, a slide whistle at
 time's up.
 
@@ -280,21 +344,25 @@ lifts).
 
 ## 12. Settings
 
-The host page and the VIP's phone: **level** (easy, normal, hard),
+The host page and the VIP's phone: **level** (easy, normal, hard: where
+the ladder starts and the checks, §7),
 **pace** (relaxed, normal, rushed), the language (English, German), late
 joining (wait, closed).
 
 ## 13. Checking it
 
 `npm test`: the pieces and their orientations, the generator (every board
-has no holes, is filled by its solution, keeps to its box, deals evenly),
+has no holes, is filled by its solution, keeps to its box, deals evenly;
+higher rungs leave more first placements dead), the dead-share estimate
+and the check against known answers,
 the solver against fixtures (the board of §8's example with its one
 solution and a dead first placement), placing and its refusals, whole
 games with bots in memory (secrecy: no hand reaches the TV or another
-phone before it is placed; collisions; hard's cost; drop-outs and the
+phone before it is placed; collisions; hard's cost; checks on each
+level, used, answered again, earned; drop-outs and the
 hand-off; latecomers; too few players; cursors), and `test/live/play.ts`
 through tvpipe in headless Chrome (a phone joins, turns and flips a
 piece, drags its pieces onto the shape with touches, points, takes one
-back; bots play the rest; a shape is solved, the next runs out of time;
+back, checks; bots play the rest; a shape is solved, the next runs out of time;
 screenshots of the TV and of the phone at five sizes with layout checks;
 `--shots DIR` for the games list).

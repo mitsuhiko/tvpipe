@@ -20,10 +20,15 @@ pieces until they are on the board**. The team plays against one clock.
   back and brings the next shape. Time's up shows how the shape would
   have gone and every hand; the score is how many shapes the room
   filled.
-- **Levels**: easy (small pieces, many ways to fill a shape, pieces that
-  fit nowhere turn grey, the TV says when the board can no longer work
-  out), normal, hard (mostly pentominoes, one or few ways, no help,
-  taking a piece back costs 3 seconds).
+- **Checks**: tapping Check asks whether the board can still work out;
+  the TV and every phone show the answer until something moves.
+- **Levels**: every filled shape makes the next a little harder; the
+  level says where that starts and how much help there is. Easy: small
+  pieces and many ways to fill a shape, checks as often as you like,
+  pieces that fit nowhere turn grey. Normal: tetrominoes first, 3
+  checks (a filled shape gives one back). Hard: pentominoes, few ways,
+  a check only when a filled shape earns one, no grey, taking a piece
+  back costs 3 seconds.
 - **The end**: shapes filled, the best of the session, and three awards
   (snuggest fit, pointer, second thoughts).
 
@@ -37,7 +42,7 @@ phones join with the QR code.
 | | | |
 |---|---|---|
 | `tvpipe.json` | the manifest | pages, 2–8 players, the TV's size; `root: dist` |
-| `game/` | the rules (`rules.ts`: the pieces, the generator, the solver, the deal, placing, the clock), the game (`game.ts`), bots (`bots.ts`) | TypeScript on `@tvpipe/party`, tested in Node |
+| `game/` | the rules (`rules.ts`: the pieces, the difficulty ladder and the checks, the generator, the solver, the deal, placing, the clock), the game (`game.ts`), bots (`bots.ts`) | TypeScript on `@tvpipe/party`, tested in Node |
 | `host/` | the host page | tvpipe's standard host page (`HostPage`) with Snug's settings (`host.ts`) and its look (`host.css`); `strings.ts` (the status line) |
 | `screen/` | the TV page | the lobby, a shape (the cushion, the candies, the cursors, the team, the clock) through solved and time's up, the end; sounds (`sound.js`); `strings.js` |
 | `phone/` | the phone page | joining, the lobby (the VIP's settings), a shape with the hand below (drag, turn, flip, take back, point), the end; `candy.js` (the candies and the cushion, shared with the TV), `strings.js`, `fit.js` and `i18n.js` (Krakel's) |
@@ -78,7 +83,7 @@ and take it back; they wander their cursors and ping. The live check
 needs Chrome and a built tvpipe (`TVPIPE_BINARY`, else
 `target/release`, else `target/debug`); the phone turns and flips a
 piece, drags its pieces onto the shape with touches, points, takes one
-back; it checks the phone at five sizes and the TV for anything out of
+back, taps Check; it checks the phone at five sizes and the TV for anything out of
 its box or under the join badge, and fails on any page's or bot's error.
 
 ## Languages

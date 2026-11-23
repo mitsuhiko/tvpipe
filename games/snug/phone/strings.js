@@ -42,9 +42,9 @@ export function strings(lang) {
       levels: { easy: "leicht", normal: "normal", hard: "schwer" },
       paces: { relaxed: "gemütlich", normal: "normal", rushed: "hektisch" },
       levelLine: {
-        easy: "Kleine Teile, viele Lösungen. Teile, die nirgends passen, werden grau.",
-        normal: "Mittlere Teile. Teile, die nirgends passen, werden grau.",
-        hard: "Große Teile, kaum eine Lösung, keine Hilfe. Hochheben kostet 3 Sekunden.",
+        easy: "Kleine Teile, viele Lösungen, Prüfen so oft ihr wollt. Teile, die nirgends passen, werden grau.",
+        normal: "Mittlere Teile, 3-mal Prüfen (jede volle Form bringt eins zurück). Teile, die nirgends passen, werden grau.",
+        hard: "Große Teile, wenige Lösungen. Prüfen nur, wenn ihr es mit einer vollen Form verdient. Hochheben kostet 3 Sekunden.",
       },
       howTitle: "So geht's",
       how: [
@@ -52,7 +52,7 @@ export function strings(lang) {
         "Zieh ein Teil auf die Form. Tippen dreht es, ⇋ spiegelt es.",
         "Tipp auf dein gelegtes Teil, um es zurückzuholen. Zieh es, um es zu verschieben.",
         "Berühr die Form, um allen ein Feld zu zeigen. Kurz tippen: Ping!",
-        "Redet! Nicht jedes Teil wird gebraucht. Jede volle Form bringt Zeit zurück.",
+        "Redet! Nicht jedes Teil wird gebraucht. „Prüfen“ sagt, ob es noch aufgehen kann.",
       ],
       waitNext: "Du bist bei der nächsten Form dabei. Schau solange auf den Fernseher!",
       lookTv: "Schau auf den Fernseher!",
@@ -71,7 +71,17 @@ export function strings(lang) {
       timeUp: "Die Zeit ist um!",
       /** @param {string} name @param {number} n */
       got: (name, n) => `${name} ist weg: ${f.p(n, { one: "ein Teil ist", other: "# Teile sind" })} jetzt deins.`,
-      stuck: "Hmm … so geht es nicht mehr auf. Holt ein Teil zurück!",
+      check: "Prüfen",
+      /** @param {number} n */
+      checkN: (n) => `Prüfen · ${n}`,
+      noChecks: "Kein Prüfen mehr übrig.",
+      noChecksHard: "Noch kein Prüfen: Füllt eine Form, dann bekommt ihr eins.",
+      unsure: "Zu viele Möglichkeiten, das lässt sich noch nicht sagen. Nichts verbraucht.",
+      /** @param {string} name @param {boolean} me */
+      stuck: (name, me) => `${me ? "Geprüft" : `${name} hat geprüft`}: So geht es nicht mehr auf. Holt ein Teil zurück!`,
+      /** @param {string} name @param {boolean} me */
+      open: (name, me) => `${me ? "Geprüft" : `${name} hat geprüft`}: Das kann noch aufgehen!`,
+      earned: "+1 Prüfen",
       costs: "−3 s",
       snug: "Kuschelig!",
       /** @param {number} s */
@@ -121,9 +131,9 @@ export function strings(lang) {
     levels: { easy: "easy", normal: "normal", hard: "hard" },
     paces: { relaxed: "relaxed", normal: "normal", rushed: "rushed" },
     levelLine: {
-      easy: "Small pieces, many ways to fill a shape. Pieces that fit nowhere turn grey.",
-      normal: "Middle-sized pieces. Pieces that fit nowhere turn grey.",
-      hard: "Big pieces, one way or few, no help. Lifting a piece costs 3 seconds.",
+      easy: "Small pieces, many ways to fill a shape, check as often as you like. Pieces that fit nowhere turn grey.",
+      normal: "Middle-sized pieces, 3 checks (every filled shape gives one back). Pieces that fit nowhere turn grey.",
+      hard: "Big pieces, few ways. Checks only when a filled shape earns one. Lifting a piece costs 3 seconds.",
     },
     howTitle: "How to play",
     how: [
@@ -131,7 +141,7 @@ export function strings(lang) {
       "Drag a piece onto the shape. Tap it to turn it, ⇋ flips it.",
       "Tap your placed piece to take it back. Drag it to move it.",
       "Touch the shape to show everyone a cell. A quick tap pings!",
-      "Talk! Not every piece is needed. Every filled shape gives time back.",
+      "Talk! Not every piece is needed. Check tells you whether it can still work out.",
     ],
     waitNext: "You're in from the next shape. Watch the TV meanwhile!",
     lookTv: "Look at the TV!",
@@ -150,7 +160,17 @@ export function strings(lang) {
     timeUp: "Time's up!",
     /** @param {string} name @param {number} n */
     got: (name, n) => `${name} is away: ${f.p(n, { one: "a piece is", other: "# pieces are" })} yours now.`,
-    stuck: "Hmm… it can't work out like this. Take a piece back!",
+    check: "Check",
+    /** @param {number} n */
+    checkN: (n) => `Check · ${n}`,
+    noChecks: "No checks left.",
+    noChecksHard: "No checks yet: fill a shape to earn one.",
+    unsure: "Too many ways to tell yet. Nothing used up.",
+    /** @param {string} name @param {boolean} me */
+    stuck: (name, me) => `${me ? "You checked" : `${name} checked`}: it can't work out like this. Take a piece back!`,
+    /** @param {string} name @param {boolean} me */
+    open: (name, me) => `${me ? "You checked" : `${name} checked`}: it can still work out!`,
+    earned: "+1 check",
     costs: "−3 s",
     snug: "Snug!",
     /** @param {number} s */

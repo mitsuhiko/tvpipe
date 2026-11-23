@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * Snug's sounds on the TV, all synthesized (no files): a soft pop for a
- * placement, a squeak for a lift, a chime for a ping, a ticking clock,
+ * placement, a squeak for a lift, a chime for a ping, a rising pair or
+ * an "uh-oh" for a check's answer, a ticking clock,
  * a sparkle and a fanfare for a solved board, a slide whistle at time's
  * up, a bubbly jingle when someone joins. One master gain and a
  * compressor, so overlapping sounds never clip. `?mute=1` (the host
@@ -98,6 +99,16 @@ export const sfx = {
   chime() {
     tone(1568, 1560, 0.5, { vol: 0.07 });
     tone(2349, 2340, 0.35, { vol: 0.04, delay: 0.01 });
+  },
+  /** A check says it can still work out: a rising pair. */
+  yes() {
+    tone(784, 784, 0.16, { type: "triangle", vol: 0.1 });
+    tone(1175, 1175, 0.28, { type: "triangle", vol: 0.1, delay: 0.12 });
+  },
+  /** A check says it is stuck: a falling "uh-oh". */
+  uhoh() {
+    tone(620, 600, 0.18, { type: "triangle", vol: 0.12 });
+    tone(440, 400, 0.32, { type: "triangle", vol: 0.12, delay: 0.17 });
   },
   /** The clock under 10 s. @param {boolean} high */
   tick(high) {

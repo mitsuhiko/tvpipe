@@ -151,8 +151,11 @@ body {
 @keyframes big { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-10deg); } 60% { opacity: 1; transform: translate(-50%, -50%) scale(1.08) rotate(3deg); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-3deg); } }
 .caption { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%) translateY(20px); margin: 0; opacity: 0; font-size: 26px; font-weight: 600; background: #fff; color: var(--ink); padding: 8px 22px; border-radius: 999px; box-shadow: 0 5px 0 rgba(216, 27, 106, .2); white-space: nowrap; transition: opacity .4s, transform .5s cubic-bezier(.25, 1.6, .5, 1); }
 .caption.show { opacity: 1; transform: translateX(-50%); }
-.stuck { position: absolute; left: 50%; top: 0; transform: translate(-50%, -16px); opacity: 0; font-size: 22px; font-weight: 600; background: #fff4c2; color: #8a5a00; border: 3px solid #ffd45c; padding: 8px 20px; border-radius: 18px; white-space: nowrap; transition: opacity .3s, transform .4s cubic-bezier(.25, 1.6, .5, 1); }
-.stuck.show { opacity: 1; transform: translate(-50%, 0); animation: nudge 2.4s ease-in-out .5s infinite; }
+.answer { position: absolute; left: 50%; top: 0; transform: translate(-50%, -16px); opacity: 0; font-size: 22px; font-weight: 600; padding: 8px 20px; border-radius: 18px; white-space: nowrap; transition: opacity .3s, transform .4s cubic-bezier(.25, 1.6, .5, 1); }
+.answer.stuck { background: #fff4c2; color: #8a5a00; border: 3px solid #ffd45c; }
+.answer.open { background: #dcf7ea; color: #0e7a55; border: 3px solid #8fe3c0; }
+.answer.show { opacity: 1; transform: translate(-50%, 0); }
+.answer.show.stuck { animation: nudge 2.4s ease-in-out .5s infinite; }
 @keyframes nudge { 0%, 88%, 100% { rotate: 0deg; } 91% { rotate: -2deg; } 94% { rotate: 2deg; } 97% { rotate: -1deg; } }
 
 .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -175,5 +178,5 @@ body {
 .again { margin-top: auto; font-size: 22px; font-weight: 600; color: var(--ink-2); background: rgba(255, 255, 255, .7); padding: 8px 20px; border-radius: 999px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .float, .logo .bow, .lobby .logo.big, .face .eyes, .clock.urgent, .stuck.show { animation: none !important; }
+  .float, .logo .bow, .lobby .logo.big, .face .eyes, .clock.urgent, .answer.show { animation: none !important; }
 }

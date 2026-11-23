@@ -339,17 +339,18 @@ function board(sc0) {
   const team = h("ul", { class: "team" });
   const big = h("div", { class: "bigword" });
   const caption = h("p", { class: "caption" });
-  const stuck = h("div", { class: "stuck" }, t.stuck);
+  const answer = h("div", { class: "answer" });
   const confetti = h("div", { class: "confetti" });
   const boardNo = h("span", { class: "pill" });
   const done = h("span", { class: "pill soft" });
   const level = h("span", { class: "pill soft" });
+  const checks = h("span", { class: "pill soft checks" });
   const el = h(
     "div",
     { class: "scene play enter" },
-    h("header", {}, logo("small"), boardNo, done, level, h("span", { class: "grow" }), ck.el),
+    h("header", {}, logo("small"), boardNo, done, level, checks, h("span", { class: "grow" }), ck.el),
     h("aside", {}, team),
-    h("main", {}, svg, stuck, big, caption),
+    h("main", {}, svg, answer, big, caption),
     confetti,
   );
   later(700, () => el.classList.remove("enter"));
@@ -474,8 +475,8 @@ function board(sc0) {
           svg.classList.add("bounce");
           big.textContent = t.snug;
           big.className = "bigword show snug";
-          if (sc.by) {
-            caption.textContent = t.finished(nameOf(sc.by));
+          if (sc.by || sc.earned) {
+            caption.textContent = [sc.by ? t.finished(nameOf(sc.by)) : "", sc.earned ? t.earned : ""].filter(Boolean).join(" · ");
             caption.classList.add("show");
           }
           if (sc.bonus) ck.bonus(t.back(Math.round(sc.bonus / 1000)));
@@ -496,7 +497,18 @@ function board(sc0) {
         }
       }
       if (phase === "board") syncPlaced(sc.placed ?? [], false);
-      stuck.classList.toggle("show", !!sc.stuck && phase === "board");
+      checks.textContent = sc.checks === null || sc.checks === undefined ? t.checksAny : t.checksN(sc.checks);
+      const c = phase === "board" ? sc.check : null;
+      const answerKey = c ? `${c.n}` : "";
+      if (answer.dataset["k"] !== answerKey) {
+        answer.dataset["k"] = answerKey;
+        if (c) {
+          answer.textContent = c.result === "stuck" ? t.stuck(nameOf(c.by)) : t.open(nameOf(c.by));
+          answer.className = `answer show ${c.result}`;
+          if (c.result === "stuck") sfx.uhoh();
+          else sfx.yes();
+        } else answer.className = `answer ${answer.className.includes("stuck") ? "stuck" : "open"}`;
+      }
       syncTeam(sc, roster);
       // Cursors: placed from the view, faded in the frame loop; a new ping rings.
       const cs = sc.cursors ?? {};

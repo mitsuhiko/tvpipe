@@ -3,15 +3,18 @@ import { test } from "node:test";
 
 import {
   bonusTime,
+  CHECKS,
   checkPlacement,
   connected,
   countFillings,
+  deadShare,
   deal,
   fitsAnywhere,
   flip,
   generate,
   holes,
   key,
+  LADDER,
   LEVELS,
   normalize,
   orientations,
@@ -21,6 +24,7 @@ import {
   piecesEach,
   placements,
   readCells,
+  rungOf,
   sameShape,
   seeded,
   shapeCells,
@@ -28,6 +32,7 @@ import {
   TETROMINOES,
   TROMINOES,
   turn,
+  verdict,
   type Cell,
   type Kind,
 } from "../game/rules.ts";
@@ -128,16 +133,17 @@ test("the solver counts with spares, unused pieces allowed, the same shapes once
   assert.equal(r.complete, false);
 });
 
-test("generated boards: no holes, compact, filled by their solution, the right pieces for every level and size", () => {
+test("generated boards: no holes, compact, filled by their solution, the right pieces for every rung and size", () => {
   const rng = seeded(11);
-  for (const level of LEVELS) {
+  for (const rung of [0, 3, 4, 7]) {
     for (const players of [1, 2, 3, 4, 5, 8]) {
-      const b = generate({ players, level, rng, tries: 3 });
+      const b = generate({ players, rung, rng, tries: 3 });
       const cells = shapeCells(b.shape);
       assert.equal(holes(cells), 0);
       assert.ok(cells.length / (b.shape.w * b.shape.h) >= 0.7);
       assert.equal(b.solution.length, piecesEach(players) * players);
       assert.equal(b.spares.length, players);
+      assert.ok(b.dead >= 0 && b.dead <= 1);
       // The solution covers every cell once, each piece its kind.
       const seen = new Set<number>();
       for (const p of b.solution) {
@@ -150,28 +156,74 @@ test("generated boards: no holes, compact, filled by their solution, the right p
       }
       assert.equal(seen.size, cells.length);
       const sizes = b.solution.map((p) => p.cells.length);
-      if (level === "easy") assert.ok(sizes.every((n) => n === 3 || n === 4));
+      if (rung === 0) assert.ok(sizes.every((n) => n === 3 || n === 4));
+      else if (rung === 3) assert.ok(sizes.every((n) => n === 4));
       else assert.ok(sizes.every((n) => n === 4 || n === 5));
       assert.ok(b.shape.w >= b.shape.h * 0.8, `${b.shape.w}x${b.shape.h}`);
     }
   }
 });
 
-test("hard boards have fewer ways to fill them than easy ones", () => {
-  const ways = (level: "easy" | "hard") => {
+test("the ladder: a level says where a game starts, every filled shape climbs a rung, up to the top", () => {
+  assert.deepEqual(LEVELS.map((l) => rungOf(l, 0)), [0, 3, 4]);
+  assert.equal(rungOf("easy", 2), 2);
+  assert.equal(rungOf("hard", 3), 7);
+  assert.equal(rungOf("hard", 30), LADDER.length - 1);
+  assert.equal(rungOf("normal", -1), 3);
+});
+
+test("higher rungs leave more first placements dead", () => {
+  const dead = (rung: number) => {
     const rng = seeded(5);
     let sum = 0;
-    for (let i = 0; i < 4; i++) sum += generate({ players: 2, level, rng }).ways;
+    for (let i = 0; i < 4; i++) sum += generate({ players: 2, rung, rng, tries: 12 }).dead;
     return sum / 4;
   };
-  assert.ok(ways("hard") < ways("easy"));
-  assert.ok(ways("hard") <= 3);
+  const [low, mid, top] = [dead(0), dead(3), dead(7)];
+  assert.ok(low < mid && mid < top, `${low} ${mid} ${top}`);
+  assert.ok(low < 0.65, `${low}`);
+  assert.ok(top > 0.85, `${top}`);
+});
+
+test("the dead share: none on an open square, every one on a trap, the design's example near its count", () => {
+  const square = parseRows(["####", "####", "####", "####"]).shape;
+  const fours = Array.from({ length: 4 }, () => PIECES.I4);
+  assert.equal(deadShare(square, fours, seeded(1)), 0);
+  // A 2×3 block with an I3 and a V3: whichever goes in first, the other cannot fill the rest.
+  const block = parseRows(["###", "###"]).shape;
+  assert.equal(deadShare(block, [PIECES.I3, PIECES.V3], seeded(1)), 1);
+  assert.equal(deadShare(parseRows(["#"]).shape, [PIECES.I3], seeded(1)), 1);
+  // The example: about 96 % of first placements are dead (the count in the test above).
+  const { shape } = parseRows(EXAMPLE);
+  const kinds: Kind[] = ["S4", "Y5", "I4", "Z5", "V5", "T4"];
+  const est = deadShare(shape, kinds.map((k) => PIECES[k]), seeded(2), 400, 40_000);
+  assert.ok(est > 0.9, `${est}`);
+});
+
+test("a check: open at the start, stuck at the design's dead end, unsure when the search runs out", () => {
+  const { shape, pieces } = parseRows(EXAMPLE);
+  const kinds: Record<string, Kind> = { s: "S4", y: "Y5", I: "I4", Z: "Z5", v: "V5", T: "T4" };
+  const all = shapeCells(shape);
+  const hand = (letters: string) => [...letters].map((l) => PIECES[kinds[l]!]);
+  assert.equal(verdict(all, hand("syIZvT")), "open");
+  // s and v at home, Z one step off (§8): the L of four top right is left for T, I and y.
+  const taken = new Set([...pieces.get("s")!, ...pieces.get("v")!, [3, 1], [3, 2], [4, 2], [5, 2], [5, 3]].map(([x, y]) => key(x!, y!)));
+  const free = all.filter(([x, y]) => !taken.has(key(x, y)));
+  assert.equal(verdict(free, hand("yIT")), "stuck");
+  const big = parseRows(["##########", "##########", "##########", "##########"]).shape;
+  assert.equal(verdict(shapeCells(big), Array.from({ length: 14 }, () => PIECES.V3), 50), "unsure");
+});
+
+test("checks: as many as the team likes on easy, three on normal, none to start on hard", () => {
+  assert.equal(CHECKS.easy, null);
+  assert.deepEqual(CHECKS.normal, { start: 3, max: 3 });
+  assert.deepEqual(CHECKS.hard, { start: 0, max: 1 });
 });
 
 test("the deal: the same number of needed pieces each, a spare each, ids say nothing", () => {
   const rng = seeded(3);
   for (const players of [2, 3, 4, 7]) {
-    const b = generate({ players, level: "normal", rng, tries: 2 });
+    const b = generate({ players, rung: 4, rng, tries: 2 });
     const ids = Array.from({ length: players }, (_, i) => `p${i}`);
     const hands = deal(b, ids, "1-", rng);
     const all = [...hands.values()].flat();

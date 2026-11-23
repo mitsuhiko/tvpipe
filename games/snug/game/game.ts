@@ -9,13 +9,15 @@
  *
  * Views:
  * - `party.room` (every phone): `{ phase, lang, level, pace, minPlayers, colors, solved, best, board?, shape?,
- *   placed?, counts?, team?, deadline?, left?, stuck?, cursors?, bonus?, by?, spares?, solution?, hands?, awards?,
- *   stats? }`: `phase` is `lobby`, `board`, `solved`, `over` (time's up) or `final`; `shape` the board
+ *   placed?, counts?, team?, deadline?, left?, checks, check?, cursors?, bonus?, earned?, by?, spares?, solution?,
+ *   hands?, awards?, stats? }`: `phase` is `lobby`, `board`, `solved`, `over` (time's up) or `final`; `shape` the board
  *   (`{ w, h, rows }`), `placed` the pieces on it (`{ id, owner, cells }`), `counts` the pieces each player still
  *   holds (by id, never which), `team` who plays the board (ids), `deadline` the clock (host time; null while it
- *   is stopped, `left` the time then), `stuck` (easy: the board can no longer be filled), `cursors` by id
- *   (`{ x, y, on, ping, t }`), at `solved` the time back (`bonus`), who finished it (`by`) and the leftover
- *   pieces (`spares`: `{ owner, cells }`), at `over` the solution and every hand (`{ owner, cells }`).
+ *   is stopped, `left` the time then), `checks` the checks the team has left (null: as many as it likes),
+ *   `check` the answer of the last one while the board is as it was then (`{ result: "stuck" | "open", by, n }`),
+ *   `cursors` by id (`{ x, y, on, ping, t }`), at `solved` the time back (`bonus`), whether it earned a check
+ *   (`earned`), who finished it (`by`) and the leftover pieces (`spares`: `{ owner, cells }`), at `over` the
+ *   solution and every hand (`{ owner, cells }`).
  * - `player.state` (one phone): `{ task, color, hand?, got? }`: `task` is `lobby`, `wait` (a latecomer until the
  *   next board), `play`, `solved`, `over` or `final`; `hand` the pieces the player holds and has not placed
  *   (`{ id, cells }`, the cells as dealt); `got` when pieces came from a player who went away (`{ from, n, key }`).
@@ -32,9 +34,9 @@ import { Emitter, PartyError, type Json, type Party, type Player, type Sender } 
 import {
   bonusTime,
   candidate,
+  CHECKS,
   checkPlacement,
   choose,
-  countFillings,
   deal,
   effort,
   key,
@@ -44,8 +46,10 @@ import {
   PACES,
   PIECES,
   readCells,
+  rungOf,
   shapeCells,
   startTime,
+  verdict,
   type Board,
   type Cell,
   type Lang,
@@ -122,9 +126,16 @@ interface Play {
   cells: number;
   needed: number;
   deadline: number;
-  stuck: boolean;
+  /** The last check's answer, while the board is as it was then. */
+  check: Check | null;
   by: string | null;
   done: (how: "solved" | "time" | "abort") => void;
+}
+
+interface Check {
+  result: "stuck" | "open";
+  by: string;
+  n: number;
 }
 
 interface Stats {
@@ -132,6 +143,7 @@ interface Stats {
   lifts: number;
   pings: number;
   fits: number;
+  checks: number;
 }
 
 interface Cursor {
@@ -168,6 +180,9 @@ export class Snug extends Emitter<GameEvents> {
   #cursorTimer: ReturnType<typeof setTimeout> | undefined;
   #cursorDirty = false;
   #gotKey = 0;
+  /** The checks the team has left (null: unlimited). */
+  #checks: number | null = null;
+  #checkNo = 0;
 
   constructor(party: Party, options: GameOptions = {}) {
     super();
@@ -194,6 +209,10 @@ export class Snug extends Emitter<GameEvents> {
   }
   get solved(): number {
     return this.#solved;
+  }
+  /** The checks the team has left (null: unlimited). */
+  get checks(): number | null {
+    return this.#running ? this.#checks : (CHECKS[this.#level]?.start ?? null);
   }
   /** The board's number (0 before the first). */
   get boardNo(): number {
@@ -257,6 +276,7 @@ export class Snug extends Emitter<GameEvents> {
     });
     party.handle("place", (d, from) => this.#place(d, from));
     party.handle("lift", (d, from) => this.#lift(d, from));
+    party.handle("check", (d, from) => this.#check(d, from));
     party.on("input", (p, data) => this.#input(p, data));
     party.on("join", (p) => {
       this.#names.set(p.id, p.name);
@@ -299,8 +319,8 @@ export class Snug extends Emitter<GameEvents> {
     if (o.lang !== undefined) this.#lang = o.lang;
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     if (this.#phase === "lobby" || this.#phase === "final") {
-      this.party.room.set({ lang: this.#lang, ...this.settings });
-      this.party.screen.set({ lang: this.#lang, ...this.settings });
+      this.party.room.set({ lang: this.#lang, ...this.settings, checks: this.checks });
+      this.party.screen.set({ lang: this.#lang, ...this.settings, checks: this.checks });
     }
     if (JSON.stringify(this.settings) !== was) this.emit("settings", this.settings);
   }
@@ -361,7 +381,7 @@ export class Snug extends Emitter<GameEvents> {
   }
 
   #base(): Record<string, unknown> {
-    return { lang: this.#lang, ...this.settings, minPlayers: this.minPlayers, colors: this.#colorMap(), solved: this.#solved, best: this.#best };
+    return { lang: this.#lang, ...this.settings, minPlayers: this.minPlayers, colors: this.#colorMap(), solved: this.#solved, best: this.#best, checks: this.checks };
   }
 
   #room(fields: Record<string, unknown>): void {
@@ -403,19 +423,19 @@ export class Snug extends Emitter<GameEvents> {
 
   /** What the board's views always have. */
   #table(pl: Play): Record<string, unknown> {
-    return { board: pl.n, shape: pl.board.shape, placed: this.#placedView(pl), counts: this.#counts(pl), team: pl.team, stuck: pl.stuck };
+    return { board: pl.n, shape: pl.board.shape, placed: this.#placedView(pl), counts: this.#counts(pl), team: pl.team, check: pl.check };
   }
 
   /** The board changed (a placement, a lift, a hand-off): the room and the screen at once. */
   #boardChanged(pl: Play): void {
-    const f = { placed: this.#placedView(pl), counts: this.#counts(pl), stuck: pl.stuck, deadline: pl.deadline };
+    const f = { placed: this.#placedView(pl), counts: this.#counts(pl), check: pl.check, checks: this.checks, deadline: pl.deadline };
     this.party.room.set(f);
     this.party.screen.set(f);
   }
 
   #statsOf(id: string): Stats {
     let s = this.#stats.get(id);
-    if (!s) this.#stats.set(id, (s = { placed: 0, lifts: 0, pings: 0, fits: 0 }));
+    if (!s) this.#stats.set(id, (s = { placed: 0, lifts: 0, pings: 0, fits: 0, checks: 0 }));
     return s;
   }
 
@@ -436,6 +456,7 @@ export class Snug extends Emitter<GameEvents> {
     const signal = this.#abort.signal;
     party.inProgress = true;
     this.#solved = 0;
+    this.#checks = CHECKS[this.#level]?.start ?? null;
     this.#stats.clear();
     let left: number | null = null;
     let next: Promise<Board | null> | null = null;
@@ -465,9 +486,10 @@ export class Snug extends Emitter<GameEvents> {
         this.#solved++;
         this.#best = Math.max(this.#best, this.#solved);
         if (pl.by) this.#statsOf(pl.by).fits++;
+        const earned = this.#earn();
         nextFor = party.players.filter((p) => p.connected || p.waiting).length;
         next = this.#makeBoard(Math.max(1, nextFor), signal);
-        await this.#celebrate(pl, bonus, left, signal);
+        await this.#celebrate(pl, bonus, left, earned, signal);
         if (signal.aborted) break;
       }
       return signal.aborted ? { solved: this.#solved, best: this.#best } : this.#final();
@@ -476,17 +498,26 @@ export class Snug extends Emitter<GameEvents> {
     }
   }
 
-  /** A board for `players`, a try at a time so the page keeps going. */
+  /** A filled shape earns a check, up to what the level lets the team hold; whether it did. */
+  #earn(): boolean {
+    const rule = CHECKS[this.#level];
+    if (!rule || this.#checks === null || this.#checks >= rule.max) return false;
+    this.#checks++;
+    return true;
+  }
+
+  /** A board for `players` on the rung the shapes solved so far reached, a try at a time so the page keeps going. */
   async #makeBoard(players: number, signal: AbortSignal): Promise<Board | null> {
     const { tries, budget } = effort(players);
+    const rung = rungOf(this.#level, this.#solved);
     const boards: Board[] = [];
     for (let attempt = 0; boards.length < tries && attempt < tries * 40; attempt++) {
       if (signal.aborted) return null;
-      const b = candidate({ players, level: this.#level, rng: this.#rng, budget });
+      const b = candidate({ players, rung, rng: this.#rng, budget });
       if (b) boards.push(b);
       if (attempt % 2 === 1) await new Promise((r) => setTimeout(r, 0));
     }
-    return signal.aborted ? null : choose(boards, this.#level);
+    return signal.aborted ? null : choose(boards, rung);
   }
 
   async #playBoard(n: number, board: Board, team: string[], time: number, signal: AbortSignal): Promise<"solved" | "time" | "abort"> {
@@ -505,7 +536,7 @@ export class Snug extends Emitter<GameEvents> {
       cells: shapeCells(board.shape).length,
       needed: board.solution.length,
       deadline: party.deadline(time),
-      stuck: false,
+      check: null,
       by: null,
       done: (how) => finish(how),
     };
@@ -543,11 +574,11 @@ export class Snug extends Emitter<GameEvents> {
     }, Math.max(0, wait));
   }
 
-  async #celebrate(pl: Play, bonus: number, left: number, signal: AbortSignal): Promise<void> {
+  async #celebrate(pl: Play, bonus: number, left: number, earned: boolean, signal: AbortSignal): Promise<void> {
     const party = this.party;
     this.#setPhase("solved");
     const spares = [...pl.pieces.values()].filter((x) => !x.at).map((x) => ({ owner: x.owner, cells: x.cells }));
-    const f = { phase: "solved", ...this.#table(pl), deadline: null, left, bonus, by: pl.by, spares, cursors: {} };
+    const f = { phase: "solved", ...this.#table(pl), deadline: null, left, bonus, earned, by: pl.by, spares, cursors: {} };
     party.withTv(() => {
       this.#room(f);
       this.#screen(f);
@@ -636,13 +667,13 @@ export class Snug extends Emitter<GameEvents> {
     for (const [x, y] of cells) pl.occupied.set(key(x, y), piece.id);
     if (pl.occupied.size === pl.cells) {
       pl.by = from.id;
-      pl.stuck = false;
+      pl.check = null;
       this.#boardChanged(pl);
       (from as Player).state.set({ hand: this.#hand(pl, from.id) });
       pl.done("solved");
       return { ok: true, solved: true };
     }
-    this.#checkStuck(pl);
+    pl.check = null;
     this.#boardChanged(pl);
     (from as Player).state.set({ hand: this.#hand(pl, from.id) });
     if (party.now() > pl.deadline + party.grace) pl.done("time");
@@ -658,7 +689,7 @@ export class Snug extends Emitter<GameEvents> {
     piece.at = null;
     this.#statsOf(from.id).lifts++;
     if (this.#level === "hard") this.#cost(pl);
-    this.#checkStuck(pl);
+    pl.check = null;
     this.#boardChanged(pl);
     (from as Player).state.set({ hand: this.#hand(pl, from.id) });
     if (party.now() > pl.deadline + party.grace) pl.done("time");
@@ -671,16 +702,30 @@ export class Snug extends Emitter<GameEvents> {
     this.#armClock();
   }
 
-  /** Easy: whether what is left can no longer be filled by the pieces still in hands (proven within the budget). */
-  #checkStuck(pl: Play): void {
-    if (this.#level !== "easy") {
-      pl.stuck = false;
-      return;
-    }
+  /**
+   * A check (`{ board }`, any player on the board): whether the pieces
+   * still in hands can fill what is left. Answers `{ ok, result, checks }`;
+   * a check uses one of the team's (none left: `none`) unless the board is
+   * as it was at the last one, which answers again, or the search runs out
+   * (`unsure`).
+   */
+  #check(d: Json, from: Sender): unknown {
+    const pl = this.#play;
+    const party = this.party;
+    if (from.role !== "player") throw new PartyError("not-player", "Players only");
+    if (!pl || this.#phase !== "board" || obj(d)["board"] !== pl.n || !pl.team.includes(from.id)) throw new PartyError("not-now", "Not now");
+    if (party.now() > pl.deadline + party.grace) return { ok: false, reason: "time" };
+    if (pl.check) return { ok: true, result: pl.check.result, checks: this.#checks };
+    if (this.#checks === 0) return { ok: false, reason: "none" };
     const free = shapeCells(pl.board.shape).filter(([x, y]) => !pl.occupied.has(key(x, y)));
     const left = [...pl.pieces.values()].filter((x) => !x.at).map((x) => PIECES[x.kind]);
-    const c = countFillings(free, left, { limit: 1, budget: 20_000 });
-    pl.stuck = c.complete && c.count === 0;
+    const result = verdict(free, left);
+    if (result === "unsure") return { ok: true, result, checks: this.#checks };
+    if (this.#checks !== null) this.#checks--;
+    this.#statsOf(from.id).checks++;
+    pl.check = { result, by: from.id, n: ++this.#checkNo };
+    this.#boardChanged(pl);
+    return { ok: true, result, checks: this.#checks };
   }
 
   /** A cursor (`{ x, y, on, ping }`): into the views, at most every {@link Timings.cursor} ms. */
@@ -737,7 +782,7 @@ export class Snug extends Emitter<GameEvents> {
     const from = this.#name(id);
     for (const [to, n] of got) this.party.player(to)?.state.set({ hand: this.#hand(pl, to), got: { from, n, key: ++this.#gotKey } });
     this.party.player(id)?.state.set({ hand: [] });
-    this.#checkStuck(pl);
+    pl.check = null;
     this.#boardChanged(pl);
   }
 }

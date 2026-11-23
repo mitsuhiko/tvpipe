@@ -73,7 +73,7 @@ const problem = (p: string) => {
 };
 try {
   const win = await browser.open(start, { width: 1200, height: 860 });
-  await win.until(`document.querySelectorAll("#devices .device").length > 0`, 20_000);
+  await win.until(`!!document.querySelector('#devices .device[data-name="browser"]')`, 20_000);
   await win.eval(`document.querySelector('#devices .device[data-name="browser"]').click(); true`);
   await win.until(`!document.getElementById("start").disabled`);
   await win.eval(`document.getElementById("start").click(); true`);
@@ -274,6 +274,15 @@ try {
   await phone.drag([[b.x + b.w * 0.8, b.y + b.h * 0.2], [b.x + b.w * 0.6, b.y + b.h * 0.4], [b.x + b.w * 0.5, b.y + b.h * 0.5]]);
   await sleep(150);
   await win.until(`!!snug.party.screenView().screen.cursors?.[${JSON.stringify(me)}]`, 3000).catch(() => problem("the phone's cursor did not reach the TV"));
+  // Hard: no check before a filled shape; tapping says so.
+  const tapCheck = async () => {
+    const cb = await phone.eval<{ x: number; y: number }>(`(() => { const r = document.querySelector("button.check").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    await phone.drag([[cb.x, cb.y]]);
+  };
+  if (level === "hard") {
+    await tapCheck();
+    await phone.until(`document.getElementById("toast").classList.contains("show")`, 3000).catch(() => problem("hard: tapping check without one said nothing"));
+  }
   // Tap the placed piece: it comes back to the hand; drop it again.
   const back = await phone.eval<{ x: number; y: number }>(`(() => {
     const svg = document.querySelector("svg.board"); const r = svg.getBoundingClientRect(); const vb = svg.viewBox.baseVal; const unit = r.width / vb.width;
@@ -304,6 +313,14 @@ try {
   await sleep(9000);
   await tvShot("board2");
   await phoneShot("board2");
+  // Once the bots are done (the phone holds the rest), check: the answer on the phone and the TV, at every size.
+  await win.until(`[...snug.game.current.pieces.values()].every((p) => p.owner === ${JSON.stringify(me)} || !p.home || JSON.stringify(p.at) === JSON.stringify(p.home))`, 40_000).catch(() => problem("the bots did not finish board 2"));
+  await tapCheck();
+  await phone.until(`!!document.querySelector(".answer.show")`, 5000).catch(() => problem("the check's answer did not show on the phone"));
+  await win.until(`snug.party.screenView().screen.check?.result === "open"`, 3000).catch(() => problem("the check's answer (open) did not reach the TV"));
+  await sleep(600);
+  await tvShot("checked");
+  await phoneShot("checked");
   await win.eval(`snug.game.setClock(5000); true`);
   await phone.until(`document.body.dataset.phase === "over"`, 15_000);
   await sleep(800);
