@@ -668,6 +668,13 @@ function themes() {
     buttons.forEach((b) => (b.onclick = () => set(b.dataset["t"] ?? "auto")));
 }
 async function main() {
+    // Back from the host page, the browser may give this page back as it was
+    // left (the back/forward cache): Start pressed, the socket to tvpipe
+    // closed, the TVs no longer watched. A fresh start instead.
+    addEventListener("pageshow", (ev) => {
+        if (ev.persisted)
+            location.reload();
+    });
     themes();
     // The cast picker (`data-mode="change"` is set by the page's head: no header or footer).
     if (changing) {
