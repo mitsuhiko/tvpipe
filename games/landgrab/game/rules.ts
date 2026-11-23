@@ -218,7 +218,8 @@ const isCount = (x: unknown): x is number => typeof x === "number" && Number.isI
  * own territories and no more than there are (`armies`, plus
  * {@link CASH_ARMIES} when `stars` allow cashing in), orders from one's
  * own territories to neighbours, never moving the last army out of a
- * territory. Returns it cleaned up (zero placements dropped, the same
+ * territory, taken in the plan's order (armies moved in earlier may
+ * march on: the battle keeps each player's order). Returns it cleaned up (zero placements dropped, the same
  * route twice merged); throws {@link PlanError}.
  */
 export function checkPlan(world: World, board: Board, id: string, armies: number, stars: number, raw: unknown): Plan {
@@ -243,7 +244,6 @@ export function checkPlan(world: World, board: Board, id: string, armies: number
   if (!Array.isArray(rawOrders)) throw new PlanError("bad-plan", "orders: a list");
   if (rawOrders.length > MAX_ORDERS) throw new PlanError("too-many-orders", `At most ${MAX_ORDERS} orders`);
   const orders: Order[] = [];
-  const out = new Map<string, number>();
   for (const o of rawOrders) {
     if (!isRecord(o) || typeof o["from"] !== "string" || typeof o["to"] !== "string" || !isCount(o["n"]) || o["n"] < 1) throw new PlanError("bad-plan", "An order is { from, to, n }");
     const from = world.byId.get(o["from"]);
@@ -253,13 +253,38 @@ export function checkPlan(world: World, board: Board, id: string, armies: number
     const same = orders.find((x) => x.from === from.id && x.to === to.id);
     if (same) same.n += o["n"];
     else orders.push({ from: from.id, to: to.id, n: o["n"] });
-    out.set(from.id, (out.get(from.id) ?? 0) + o["n"]);
   }
-  for (const [t, n] of out) {
-    const have = board.arm[world.byId.get(t)!.index]! + (place[t] ?? 0);
-    if (n > have - 1) throw new PlanError("too-few-armies", `${t} has ${have} armies: one stays`);
+  // In the plan's order, as the battle takes it: armies moved into one's
+  // own territory may march on from there in a later order.
+  const along = planArmies(world, board, place);
+  for (const o of orders) {
+    const have = along.get(o.from) ?? 0;
+    if (o.n > have - 1) throw new PlanError("too-few-armies", `${o.from} has ${have} armies then: one stays`);
+    along.set(o.from, have - o.n);
+    if (board.own[world.byId.get(o.to)!.index] === id) along.set(o.to, (along.get(o.to) ?? 0) + o.n);
   }
   return { place, orders, cash, ready: raw["ready"] === true };
+}
+
+/** Armies per territory once a plan's reinforcements are there (before its orders). */
+export function planArmies(world: World, board: Board, place: Readonly<Record<string, number>>): Map<string, number> {
+  return new Map(world.territories.map((t) => [t.id, (board.arm[t.index] ?? 0) + (place[t.id] ?? 0)]));
+}
+
+/**
+ * Armies per territory after each of a player's orders, in the plan's
+ * order, as if every move arrives (attacks take their armies away;
+ * what they win is not counted). `after[k]` is the board after order
+ * `k`; `after[-1]` would be {@link planArmies}.
+ */
+export function armiesAlong(world: World, board: Board, id: string, place: Readonly<Record<string, number>>, orders: readonly Order[]): Map<string, number>[] {
+  const armies = planArmies(world, board, place);
+  return orders.map((o) => {
+    armies.set(o.from, (armies.get(o.from) ?? 0) - o.n);
+    const to = world.byId.get(o.to);
+    if (to && board.own[to.index] === id) armies.set(o.to, (armies.get(o.to) ?? 0) + o.n);
+    return new Map(armies);
+  });
 }
 
 /** How many of a plan's reinforcements are placed. */

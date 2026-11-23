@@ -2,14 +2,15 @@
  * A live check of Landgrab on `tvpipe game play` (not part of `npm
  * test`): tvpipe serves the bundle (`dist/`); a headless Chrome plays
  * the window (the launcher, then the host page), the TV (the watch link
- * at 1280×720) and a phone (joining, placing armies with the steppers,
- * opening a territory's sheet, ordering an attack, attacking from a
- * foe's chip with a quick amount, tapping the map, Ready); bots join in
- * the window and play the rest. Screenshots of the TV through the
- * battle and of the phone at each step, at 390×844, 375×667, 320×568,
- * 360×640, 360×740 and 430×932, with a layout check of each (nothing
- * off the screen, no word cut, tap targets, room for the sheet, nothing
- * under the TV's join badge).
+ * at 1280×720) and a phone (joining; on the map: a territory tapped,
+ * armies placed with taps and +, an attack from it to a neighbour, a foe
+ * tapped from the whole world and attacked from next door with a quick
+ * amount; Ready);
+ * bots join in the window and play the rest. Screenshots of the TV
+ * through the battle and of the phone at each step, at 390×844,
+ * 375×667, 320×568, 360×640, 360×740 and 430×932, with a layout check
+ * of each (nothing off the screen, no word cut, tap targets, room for
+ * the panel under the map, nothing under the TV's join badge).
  *
  *   npm run build && node test/live/play.ts [--bots N] [--rounds N] [--lang en|de] [--out DIR] [--shots DIR]
  *
@@ -17,13 +18,15 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { parseWorld } from "../../game/world.ts";
 import { Browser, type Tab } from "./browser.ts";
 import { keep } from "./shots.ts";
+import { tapTerritory } from "./taps.ts";
 import { tie } from "./tie.ts";
 
 const { values: args } = parseArgs({
@@ -47,6 +50,7 @@ const nBots = Number(args.bots);
 const out = args.out ?? `/tmp/landgrab-play${lang === "de" ? "-de" : ""}`;
 mkdirSync(out, { recursive: true });
 if (shots) mkdirSync(shots, { recursive: true });
+const world = parseWorld(readFileSync(new URL("data/world.txt", here), "utf8"));
 const t0 = Date.now();
 const log = (m: string) => console.log(`${((Date.now() - t0) / 1000).toFixed(1).padStart(6)} ${m}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -73,10 +77,9 @@ const problem = (p: string) => {
 };
 try {
   const win = await browser.open(start, { width: 1200, height: 860 });
-  await win.until(`document.querySelectorAll("#devices .device").length > 0`, 20_000);
-  await win.eval(`document.querySelector('#devices .device[data-name="browser"]').click(); true`);
-  await win.until(`!document.getElementById("start").disabled`);
-  await win.eval(`document.getElementById("start").click(); true`);
+  // No TV: the TV's picture is the watch link's tab below.
+  await win.until(`document.querySelectorAll("#devices .device").length > 0 && !document.getElementById("no-tv").hidden`, 20_000);
+  await win.eval(`document.getElementById("no-tv").click(); true`);
   await win.until(`location.pathname.endsWith("/host/index.html") && !!globalThis.landgrab`, 20_000);
   log("the host page runs the game");
   await win.eval(`(() => { landgrab.page.set("lang", ${JSON.stringify(lang)}); return true; })()`);
@@ -124,9 +127,12 @@ try {
       const r = el.getBoundingClientRect();
       if (r.width > 0 && (r.width < 32 || r.height < 32)) out.push("a small tap target: " + el.className + " " + JSON.stringify((el.innerText || el.getAttribute("aria-label") || "").slice(0, 20)) + " " + Math.round(r.width) + "×" + Math.round(r.height));
     }
-    // The sheet leaves room for its routes between the header and the dock; the dock stays small.
-    const body = document.querySelector("#sheet:not([hidden]) .sheet-body");
-    if (body && body.clientHeight < 80) out.push("the sheet's routes get " + body.clientHeight + " px");
+    // The plan's map keeps room above its bar, the bar stays above the dock; the dock stays small.
+    const map = document.querySelector(".planmap")?.getBoundingClientRect();
+    const bar = document.querySelector(".planbar")?.getBoundingClientRect();
+    const dockTop = document.getElementById("dock")?.getBoundingClientRect().top ?? innerHeight;
+    if (map && map.height < 140) out.push("the map gets " + Math.round(map.height) + " px");
+    if (bar && bar.bottom > dockTop + 1) out.push("the bar goes under the dock by " + Math.round(bar.bottom - dockTop) + " px");
     const dock = document.getElementById("dock");
     if (dock && !dock.hidden && dock.getBoundingClientRect().height > innerHeight * 0.16) out.push("the dock takes " + Math.round(dock.getBoundingClientRect().height) + " px");
     return out;
@@ -230,52 +236,66 @@ try {
     lastKey = key;
     log(key);
     if (s.phase === "plan") {
-      await phone.until(`!!document.querySelector(".lands .land")`, 8000);
+      await phone.until(`!!document.querySelector(".planbar") && !!document.querySelector(".minimap.plan")?.dataset.view`, 8000);
       await sleep(3200);
       await tvShot(`r${s.round}-plan`);
       // The games list's cover: the whole world while everyone plans (the bots ready one by one).
       await pic(tv, "tv-plan", "tv", 100);
       await phoneShot(`r${s.round}-plan`);
-      // Place: three on the first front, the rest on the second.
-      for (let i = 0; i < 3; i++) await tap(`document.querySelector(".land .stepper .plus:not([disabled])")`);
-      for (let i = 0; i < 10; i++) await tap(`document.querySelectorAll(".land .stepper .plus:not([disabled])")[1] ?? document.querySelector(".land .stepper .plus:not([disabled])")`);
-      await sleep(400);
-      await phoneShot(`r${s.round}-placed`);
-      // The first front's sheet; attack its first foe.
-      await tap(`document.querySelector(".land .land-main")`);
-      await phone.until(`!document.getElementById("sheet").hidden`, 4000);
-      await sleep(400);
-      await phoneShot(`r${s.round}-sheet`);
-      await pic(phone, "phone-sheet", "phone", 200);
-      if (await tap(`document.querySelector("#sheet .route.hostile .route-main:not([disabled])")`)) {
-        await sleep(300);
-        await phoneShot(`r${s.round}-amount`);
-        await tap(`document.querySelector("#sheet .amount-actions .send")`);
-        await sleep(300);
-        if (!(await phone.eval<boolean>(`document.querySelectorAll("#sheet .route.has").length > 0`))) problem(`round ${s.round}: the attack from the sheet made no order`);
+      // Where to tap, from the host's board: the strongest front, its weakest foe, a foe of another front.
+      const sv = await win.eval<{ board: { own: string[]; arm: number[] }; players: { id: string; name: string }[] }>(`landgrab.party.screenView().screen`);
+      const me = sv.players.find((p) => p.name === "Phil")?.id ?? "";
+      const own = (id: string) => sv.board.own[world.byId.get(id)!.index] === me;
+      const arm = (id: string) => sv.board.arm[world.byId.get(id)!.index] ?? 0;
+      const fronts = world.territories.filter((x) => own(x.id) && x.neighbors.some((n) => !own(n))).sort((x, y) => arm(y.id) - arm(x.id));
+      const A = fronts[0];
+      const tapAt = async (id: string) => {
+        if (!(await phone.eval<boolean>(tapTerritory(id)))) problem(`round ${s.round}: cannot tap ${id} on the map`);
+        await sleep(700);
+      };
+      if (!A) problem(`round ${s.round}: no front`);
+      else {
+        const C = A.neighbors.filter((n) => !own(n)).sort((x, y) => arm(x) - arm(y))[0]!;
+        if (await phone.eval<boolean>(`document.querySelector(".steps .stp.on") === document.querySelector(".steps .stp")`)) {
+          // Place: a tap flies to the front and selects it; taps on it and + place the rest.
+          await tapAt(A.id);
+          if (!(await phone.eval<boolean>(`!!document.querySelector(".planbar .step-btn.plus")`))) problem(`round ${s.round}: tapping ${A.id} selected nothing to place on`);
+          await phoneShot(`r${s.round}-place-selected`);
+          await tapAt(A.id);
+          for (let i = 0; i < 12; i++) await tap(`document.querySelector(".planbar .step-btn.plus:not([disabled])")`);
+          await sleep(300);
+          if (!(await phone.eval<boolean>(`!!document.querySelector(".steps .stp b.ok")`))) problem(`round ${s.round}: armies left after placing on ${A.id}`);
+          await phoneShot(`r${s.round}-placed`);
+          await tap(`document.querySelector(".planbar .btn.next")`);
+          await sleep(300);
+        } else await tap(`document.querySelectorAll(".steps .stp")[1]`);
+        // Orders: from the front to its weakest foe.
+        await phoneShot(`r${s.round}-orders`);
+        await tapAt(A.id);
+        await phoneShot(`r${s.round}-from`);
+        await tapAt(C);
+        if (!(await phone.eval<boolean>(`!!document.querySelector(".route-head")`))) problem(`round ${s.round}: tapping ${C} from ${A.id} opened no amount`);
+        else {
+          await phoneShot(`r${s.round}-amount`);
+          await pic(phone, "phone-attack", "phone", 200);
+          await tap(`document.querySelector(".amount-actions .send")`);
+          await sleep(300);
+          if ((await phone.eval<string>(`document.querySelectorAll(".steps .stp")[1]?.querySelector("b")?.textContent ?? ""`)) !== "1") problem(`round ${s.round}: the attack made no order`);
+        }
+        // From the whole world: a foe of another front, attacked from next door with all.
+        const D = fronts[1]?.neighbors.find((n) => !own(n) && n !== C);
+        const E = D && world.byId.get(D)!.neighbors.find((n) => own(n) && n !== A.id);
+        if (D && E) {
+          await tap(`document.querySelector(".world-btn")`);
+          await sleep(700);
+          await tapAt(D);
+          await phoneShot(`r${s.round}-foe`);
+          await tapAt(E);
+          if (await tap(`document.querySelector(".quick .q:last-child")`)) await tap(`document.querySelector(".amount-actions .send")`);
+          await sleep(300);
+        }
       }
-      await tap(`document.querySelector("#sheet .sheet-head .x")`);
-      await sleep(400);
-      // The quick way: a foe's chip on a front opens its attack at once; a quick amount; send.
-      if (await tap(`document.querySelector('.land:not([data-free="0"]) .foe:not(.mv):not(.ordered)')`)) {
-        await phone.until(`!!document.querySelector("#sheet .route.open")`, 4000).catch(() => problem(`round ${s.round}: a foe's chip opened no attack`));
-        await tap(`document.querySelector("#sheet .quick .q:last-child")`);
-        await sleep(300);
-        await phoneShot(`r${s.round}-chip-attack`);
-        await pic(phone, "phone-attack", "phone", 200);
-        await tap(`document.querySelector("#sheet .amount-actions .send")`);
-        await sleep(300);
-        await tap(`document.querySelector("#sheet .sheet-head .x")`);
-        await sleep(300);
-      }
-      if ((await phone.eval<number>(`document.querySelectorAll(".orders .order").length`)) === 0) problem(`round ${s.round}: no orders listed after attacking`);
-      await phoneShot(`r${s.round}-orders`);
-      await pic(phone, "phone-plan", "phone", 200);
-      // Tapping the map opens the sheet too (a foreign territory: where to attack it from).
-      await phone.eval(`(() => { const c = document.querySelector(".minimap"); const r = c.getBoundingClientRect(); c.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: r.left + r.width * 0.55, clientY: r.top + r.height * 0.3 })); return true; })()`);
-      await sleep(400);
-      await phoneShot(`r${s.round}-map-tap`);
-      await tap(`document.querySelector("#sheet .sheet-head .x")`);
+      await pic(phone, "phone-plan", "phone", 400);
       await tap(`document.querySelector("#dock .btn")`);
       await sleep(600);
       await phoneShot(`r${s.round}-ready`);

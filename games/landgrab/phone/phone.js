@@ -1,24 +1,22 @@
 // @ts-check
 /**
  * Landgrab's phone page: joining, the lobby (the VIP's settings), the
- * plan, the battle, the end. The phone has no room for the TV's map: it
- * shows the world small to find and tap things, and lists what a player
- * manages. The plan: a header with the round, the clock and the armies
- * left to place; the world with the orders as arrows; the fronts (one's
- * territories next to foes, most pressure first) with − + to place and
- * the foes as chips (a tap: attack it), inland below; a sheet per
- * territory with a close-up of it and its neighbours (a camera flying in,
- * their names on the land; choosing an amount, on to the route's ends),
- * the routes, the amount (half, safe, all; the odds); Ready in a dock. The battle: what
- * the TV plays now, from one's own side (the dice in step with the TV,
- * the result when the TV shows it), the close-up, one's own events and
- * the standings. Everything it shows comes from the party's view
- * (`{ roster, room, me }`); everything it does is an action.
+ * plan, the battle, the end. The phone has no room for the TV's map:
+ * planning, the map is the interface (the whole world, or flown close to
+ * a territory and its neighbours): placing, a tap on one's territory and
+ * + −; then a tap where armies set out from, a tap where they go, the
+ * amount, on to the next. A bar under the map says what the tap did and
+ * what comes next; Ready waits in a dock. Colour means a holder and nothing
+ * else; one's own orders are white. The battle: what the TV plays now,
+ * from one's own side (the dice in step with the TV, the result when
+ * the TV shows it), the close-up, one's own events and the standings.
+ * Everything it shows comes from the party's view (`{ roster, room, me
+ * }`); everything it does is an action.
  */
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { armiesFor, winChance } from "../game/odds.js";
-import { CASH_ARMIES, checkPlan, losses, MAX_ORDERS, STARS_TO_CASH } from "../game/rules.js";
+import { armiesAlong, CASH_ARMIES, checkPlan, losses, MAX_ORDERS, planArmies, STARS_TO_CASH } from "../game/rules.js";
 import { FAST_PACE, PACE, timeline } from "../game/timeline.js";
 import { parseWorld } from "../game/world.js";
 import { watchFit } from "./fit.js";
@@ -52,10 +50,8 @@ const banner = $("banner");
 const who = $("who");
 const langButton = /** @type {HTMLButtonElement} */ ($("lang"));
 const dock = $("dock");
-const sheet = $("sheet");
-const scrim = $("scrim");
 
-// The header's and the dock's heights, for the sheet and for scrolling under the header.
+// The header's and the dock's heights, for the plan's map and for scrolling under the header.
 const sizes = new ResizeObserver(() => {
   document.documentElement.style.setProperty("--bar-h", `${bar.offsetHeight}px`);
   document.documentElement.style.setProperty("--dock-h", `${dock.hidden ? 0 : dock.offsetHeight}px`);
@@ -199,7 +195,6 @@ function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
   dock.hidden = true;
-  closeSheet();
   setHud();
   langButton.hidden = false;
   langButton.textContent = t.otherLang;
@@ -276,7 +271,6 @@ client.on("bye", (reason) => {
   for (const c of cleanups) c();
   cleanups = [];
   dock.hidden = true;
-  closeSheet();
   setHud();
   setBanner(null);
   show(logo(), h("section", { class: "card center" }, h("p", { class: "big" }, text)));
@@ -312,7 +306,6 @@ function render(view) {
     for (const c of cleanups) c();
     cleanups = [];
     dock.hidden = true;
-    closeSheet();
     setHud();
     langButton.hidden = !(m.task === "lobby" || m.task === "final");
     langButton.textContent = t.otherLang;
@@ -517,85 +510,81 @@ function clock(deadline) {
 }
 
 // ---------------------------------------------------------------------------
-// The plan
+// The plan: the map is the interface. Place: tap one's territory, + −.
+// Then orders: tap where armies set out from, tap where they go, confirm
+// the amount; on to the next.
 
 /**
  * The plan being made on this phone: placements, orders, stars cashed,
  * ready; sent to the host (whole) after each change.
  */
 let draft = { round: -1, place: /** @type {Record<string, number>} */ ({}), orders: /** @type {Order[]} */ ([]), cash: false, ready: false };
-/** The territory whose sheet is open, and the route whose amount is being chosen. */
+/** The step: 0 place, 1 orders. */
+let step = 0;
+/** The selected territory (-1: none): where to place, where armies set out from (or a foe to attack). */
 let sel = -1;
-/** @type {{ from: string, to: string, n: number } | null} */
+/** Where the map looks: a territory and its neighbours (-1: the whole world). */
+let look = -1;
+/** The route whose amount is being chosen. @type {{ from: string, to: string, n: number } | null} */
 let choosing = null;
-/** The amount's slider is held: the sheet is not rebuilt under the finger. */
+/** The amount's slider is held: the bar is not rebuilt under the finger. */
 let holding = false;
-/** The sheet was just opened (scroll the chosen route into view). */
-let fresh = false;
+/** A word for the last tap that did nothing (nothing to send from there). */
+let notice = "";
 
-/**
- * The sheet's close-up is a camera: opened, it flies from the whole world
- * down to the territory and its neighbours; choosing an amount, on to the
- * route's two ends (where the armies go, to confirm it); back when done.
- * `key` names the frame it flies to; `draw` draws the sheet's canvas (it
- * is rebuilt with the sheet) at a camera.
- */
-const loc = {
-  key: "",
-  /** @type {MapView} */ from: { s: 1, ox: 0, oy: 0 },
-  /** @type {MapView} */ to: { s: 1, ox: 0, oy: 0 },
-  /** @type {MapView} */ view: { s: 1, ox: 0, oy: 0 },
-  t0: 0,
-  ms: 0,
-  cw: 0,
-  ch: 0,
-  raf: 0,
-  /** @type {((v: MapView) => void) | null} */ draw: null,
-};
 const calm = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 const easeInOut = (/** @type {number} */ x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
-/** Draws the close-up where its camera is now; on until it is there. */
-function locFrame() {
-  if (loc.raf) cancelAnimationFrame(loc.raf);
-  loc.raf = 0;
-  if (!loc.draw) return;
-  const k = loc.ms > 0 ? Math.min(1, (performance.now() - loc.t0) / loc.ms) : 1;
-  loc.view = k >= 1 ? loc.to : between(loc.from, loc.to, easeInOut(k), loc.cw, loc.ch);
-  loc.draw(loc.view);
-  if (k < 1) loc.raf = requestAnimationFrame(locFrame);
-}
-
 /**
- * Points the close-up at `target` (a frame named `key`) on a canvas of
- * `cw`×`ch`, flying there from where it is (from the whole world when the
- * sheet has just opened); the same frame again only draws.
- * @param {string} key @param {MapView} target @param {number} cw @param {number} ch @param {(v: MapView) => void} draw
+ * A canvas's camera: it flies from frame to frame (`key` names the one
+ * it flies to; the same key again only draws). The canvas may change
+ * size (the bar under it grows): the camera keeps its middle and flies on
+ * from there. `draw` draws the canvas at a camera.
  */
-function flyLocator(key, target, cw, ch, draw) {
-  const w = /** @type {World} */ (world);
-  loc.draw = draw;
-  if (key !== loc.key || cw !== loc.cw || ch !== loc.ch) {
-    let from;
-    if (!loc.key) from = frameView(w, cw, ch, allLand(), 0.6, 20);
-    else {
-      // Where it is, on the canvas as it is now (it changes height when an amount is chosen).
-      const v = loc.raf ? between(loc.from, loc.to, easeInOut(Math.min(1, (performance.now() - loc.t0) / Math.max(1, loc.ms))), loc.cw, loc.ch) : loc.view;
-      const mx = (loc.cw / 2 - v.ox) / v.s;
-      const my = (loc.ch / 2 - v.oy) / v.s;
-      from = { s: v.s, ox: cw / 2 - mx * v.s, oy: ch / 2 - my * v.s };
-    }
-    const sameFrame = key === loc.key;
-    loc.ms = calm() ? 0 : sameFrame ? 0 : !loc.key ? 750 : 450;
-    Object.assign(loc, { key, from, to: target, t0: performance.now(), cw, ch });
-  } else loc.to = target;
-  locFrame();
-}
-
-/** The close-up is put away (the sheet closed). */
-function landLocator() {
-  if (loc.raf) cancelAnimationFrame(loc.raf);
-  Object.assign(loc, { key: "", raf: 0, draw: null });
+function camera() {
+  /** @type {MapView} */
+  const none = { s: 1, ox: 0, oy: 0 };
+  /** @type {{ key: string, from: MapView, to: MapView, view: MapView, t0: number, ms: number, cw: number, ch: number, raf: number, draw: ((v: MapView, rest: boolean) => void) | null }} */
+  const c = { key: "", from: none, to: none, view: none, t0: 0, ms: 0, cw: 0, ch: 0, raf: 0, draw: null };
+  const at = () => (c.ms > 0 ? Math.min(1, (performance.now() - c.t0) / c.ms) : 1);
+  const now = () => (at() < 1 ? between(c.from, c.to, easeInOut(at()), c.cw, c.ch) : c.view);
+  const frame = () => {
+    if (c.raf) cancelAnimationFrame(c.raf);
+    c.raf = 0;
+    if (!c.draw) return;
+    const k = at();
+    c.view = k >= 1 ? c.to : between(c.from, c.to, easeInOut(k), c.cw, c.ch);
+    c.draw(c.view, k >= 1);
+    if (k < 1) c.raf = requestAnimationFrame(frame);
+  };
+  return {
+    get view() {
+      return c.view;
+    },
+    get key() {
+      return c.key;
+    },
+    /** @param {string} key @param {MapView} target @param {number} cw @param {number} ch @param {(v: MapView, rest: boolean) => void} draw */
+    fly(key, target, cw, ch, draw) {
+      c.draw = draw;
+      if (!c.key) Object.assign(c, { key, from: target, to: target, view: target, ms: 0, cw, ch });
+      else {
+        const v = now();
+        const resized = cw !== c.cw || ch !== c.ch;
+        // Where it is, on the canvas as it is now.
+        const mx = (c.cw / 2 - v.ox) / v.s;
+        const my = (c.ch / 2 - v.oy) / v.s;
+        const from = { s: v.s, ox: cw / 2 - mx * v.s, oy: ch / 2 - my * v.s };
+        if (key !== c.key || resized) Object.assign(c, { key, from, to: target, t0: performance.now(), ms: calm() ? 0 : key !== c.key ? 450 : 200, cw, ch });
+        else c.to = target;
+      }
+      frame();
+    },
+    stop() {
+      if (c.raf) cancelAnimationFrame(c.raf);
+      Object.assign(c, { key: "", raf: 0, draw: null });
+    },
+  };
 }
 
 function planBoard() {
@@ -608,24 +597,45 @@ function budget() {
 const placed = () => Object.values(draft.place).reduce((s, n) => s + n, 0);
 const leftToPlace = () => budget() - placed();
 const isMine = (/** @type {number} */ i) => planBoard().own[i] === me();
+/** Armies on each territory with what is placed there (before the orders). */
+const startArmies = () => planArmies(/** @type {World} */ (world), planBoard(), draft.place);
+/** Armies on each territory after each order, in order (moves arriving). */
+const alongNow = () => armiesAlong(/** @type {World} */ (world), planBoard(), me(), draft.place, draft.orders);
 /** Armies on a territory with what is placed there. @param {string} id */
 const have = (id) => (planBoard().arm[tIndex(id)] ?? 0) + (draft.place[id] ?? 0);
-/** Armies that orders already take out of a territory. @param {string} id @param {string} [except] a route left out */
-const ordered = (id, except) => draft.orders.filter((o) => o.from === id && o.to !== except).reduce((s, o) => s + o.n, 0);
-/** What can still leave a territory (one stays). @param {string} id @param {string} [except] */
-const free = (id, except) => Math.max(0, have(id) - 1 - ordered(id, except));
+/** Armies on a territory once one's orders went (moves in arrived, armies sent out gone). @param {string} id */
+const endOf = (id) => (alongNow().at(-1) ?? startArmies()).get(id) ?? 0;
 
-/** Orders that ask for more than there is (placements taken back) shrink or go. */
+/**
+ * The most an order on a route can take. A new one goes last: what is
+ * left then, one staying (armies moved in by earlier orders march on).
+ * One there already: its own amount and what every later order out of
+ * the same territory leaves over.
+ * @param {string} from @param {string} to
+ */
+function maxFor(from, to) {
+  const k = draft.orders.findIndex((o) => o.from === from && o.to === to);
+  const after = alongNow();
+  if (k < 0) return Math.max(0, ((after.at(-1) ?? startArmies()).get(from) ?? 0) - 1);
+  let slack = Infinity;
+  draft.orders.forEach((o, j) => {
+    if (j >= k && o.from === from) slack = Math.min(slack, (after[j]?.get(from) ?? 0) - 1);
+  });
+  return (draft.orders[k]?.n ?? 0) + Math.max(0, slack);
+}
+
+/** Orders that ask for more than there is then (placements taken back, an order changed) shrink or go. */
 function trimOrders() {
-  for (const id of new Set(draft.orders.map((o) => o.from))) {
-    let room = have(id) - 1;
-    draft.orders = draft.orders.flatMap((o) => {
-      if (o.from !== id) return [o];
-      const n = Math.min(o.n, room);
-      room -= n;
-      return n > 0 ? [{ ...o, n }] : [];
-    });
-  }
+  const board = planBoard();
+  const arm = startArmies();
+  draft.orders = draft.orders.flatMap((o) => {
+    const there = arm.get(o.from) ?? 0;
+    const n = Math.min(o.n, there - 1);
+    if (n <= 0) return [];
+    arm.set(o.from, there - n);
+    if (board.own[tIndex(o.to)] === me()) arm.set(o.to, (arm.get(o.to) ?? 0) + n);
+    return [{ ...o, n }];
+  });
 }
 
 let sendTimer = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
@@ -643,6 +653,7 @@ function sendPlan(now = false) {
       if (err) err.textContent = message(e);
       return;
     }
+    if (err) err.textContent = "";
     act("plan", plan, err ?? undefined).catch(() => {
       draft.ready = false;
       redraw();
@@ -680,30 +691,51 @@ function unplace(id) {
   changed();
 }
 
-/**
- * Whether a foe next to one's territory could take it: a player's
- * neighbour (wild lands never attack) whose armies but one win against
- * what stays there, at least as often as not.
- * @param {string} id
- */
-function threatened(id) {
-  const w = /** @type {World} */ (world);
+/** A territory's strongest neighbour of another player, `{ id, own, n }`, or null. @param {string} id */
+function worstFoe(id) {
   const board = planBoard();
-  const stay = have(id) - ordered(id);
-  return (w.byId.get(id)?.neighbors ?? []).some((nb) => {
+  /** @type {{ id: string, own: string, n: number } | null} */
+  let best = null;
+  for (const nb of world?.byId.get(id)?.neighbors ?? []) {
     const i = tIndex(nb);
-    const own = board.own[i];
-    return own && own !== me() && winChance((board.arm[i] ?? 0) - 1, stay) >= 0.5;
-  });
+    const own = board.own[i] ?? "";
+    if (!own || own === me()) continue;
+    const n = board.arm[i] ?? 0;
+    if (!best || n > best.n) best = { id: nb, own, n };
+  }
+  return best;
 }
 
-/** The − + of placing armies on one's own territory. @param {string} id @param {boolean} [row] side by side */
-function stepper(id, row = false) {
-  const n = draft.place[id] ?? 0;
-  const left = leftToPlace();
-  const plus = h("button", { type: "button", class: "plus", "aria-label": `+ ${tName(id)}`, disabled: left <= 0, onclick: () => placeOn(id) }, "+");
-  const minus = h("button", { type: "button", class: "minus", "aria-label": `− ${tName(id)}`, disabled: n === 0, onclick: () => unplace(id) }, "−");
-  return h("span", { class: `stepper${row ? " row" : ""}` }, ...(row ? [minus, plus] : [plus, minus]));
+/** The plan's orders as white arrows (attacks solid, moves dashed). @returns {Arrow[]} */
+function orderArrows() {
+  const board = planBoard();
+  return draft.orders.map((o) => ({ from: tIndex(o.from), to: tIndex(o.to), n: o.n, kind: /** @type {"atk" | "move"} */ (board.own[tIndex(o.to)] === me() ? "move" : "atk") }));
+}
+
+/** To a step, nothing selected (the map stays where it looks). @param {number} k */
+function goStep(k) {
+  step = k;
+  sel = -1;
+  choosing = null;
+  holding = false;
+  notice = "";
+  redraw();
+}
+
+/** Chooses the amount for a route (the order there, or a new one with all there is). @param {string} from @param {string} to */
+function chooseRoute(from, to) {
+  const existing = draft.orders.find((o) => o.from === from && o.to === to);
+  const max = maxFor(from, to);
+  if (!existing && (max <= 0 || draft.orders.length >= MAX_ORDERS)) {
+    notice = draft.orders.length >= MAX_ORDERS ? t.ordersFull : t.nothingFrom(tName(from));
+    sel = tIndex(from);
+    return redraw();
+  }
+  step = 1;
+  sel = tIndex(from);
+  notice = "";
+  choosing = { from, to, n: existing?.n ?? max };
+  redraw();
 }
 
 function planScreen() {
@@ -715,32 +747,39 @@ function planScreen() {
     const p = m.plan ?? {};
     draft = { round: room.round, place: { ...(p.place ?? {}) }, orders: [...(p.orders ?? [])], cash: !!p.cash, ready: !!p.ready };
     sel = -1;
+    look = -1;
     choosing = null;
+    notice = "";
+    step = Number(m.reinf?.total ?? 0) - Object.values(draft.place).reduce((s, n) => s + n, 0) > 0 ? 0 : 1;
   }
   const c = clock(Number(m.deadline ?? 0));
-  const lands = h("section", { class: "lands", id: "lands" });
-  const pill = h("button", { type: "button", class: "pill", onclick: () => lands.scrollIntoView({ behavior: "smooth", block: "start" }) });
-  setHud(h("div", { class: "hud-row" }, h("span", { class: "hud-round" }, dot(colorOf(me())), h("span", { "data-fit": "1" }, t.round(room.round ?? 1, room.rounds ?? 1))), c.secs, pill), c.timebar);
+  const steps = h("nav", { class: "steps" });
+  setHud(h("div", { class: "hud-row" }, h("span", { class: "hud-round" }, dot(colorOf(me())), h("span", { "data-fit": "1" }, t.round(room.round ?? 1, room.rounds ?? 1))), c.secs), steps, c.timebar);
 
-  const canvas = /** @type {HTMLCanvasElement} */ (h("canvas", { class: "minimap world" }));
-  /** @type {MapView} */
-  let view = { s: 1, ox: 0, oy: 0 };
+  const canvas = /** @type {HTMLCanvasElement} */ (h("canvas", { class: "minimap plan" }));
+  const cam = camera();
+  const worldBtn = h("button", { type: "button", class: "world-btn", onclick: () => ((look = -1), (sel = -1), (choosing = null), (notice = ""), redraw()) }, t.world);
   canvas.addEventListener("click", (e) => {
     const r = canvas.getBoundingClientRect();
-    const ti = pickAt(w, view, e.clientX - r.left, e.clientY - r.top);
-    if (ti >= 0) openSheet(ti);
+    const ti = pickAt(w, cam.view, e.clientX - r.left, e.clientY - r.top);
+    if (ti >= 0) tapMap(ti);
   });
-  const strip = h("section", { class: "strip" });
-  const orders = h("section", { class: "card orders" });
+  const bar = h("section", { class: "planbar" });
   const err = h("p", { class: "error", id: "plan-err" });
-  show(h("div", { class: "mapbox" }, canvas), strip, m.rise ? h("p", { class: "rise pop" }, t.rose(tName(m.rise))) : null, err, lands, orders);
+  show(h("div", { class: "mapbox planmap" }, canvas, worldBtn), err, bar);
+  document.body.classList.add("planning");
+  // The bar under the map grows and shrinks: the map follows.
+  const sized = new ResizeObserver(() => drawPlanMap());
+  sized.observe(canvas);
+  cleanups.push(() => sized.disconnect(), () => cam.stop());
 
   const readyline = h("div", { class: "readyline" });
   const readyBtn = /** @type {HTMLButtonElement} */ (h("button", { class: "btn ready", type: "button", id: "ready" }));
   readyBtn.addEventListener("click", () => {
     draft.ready = !draft.ready;
     if (draft.ready) {
-      closeSheet();
+      choosing = null;
+      sel = -1;
       buzz([20, 40, 20]);
     }
     redraw();
@@ -749,159 +788,327 @@ function planScreen() {
   dock.replaceChildren(readyline, readyBtn);
   dock.hidden = false;
 
-  redraw = () => {
+  /** A tap on the map. Far out it also looks closer. @param {number} ti */
+  const tapMap = (ti) => {
+    const id = tId(ti);
+    const far = cam.view.s < 6;
+    notice = "";
+    if (step === 0) {
+      if (far || !isMine(ti)) look = ti;
+      if (!isMine(ti)) sel = -1;
+      // The selected one again: one more army.
+      else if (sel === ti && !far) placeOn(id);
+      else sel = ti;
+      return redraw();
+    }
+    if (choosing) {
+      // Out of the amount; a tap on the route's target only that.
+      const back = ti === tIndex(choosing.to);
+      choosing = null;
+      if (back) return redraw();
+    }
+    const cur = w.territories[sel];
+    if (cur && ti !== sel && cur.neighbors.includes(id)) {
+      if (isMine(sel)) return chooseRoute(cur.id, id);
+      if (isMine(ti)) return chooseRoute(id, cur.id);
+    }
+    if (ti === sel) sel = -1;
+    else {
+      sel = ti;
+      look = ti;
+      if (isMine(ti) && maxFor(id, "") <= 0 && !draft.orders.some((o) => o.from === id)) notice = t.nothingFrom(tName(id));
+    }
+    redraw();
+  };
+
+  /** Where the map looks: a territory and its neighbours, or the world. */
+  const mapFrame = () => {
+    const terr = w.territories[look];
+    if (terr) return { key: `f:${look}`, frame: [look, ...terr.neighbors.map(tIndex)], pad: 1.2, max: 22 };
+    return { key: "world", frame: allLand(), pad: 0.6, max: 22 };
+  };
+
+  const drawPlanMap = () => {
     const board = planBoard();
-    const mineIds = w.territories.filter((x) => board.own[x.index] === me()).map((x) => x.id);
-    const v = client.view ?? {};
-    const mm = v.me ?? {};
+    const f = mapFrame();
+    const cw = canvas.clientWidth || 320;
+    const ch = canvas.clientHeight || 200;
+    const target = frameView(w, cw, ch, f.frame, f.pad, f.max);
+    worldBtn.hidden = f.key === "world";
+    const selT = w.territories[sel];
+    // Orders: the selection and its neighbours stand out, the rest dims.
+    const around = step === 1 && selT ? new Set([sel, ...selT.neighbors.map(tIndex)]) : null;
+    const draw = (/** @type {MapView} */ v, /** @type {boolean} */ rest) => {
+      const close = v.s >= 6;
+      // The badges: before placing, what is there; ordering, what one's territories will have once the orders went.
+      const end = step === 1 ? (alongNow().at(-1) ?? startArmies()) : null;
+      /** @type {Map<number, string>} */
+      const labels = new Map();
+      if (close) for (const x of w.territories) labels.set(x.index, String(end && board.own[x.index] === me() ? (end.get(x.id) ?? 0) : (board.arm[x.index] ?? 0)));
+      /** @type {Map<number, number>} */
+      const plus = new Map();
+      if (step === 0) for (const [id, n] of Object.entries(draft.place)) plus.set(tIndex(id), n);
+      let arrows = orderArrows();
+      if (choosing) {
+        const ch2 = choosing;
+        arrows = arrows.filter((a) => a.from !== tIndex(ch2.from) || a.to !== tIndex(ch2.to));
+        arrows.push({ from: tIndex(ch2.from), to: tIndex(ch2.to), n: ch2.n, kind: isMine(tIndex(ch2.to)) ? "move" : "atk" });
+      }
+      // Names on the land close up: what is around where it looks.
+      /** @type {Set<number>} */
+      const named = new Set();
+      if (close) {
+        for (const x of [look, sel]) {
+          const tt = w.territories[x];
+          if (!tt) continue;
+          named.add(x);
+          for (const nb of tt.neighbors) named.add(tIndex(nb));
+        }
+      }
+      drawMap(canvas, w, board, colorOf, {
+        view: v,
+        sel,
+        dim: !!around,
+        hi: around ?? undefined,
+        labels,
+        plus,
+        arrows,
+        me: me(),
+        names: named.size && v.s >= target.s * 0.75 ? new Map([...named].map((i) => [i, tName(i)])) : undefined,
+        strong: new Set(choosing ? [tIndex(choosing.from), tIndex(choosing.to)] : [sel]),
+        regionNames: rest && f.key === "world" ? new Map(w.continents.map((x) => [x.id, x.name[lang]])) : undefined,
+      });
+      // Where the camera rests, for the live tests' taps on a territory (test/live/taps.ts).
+      if (rest) canvas.dataset["view"] = `${v.s},${v.ox},${v.oy}`;
+      else delete canvas.dataset["view"];
+    };
+    cam.fly(f.key, target, cw, ch, draw);
+  };
+
+  // ---- The bar under the map: what the tap did, what to do next.
+
+  const cashButton = () => {
+    const stars = Number(client.view?.me?.stars ?? 0);
+    if (stars < STARS_TO_CASH && !draft.cash) return null;
+    return h(
+      "button",
+      {
+        type: "button",
+        class: `cash${draft.cash ? " on" : ""}`,
+        onclick: () => {
+          draft.cash = !draft.cash;
+          if (!draft.cash) {
+            // Placements over the smaller budget come off the last ones placed.
+            let over = placed() - budget();
+            for (const id of Object.keys(draft.place).reverse()) {
+              if (over <= 0) break;
+              const take = Math.min(over, draft.place[id] ?? 0);
+              draft.place[id] = (draft.place[id] ?? 0) - take;
+              if (!draft.place[id]) delete draft.place[id];
+              over -= take;
+            }
+          } else buzz([10, 30, 10]);
+          changed();
+        },
+      },
+      h("span", { class: "stars3" }, "★★★"),
+      h("span", { "data-fit": "1" }, draft.cash ? `✓ ${t.cashed(CASH_ARMIES)}` : t.cash(CASH_ARMIES)),
+    );
+  };
+
+  const xSel = () => h("button", { type: "button", class: "x", "aria-label": t.close, onclick: () => ((sel = -1), (choosing = null), (notice = ""), redraw()) }, "✕");
+  /** The selection's line: holder's dot, name, a word under it. @param {number} i @param {string | Node} meta */
+  const head = (i, meta) => h("div", { class: "bar-head" }, dot(colorOf(planBoard().own[i])), h("div", { class: "title" }, h("h2", { "data-fit": "1" }, tName(i)), h("p", { class: "meta", "data-fit": "2" }, meta)));
+
+  const placeBar = () => {
+    const board = planBoard();
     const left = leftToPlace();
-    document.body.classList.toggle("is-ready", draft.ready);
+    const next = h("button", { type: "button", class: `btn small next${left > 0 ? " ghost" : ""}`, onclick: () => goStep(1) }, t.nextMove);
+    if (sel >= 0 && isMine(sel)) {
+      const id = tId(sel);
+      const f = worstFoe(id);
+      const danger = !!f && winChance(f.n - 1, have(id)) >= 0.5;
+      return only(
+        h(
+          "div",
+          { class: "bar-row" },
+          head(sel, danger && f ? h("span", { class: "warn" }, t.threatNear(tName(f.id), f.n)) : left > 0 ? t.tapAgain : t.allPlaced),
+          h("span", { class: `count${draft.place[id] ? " row" : ""}` }, ...(draft.place[id] ? [h("small", {}, `${board.arm[sel] ?? 0} →`)] : []), h("b", {}, String(have(id)))),
+          xSel(),
+        ),
+        h(
+          "div",
+          { class: "bar-row" },
+          h("button", { type: "button", class: "step-btn", "aria-label": `− ${tName(id)}`, disabled: !draft.place[id], onclick: () => unplace(id) }, "−"),
+          h("button", { type: "button", class: "step-btn plus", "aria-label": `+ ${tName(id)}`, disabled: left <= 0, onclick: () => placeOn(id) }, "+"),
+          left > 1 ? h("button", { type: "button", class: "mini all", onclick: () => placeOn(id, left) }, t.placeAll(left)) : null,
+          h("span", { class: "left" }, left > 0 ? t.leftN(left) : `✓ ${t.allPlaced}`),
+        ),
+        left === 0 ? next : null,
+      );
+    }
+    return only(
+      h("div", { class: "bar-row" }, h("div", { class: "title" }, h("h2", {}, left > 0 ? t.placeN(left) : `✓ ${t.allPlaced}`), h("p", { class: "meta" }, left > 0 ? t.tapOwn : t.allPlacedNext))),
+      client.view?.me?.rise ? h("p", { class: "note" }, "⚑ ", t.rose(tName(client.view.me.rise))) : null,
+      cashButton(),
+      next,
+    );
+  };
 
-    // The header's count of armies to place.
-    pill.className = `pill${left === 0 ? " done" : ""}`;
-    pill.replaceChildren(h("b", {}, left === 0 ? "✓" : String(left)), h("span", { "data-fit": "1" }, left === 0 ? t.placedAll : t.toPlace));
-
-    // The world: placements as badges, the orders as arrows.
-    /** @type {Map<number, string>} */
-    const labels = new Map();
-    for (const [id, n] of Object.entries(draft.place)) labels.set(tIndex(id), `+${n}`);
-    view = drawMap(canvas, w, board, colorOf, { labels, arrows: orderArrows(), me: me(), frame: allLand(), pad: 0.6 });
-
-    // Stars and the income.
-    const stars = Number(mm.stars ?? 0);
-    const reinf = mm.reinf ?? { base: 0, bonus: [], total: 0 };
-    const canCash = stars >= STARS_TO_CASH || draft.cash;
-    strip.replaceChildren(
-      ...only(
-      h(
-        "div",
-        { class: "strip-row" },
-        h("span", { class: "starrow", "aria-label": `${stars} ${t.stars}` }, ...Array.from({ length: 5 }, (_, i) => h("i", { class: i < stars ? "on" : "" }, "★"))),
+  /** Existing orders out of a territory, as chips: a tap changes one, ✕ takes it back. @param {string} id */
+  const orderChips = (id) => {
+    const mine = draft.orders.filter((o) => o.from === id);
+    if (!mine.length) return null;
+    return h(
+      "div",
+      { class: "chips orders" },
+      ...mine.map((o) =>
         h(
           "span",
-          { class: "income" },
-          [t.income(reinf.base), ...reinf.bonus.map((/** @type {[string, number]} */ [cid, b]) => `${w.continents.find((x) => x.id === cid)?.name[lang] ?? cid} +${b}`)].join(" · "),
-        ),
-      ),
-      canCash
-        ? h(
-            "button",
-            {
-              type: "button",
-              class: `cash${draft.cash ? " on" : ""}`,
-              onclick: () => {
-                draft.cash = !draft.cash;
-                if (!draft.cash) {
-                  // Placements over the smaller budget come off the last ones placed.
-                  let over = placed() - budget();
-                  for (const id of Object.keys(draft.place).reverse()) {
-                    if (over <= 0) break;
-                    const take = Math.min(over, draft.place[id] ?? 0);
-                    draft.place[id] = (draft.place[id] ?? 0) - take;
-                    if (!draft.place[id]) delete draft.place[id];
-                    over -= take;
-                  }
-                } else buzz([10, 30, 10]);
-                changed();
-              },
-            },
-            h("span", { class: "stars3" }, "★★★"),
-            h("span", {}, draft.cash ? t.cashed(CASH_ARMIES) : t.cash(CASH_ARMIES)),
-          )
-        : stars === 0 && Number(v.room?.round ?? 1) <= 2
-          ? h("p", { class: "muted small" }, t.starHint)
-          : null,
-      ),
-    );
-
-    // The territories: fronts first (most pressure first), then inland.
-    const foesOf = (/** @type {string} */ id) => (w.byId.get(id)?.neighbors ?? []).filter((nb) => board.own[tIndex(nb)] !== me());
-    const pressure = (/** @type {string} */ id) => foesOf(id).reduce((s, nb) => s + (board.own[tIndex(nb)] ? (board.arm[tIndex(nb)] ?? 0) : 0), 0) - (board.arm[tIndex(id)] ?? 0) * 0.5;
-    const fronts = mineIds.filter((id) => foesOf(id).length > 0).sort((a, b) => pressure(b) - pressure(a));
-    const inland = mineIds.filter((id) => foesOf(id).length === 0);
-    const row = (/** @type {string} */ id) => {
-      const i = tIndex(id);
-      const p = draft.place[id] ?? 0;
-      const out = ordered(id);
-      const foes = foesOf(id).sort((a, b) => (board.arm[tIndex(a)] ?? 0) - (board.arm[tIndex(b)] ?? 0));
-      const mine = draft.orders.filter((o) => o.from === id);
-      const danger = foes.length > 0 && threatened(id);
-      const chips = [
-        ...foes.map((nb) => {
-          const ni = tIndex(nb);
-          const o = mine.find((x) => x.to === nb);
-          return h(
-            "button",
-            { type: "button", class: `foe${o ? " ordered" : ""}`, style: { "--c": colorOf(board.own[ni]) }, onclick: () => openSheet(i, nb) },
-            h("span", { class: "fname" }, tName(nb)),
-            h("b", { class: "fn" }, String(board.arm[ni] ?? 0)),
-            o ? h("span", { class: "ord" }, `⚔${o.n}`) : null,
-          );
-        }),
-        ...mine
-          .filter((o) => board.own[tIndex(o.to)] === me())
-          .map((o) => h("button", { type: "button", class: "foe mv", style: { "--c": colorOf(me()) }, onclick: () => openSheet(i, o.to) }, h("span", { class: "ord" }, `➜${o.n}`), h("span", { class: "fname" }, tName(o.to)))),
-      ];
-      return h(
-        "div",
-        { class: `land${danger ? " threat" : ""}${p ? " placed" : ""}`, "data-id": id, "data-free": free(id) },
-        h(
-          "div",
-          { class: "land-body" },
-          h(
-            "button",
-            { type: "button", class: "land-main", onclick: () => openSheet(i) },
-            h("span", { class: "name", "data-fit": "1" }, tName(id)),
-            h(
-              "span",
-              { class: "arm" },
-              danger ? h("i", { class: "warn", title: t.threatened, "aria-label": t.threatened }, "⚠") : null,
-              h("b", {}, String(have(id))),
-              p ? h("em", {}, `+${p}`) : null,
-              out ? h("small", {}, `−${out}`) : null,
-            ),
-          ),
-          chips.length ? h("div", { class: "foes" }, ...chips) : null,
-        ),
-        stepper(id),
-      );
-    };
-    const anyThreat = fronts.some((id) => threatened(id));
-    // The hints teach the first rounds.
-    const early = Number(v.room?.round ?? 1) <= 2;
-    lands.replaceChildren(
-      ...(fronts.length ? [h("h2", {}, t.fronts), early || anyThreat ? h("p", { class: "hint" }, early ? t.frontsHint : "", anyThreat ? ` ${t.threatHint}` : "") : null, ...fronts.map(row)].filter((x) => x !== null) : []),
-      ...(inland.length ? [h("h2", {}, t.inland), ...inland.map(row)] : []),
-    );
-
-    // The orders, as a list to check and take back.
-    orders.hidden = draft.orders.length === 0;
-    orders.replaceChildren(
-      h("h2", {}, t.orders, h("small", {}, ` ${draft.orders.length}/${MAX_ORDERS}`)),
-      ...draft.orders.map((o, k) => {
-        const enemy = board.own[tIndex(o.to)] !== me();
-        return h(
-          "div",
-          { class: `order${enemy ? " atk" : ""}` },
-          h("span", { class: "icon" }, enemy ? "⚔" : "➜"),
-          h("button", { type: "button", class: "route-btn", onclick: () => openSheet(tIndex(o.from), o.to) }, h("span", { "data-fit": "2" }, `${tName(o.from)} → ${tName(o.to)}`)),
-          h("b", { class: "n" }, String(o.n)),
+          { class: "ochip" },
+          h("button", { type: "button", class: "oc-main", onclick: () => chooseRoute(o.from, o.to) }, `${isMine(tIndex(o.to)) ? "➜" : "⚔"} ${o.n} ${tName(o.to)}`),
           h(
             "button",
             {
               type: "button",
-              class: "x",
+              class: "oc-x",
               "aria-label": t.remove,
               onclick: () => {
-                draft.orders.splice(k, 1);
+                draft.orders = draft.orders.filter((x) => x !== o);
                 changed();
               },
             },
             "✕",
           ),
-        );
-      }),
+        ),
+      ),
     );
+  };
+
+  const ordersBar = () => {
+    const board = planBoard();
+    if (choosing) return amountBar(choosing);
+    const terr = w.territories[sel];
+    if (terr && isMine(sel)) {
+      const free = maxFor(terr.id, "");
+      return only(
+        h("div", { class: "bar-row" }, head(sel, notice || (free > 0 ? t.tapTarget : t.nothingFrom(terr.name[lang]))), h("span", { class: "count" }, h("b", {}, String(endOf(terr.id))), h("small", {}, t.freeShort(free))), xSel()),
+        orderChips(terr.id),
+      );
+    }
+    if (terr) {
+      const holder = board.own[sel] ?? "";
+      const borders = terr.neighbors.some((nb) => board.own[tIndex(nb)] === me());
+      return only(h("div", { class: "bar-row" }, head(sel, borders ? t.tapAttackFrom : t.noBorder), h("span", { class: "count" }, h("b", {}, String(board.arm[sel] ?? 0)), h("small", {}, holder ? nameOf(holder) : t.wild)), xSel()));
+    }
+    const n = draft.orders.length;
+    return only(
+      h("div", { class: "bar-row" }, h("div", { class: "title" }, h("h2", {}, t.stepMove), h("p", { class: "meta" }, notice || t.tapFrom)), n ? h("span", { class: "count" }, h("b", {}, String(n)), h("small", {}, t.ordersWord(n))) : null),
+      leftToPlace() > 0 ? h("button", { type: "button", class: "mini back", onclick: () => goStep(0) }, t.backToPlace(leftToPlace())) : null,
+    );
+  };
+
+  /** The amount for a route: its two ends and the odds, quick amounts, the slider, confirm. @param {{ from: string, to: string, n: number }} ch */
+  const amountBar = (ch) => {
+    const board = planBoard();
+    const ti = tIndex(ch.to);
+    const enemy = board.own[ti] !== me();
+    const existing = draft.orders.find((o) => o.from === ch.from && o.to === ch.to);
+    const max = Math.max(1, maxFor(ch.from, ch.to));
+    ch.n = Math.max(1, Math.min(ch.n, max));
+    const def = board.arm[ti] ?? 0;
+    const slider = /** @type {HTMLInputElement} */ (h("input", { type: "range", min: 1, max, value: ch.n, step: 1, "aria-label": t.armies(ch.n) }));
+    const oddsBar = h("i");
+    const oddsText = h("span", { "data-fit": "1" });
+    const send = /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: "btn small send" }));
+    /** @type {[string, number][]} */
+    const quickVals = [];
+    if (max >= 3) quickVals.push([t.half, Math.ceil(max / 2)]);
+    const safe = enemy ? armiesFor(def, 0.8, max) : 0;
+    if (safe > 0 && safe < max && !quickVals.some(([, n]) => n === safe)) quickVals.push([t.safe, safe]);
+    quickVals.push([t.all, max]);
+    quickVals.sort((a, b) => a[1] - b[1]);
+    const quick = quickVals.map(([label, n]) => /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: "q", onclick: () => setN(n) }, h("span", {}, label), h("b", {}, String(n)))));
+    const update = () => {
+      slider.value = String(ch.n);
+      send.replaceChildren(h("span", { "data-fit": "1" }, `${enemy ? "⚔" : "➜"} ${enemy ? t.attackWith(ch.n) : t.moveWith(ch.n)}`));
+      quick.forEach((b, k) => b.classList.toggle("on", quickVals[k]?.[1] === ch.n));
+      if (enemy) {
+        const p = winChance(ch.n, def);
+        const pct = Math.round(p * 100);
+        oddsBar.style.width = `${Math.max(3, pct)}%`;
+        oddsText.textContent = pct < 5 ? t.hopeless : t.winChance(pct, p >= 0.7 ? t.odds.good : p >= 0.4 ? t.odds.even : t.odds.bad);
+      }
+    };
+    const setN = (/** @type {number} */ n) => {
+      ch.n = Math.max(1, Math.min(max, n));
+      update();
+      // The map's arrow carries the amount.
+      drawPlanMap();
+    };
+    slider.addEventListener("input", () => setN(Number(slider.value)));
+    const hold = () => (holding = true);
+    const release = () => (holding = false);
+    slider.addEventListener("pointerdown", hold);
+    slider.addEventListener("touchstart", hold, { passive: true });
+    for (const ev of ["pointerup", "pointercancel", "touchend", "change"]) slider.addEventListener(ev, release);
+    send.addEventListener("click", () => {
+      const o = draft.orders.find((x) => x.from === ch.from && x.to === ch.to);
+      if (o) o.n = ch.n;
+      else if (draft.orders.length < MAX_ORDERS) draft.orders.push({ from: ch.from, to: ch.to, n: ch.n });
+      // On to the next: nothing selected, the map stays where it looks.
+      choosing = null;
+      sel = -1;
+      buzz(20);
+      changed();
+    });
+    update();
+    const end = (/** @type {string} */ id, /** @type {number} */ n) => h("span", { class: "end" }, dot(colorOf(board.own[tIndex(id)])), h("span", { class: "name", "data-fit": "1" }, tName(id)), h("b", {}, String(n)));
+    return only(
+      h("div", { class: "route-head" }, end(ch.from, max + 1), h("i", { class: "via" }, enemy ? "⚔" : "➜"), end(ch.to, enemy ? def : have(ch.to))),
+      enemy ? h("div", { class: "odds" }, h("span", { class: "obar" }, oddsBar), oddsText) : null,
+      max >= 2 ? h("div", { class: "amount-row" }, h("button", { type: "button", class: "mini", "aria-label": "−", onclick: () => setN(ch.n - 1) }, "−"), slider, h("button", { type: "button", class: "mini", "aria-label": "+", onclick: () => setN(ch.n + 1) }, "+")) : null,
+      quick.length > 1 ? h("div", { class: "quick" }, ...quick) : null,
+      h(
+        "div",
+        { class: "amount-actions" },
+        h("button", { type: "button", class: "btn small ghost", onclick: () => ((choosing = null), redraw()) }, t.cancel),
+        existing
+          ? h(
+              "button",
+              {
+                type: "button",
+                class: "btn small ghost",
+                onclick: () => {
+                  draft.orders = draft.orders.filter((o) => o !== existing);
+                  choosing = null;
+                  sel = -1;
+                  changed();
+                },
+              },
+              t.removeShort,
+            )
+          : null,
+        send,
+      ),
+    );
+  };
+
+  redraw = () => {
+    const v = client.view ?? {};
+    const left = leftToPlace();
+    document.body.classList.toggle("is-ready", draft.ready);
+
+    // The two steps, each with what it still wants.
+    const badges = [left > 0 ? h("b", {}, String(left)) : h("b", { class: "ok" }, "✓"), draft.orders.length ? h("b", {}, String(draft.orders.length)) : null];
+    steps.replaceChildren(
+      ...[t.stepPlace, t.stepMove].map((label, k) =>
+        h("button", { type: "button", class: `stp${step === k ? " on" : ""}`, "aria-current": step === k ? "step" : false, onclick: () => goStep(k) }, h("i", {}, String(k + 1)), h("span", { "data-fit": "1" }, label), badges[k]),
+      ),
+    );
+
+    if (!holding) bar.replaceChildren(...(step === 0 ? placeBar() : ordersBar()));
+    drawPlanMap();
 
     // Ready: who is, and the button.
     const players = /** @type {any[]} */ (v.room?.players ?? []).filter((s) => !s.out && !s.gone);
@@ -913,302 +1120,16 @@ function planScreen() {
     readyBtn.classList.toggle("on", draft.ready);
     readyBtn.replaceChildren(
       ...only(
-      h("span", { class: "main" }, draft.ready ? `✓ ${t.readyDone}` : t.ready),
-      draft.ready ? h("span", { class: "sub" }, t.readyChange) : left > 0 ? h("span", { class: "sub", "data-fit": "1" }, t.readyLeft(left)) : null,
+        h("span", { class: "main" }, draft.ready ? `✓ ${t.readyDone}` : t.ready),
+        draft.ready ? h("span", { class: "sub" }, t.readyChange) : left > 0 ? h("span", { class: "sub", "data-fit": "1" }, t.readyLeft(left)) : null,
       ),
     );
-    if (sel >= 0) fillSheet();
   };
   refresh = () => redraw();
-  const onResize = () => redraw();
-  addEventListener("resize", onResize);
   cleanups.push(
-    () => removeEventListener("resize", onResize),
     () => (redraw = () => {}),
-    () => document.body.classList.remove("is-ready"),
+    () => document.body.classList.remove("is-ready", "planning"),
   );
-}
-
-/** The plan's orders as arrows (optionally only those touching `only`). @param {Set<number>} [only] @returns {Arrow[]} */
-function orderArrows(only) {
-  const board = planBoard();
-  return draft.orders
-    .map((o) => ({ from: tIndex(o.from), to: tIndex(o.to), n: o.n, kind: /** @type {"atk" | "move"} */ (board.own[tIndex(o.to)] === me() ? "move" : "atk") }))
-    .filter((a) => !only || only.has(a.from) || only.has(a.to));
-}
-
-// ---------------------------------------------------------------------------
-// The sheet: one territory's moves
-
-/** @param {number} i @param {string} [route] the other end of the route whose amount to choose */
-function openSheet(i, route) {
-  const w = /** @type {World} */ (world);
-  sel = i;
-  choosing = null;
-  holding = false;
-  const id = w.territories[i]?.id ?? "";
-  if (route) {
-    // From one's own territory to `route`, or (a foreign territory) from `route`, one's own, to it.
-    const [from, to] = isMine(i) ? [id, route] : [route, id];
-    const existing = draft.orders.find((o) => o.from === from && o.to === to);
-    if (existing || free(from, to) > 0) choosing = { from, to, n: existing?.n ?? free(from, to) };
-  }
-  fresh = true;
-  sheet.hidden = false;
-  scrim.hidden = false;
-  document.body.classList.add("sheet-open");
-  redraw();
-}
-
-function closeSheet() {
-  landLocator();
-  sel = -1;
-  choosing = null;
-  holding = false;
-  sheet.hidden = true;
-  scrim.hidden = true;
-  sheet.replaceChildren();
-  document.body.classList.remove("sheet-open");
-}
-scrim.addEventListener("click", () => {
-  closeSheet();
-  redraw();
-});
-// A swipe down on the sheet's handle or title closes it.
-{
-  let y0 = -1;
-  sheet.addEventListener("pointerdown", (e) => {
-    const tg = /** @type {Element} */ (e.target);
-    y0 = tg.closest?.(".grab, .sheet-head") && !tg.closest("button") ? e.clientY : -1;
-  });
-  sheet.addEventListener("pointermove", (e) => {
-    if (y0 < 0) return;
-    const dy = Math.max(0, e.clientY - y0);
-    sheet.style.transform = dy ? `translateY(${dy}px)` : "";
-  });
-  const end = (/** @type {PointerEvent} */ e) => {
-    if (y0 < 0) return;
-    const dy = e.clientY - y0;
-    y0 = -1;
-    sheet.style.transform = "";
-    if (dy > 60) {
-      closeSheet();
-      redraw();
-    }
-  };
-  sheet.addEventListener("pointerup", end);
-  sheet.addEventListener("pointercancel", end);
-}
-
-function fillSheet() {
-  if (holding) return;
-  const w = /** @type {World} */ (world);
-  const board = planBoard();
-  const terr = w.territories[sel];
-  if (!terr) return closeSheet();
-  const holder = board.own[sel] ?? "";
-  const mine = holder === me();
-  const oldBody = sheet.querySelector(".sheet-body");
-  const scroll = oldBody?.scrollTop ?? 0;
-  const cont = w.continents.find((c) => c.id === terr.continent);
-  const close = h("button", { type: "button", class: "x", "aria-label": t.close, onclick: () => (closeSheet(), redraw()) }, "✕");
-  const title = h(
-    "div",
-    { class: "sheet-head" },
-    dot(colorOf(holder)),
-    h("div", { class: "title" }, h("h2", { "data-fit": "1" }, terr.name[lang]), h("p", { class: "meta" }, `${cont?.name[lang] ?? ""} · ${mine ? t.yours : nameOf(holder)} · ${t.armies(have(terr.id))}`)),
-    close,
-  );
-
-  // The close-up: the territory, its neighbours, their armies, the orders.
-  const around = new Set([sel, ...terr.neighbors.map(tIndex)]);
-  const locator = /** @type {HTMLCanvasElement} */ (h("canvas", { class: "locator" }));
-  locator.addEventListener("click", (e) => {
-    const r = locator.getBoundingClientRect();
-    const ti = pickAt(w, loc.view, e.clientX - r.left, e.clientY - r.top);
-    if (ti < 0 || ti === sel) return;
-    const nb = terr.neighbors.includes(tId(ti));
-    if (nb && (mine || isMine(ti))) {
-      const [from, to] = mine ? [terr.id, tId(ti)] : [tId(ti), terr.id];
-      const existing = draft.orders.find((o) => o.from === from && o.to === to);
-      if (!existing && free(from, to) <= 0) return;
-      choosing = { from, to, n: existing?.n ?? free(from, to) };
-      fresh = true;
-      redraw();
-    } else openSheet(ti);
-  });
-
-  /** A route's row: the other territory, its holder and armies, Attack/Move; open, the amount. */
-  const route = (/** @type {string} */ from, /** @type {string} */ to, /** @type {"to" | "from"} */ side) => {
-    const ti = tIndex(to);
-    const other = side === "to" ? to : from;
-    const oi = tIndex(other);
-    const enemy = board.own[ti] !== me();
-    const existing = draft.orders.find((o) => o.from === from && o.to === to);
-    const can = free(from, to);
-    const open = !!choosing && choosing.from === from && choosing.to === to;
-    const meta = side === "to" ? (enemy ? nameOf(board.own[ti] ?? "") : t.yours) : t.yours;
-    const nArmies = side === "to" ? (enemy ? (board.arm[ti] ?? 0) : have(to)) : can;
-    const expand = () => {
-      choosing = { from, to, n: existing?.n ?? can };
-      fresh = true;
-      redraw();
-    };
-    const head = [
-      dot(colorOf(board.own[oi])),
-      h("span", { class: "rname" }, h("span", { class: "name", "data-fit": "1" }, tName(other)), h("span", { class: "meta" }, side === "to" ? meta : `${t.yours} · ${can} ↗`)),
-      side === "to" ? h("b", { class: "rarm", style: { "--c": colorOf(board.own[ti]) } }, String(nArmies)) : null,
-    ];
-    if (!open) {
-      return h(
-        "div",
-        { class: `route${enemy ? " hostile" : ""}${existing ? " has" : ""}` },
-        h(
-          "button",
-          { type: "button", class: "route-main", disabled: can <= 0 && !existing, onclick: expand },
-          ...head,
-          existing ? h("span", { class: "had" }, `${enemy ? "⚔" : "➜"}${existing.n}`) : h("span", { class: `go${enemy ? " atk" : ""}` }, enemy ? t.attack : t.move),
-        ),
-      );
-    }
-    const ch = /** @type {{ from: string, to: string, n: number }} */ (choosing);
-    const max = Math.max(1, can);
-    ch.n = Math.max(1, Math.min(ch.n, max));
-    const def = board.arm[ti] ?? 0;
-    const slider = /** @type {HTMLInputElement} */ (h("input", { type: "range", min: 1, max, value: ch.n, step: 1, "aria-label": t.armies(ch.n) }));
-    const oddsBar = h("i");
-    const oddsText = h("span", { "data-fit": "1" });
-    const odds = enemy ? h("div", { class: "odds" }, h("span", { class: "obar" }, oddsBar), oddsText) : null;
-    const send = /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: `btn small send${enemy ? " atk" : ""}` }));
-    /** @type {[string, number][]} */
-    const quickVals = [];
-    if (max >= 3) quickVals.push([t.half, Math.ceil(max / 2)]);
-    const safe = enemy ? armiesFor(def, 0.8, max) : 0;
-    if (safe > 0 && safe < max && !quickVals.some(([, n]) => n === safe)) quickVals.push([t.safe, safe]);
-    quickVals.push([t.all, max]);
-    quickVals.sort((a, b) => a[1] - b[1]);
-    const quick = quickVals.map(([label, n]) => /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: "q", onclick: () => setN(n) }, h("span", {}, label), h("b", {}, String(n)))));
-    const update = () => {
-      slider.value = String(ch.n);
-      send.textContent = `${enemy ? "⚔" : "➜"} ${enemy ? t.attackWith(ch.n) : t.moveWith(ch.n)}`;
-      quick.forEach((b, k) => b.classList.toggle("on", quickVals[k]?.[1] === ch.n));
-      if (enemy) {
-        const p = winChance(ch.n, def);
-        const pct = Math.round(p * 100);
-        oddsBar.style.width = `${Math.max(3, pct)}%`;
-        /** @type {HTMLElement} */ (odds).className = `odds ${p >= 0.7 ? "good" : p >= 0.4 ? "even" : "bad"}`;
-        oddsText.textContent = pct < 5 ? t.hopeless : t.winChance(pct);
-      }
-    };
-    const setN = (/** @type {number} */ n) => {
-      ch.n = Math.max(1, Math.min(max, n));
-      update();
-      // The close-up's arrow carries the amount.
-      locFrame();
-    };
-    slider.addEventListener("input", () => setN(Number(slider.value)));
-    const hold = () => (holding = true);
-    const release = () => {
-      if (!holding) return;
-      holding = false;
-    };
-    slider.addEventListener("pointerdown", hold);
-    slider.addEventListener("touchstart", hold, { passive: true });
-    for (const ev of ["pointerup", "pointercancel", "touchend", "change"]) slider.addEventListener(ev, release);
-    send.addEventListener("click", () => {
-      const o = draft.orders.find((x) => x.from === ch.from && x.to === ch.to);
-      if (o) o.n = ch.n;
-      else if (draft.orders.length < MAX_ORDERS) draft.orders.push({ from: ch.from, to: ch.to, n: ch.n });
-      choosing = null;
-      buzz(20);
-      changed();
-    });
-    update();
-    return h(
-      "div",
-      { class: `route open${enemy ? " hostile" : ""}` },
-      h("button", { type: "button", class: "route-main", onclick: () => ((choosing = null), redraw()) }, ...head),
-      odds,
-      h("div", { class: "quick" }, ...quick),
-      max >= 4 ? h("div", { class: "amount-row" }, h("button", { type: "button", class: "mini", "aria-label": "−", onclick: () => setN(ch.n - 1) }, "−"), slider, h("button", { type: "button", class: "mini", "aria-label": "+", onclick: () => setN(ch.n + 1) }, "+")) : null,
-      h(
-        "div",
-        { class: "amount-actions" },
-        existing
-          ? h(
-              "button",
-              {
-                type: "button",
-                class: "mini ghost",
-                "aria-label": t.remove,
-                onclick: () => {
-                  draft.orders = draft.orders.filter((o) => o !== existing);
-                  choosing = null;
-                  changed();
-                },
-              },
-              "✕",
-            )
-          : null,
-        send,
-      ),
-    );
-  };
-  /** @type {(HTMLElement | null)[]} */
-  const body = [];
-  sheet.classList.toggle("choosing", !!choosing);
-  if (mine && !choosing) {
-    const left = leftToPlace();
-    body.push(
-      h(
-        "div",
-        { class: "place-row" },
-        h("span", { class: "pl" }, t.placeHere, h("b", {}, `+${draft.place[terr.id] ?? 0}`)),
-        left > 1 ? h("button", { type: "button", class: "mini all", onclick: () => placeOn(terr.id, left) }, t.placeAll(left)) : null,
-        stepper(terr.id, true),
-      ),
-    );
-    if (free(terr.id) <= 0 && !draft.orders.some((o) => o.from === terr.id)) body.push(h("p", { class: "hint" }, t.nothingFree));
-  }
-  if (mine) {
-    // Foes first, the weakest first; one's own after.
-    const nbs = [...terr.neighbors].sort((a, b) => Number(board.own[tIndex(a)] === me()) - Number(board.own[tIndex(b)] === me()) || (board.arm[tIndex(a)] ?? 0) - (board.arm[tIndex(b)] ?? 0));
-    body.push(...nbs.map((nb) => route(terr.id, nb, "to")));
-  } else {
-    const from = terr.neighbors.filter((nb) => board.own[tIndex(nb)] === me()).sort((a, b) => free(b, terr.id) - free(a, terr.id));
-    body.push(h("h3", {}, t.attackFrom));
-    if (from.length === 0) body.push(h("p", { class: "hint" }, t.noBorder));
-    body.push(...from.map((f) => route(f, terr.id, "from")));
-  }
-  const bodyEl = h("div", { class: "sheet-body" }, ...body.filter((x) => x !== null));
-  sheet.replaceChildren(h("div", { class: "grab" }), title, h("div", { class: "locbox" }, locator), bodyEl);
-  /** @type {Map<number, string>} */
-  const labels = new Map();
-  for (const i of around) labels.set(i, String(board.own[i] === me() ? have(tId(i)) : (board.arm[i] ?? 0)));
-  // Choosing an amount, the camera goes to the route's two ends and draws the order as it would be.
-  const pick = choosing;
-  const ends = pick ? [tIndex(pick.from), tIndex(pick.to)] : [];
-  const frame = pick ? ends : [...around];
-  /** @type {Map<number, string>} */
-  const names = new Map((pick ? ends : [...around]).map((i) => [i, tName(i)]));
-  const strong = new Set(pick ? ends : [sel]);
-  const cw = locator.clientWidth || 320;
-  const lh = locator.clientHeight || 120;
-  const target = frameView(w, cw, lh, frame, pick ? 1.6 : 1.5, pick ? 24 : 20);
-  const draw = (/** @type {MapView} */ v) => {
-    const arrows = orderArrows(around).filter((a) => !pick || a.from !== ends[0] || a.to !== ends[1]);
-    if (pick) arrows.push({ from: ends[0] ?? 0, to: ends[1] ?? 0, n: pick.n, kind: board.own[ends[1] ?? 0] === me() ? "move" : "atk" });
-    // The names once the camera is nearly there.
-    drawMap(locator, w, board, colorOf, { sel, hi: pick ? new Set(ends) : around, labels, names: v.s >= target.s * 0.75 ? names : undefined, strong, view: v, arrows, me: me() });
-  };
-  flyLocator(`${sel}:${frame.join(",")}`, target, cw, lh, draw);
-  bodyEl.scrollTop = scroll;
-  if (fresh) {
-    fresh = false;
-    const open = bodyEl.querySelector(".route.open");
-    if (open) requestAnimationFrame(() => open.scrollIntoView({ block: "nearest" }));
-    else bodyEl.scrollTop = 0;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1327,9 +1248,9 @@ function watchScreen() {
       pad = 3;
       for (const i of near) labels.set(i, String(board.arm[i] ?? 0));
       names.set(a, tName(a)).set(b, tName(b));
-      const mineToo = ev.p === me() || ev.foe === me() || ev.q === me();
-      arrows.push({ from: a, to: b, kind: ev.type === "move" ? "move" : mineToo ? "hot" : "atk" });
-      if (ev.type === "clash") arrows.push({ from: b, to: a, kind: mineToo ? "hot" : "atk" });
+      // In the mover's colour, as on the TV.
+      arrows.push({ from: a, to: b, kind: ev.type === "move" ? "move" : "atk", color: colorOf(ev.p) });
+      if (ev.type === "clash") arrows.push({ from: b, to: a, kind: "atk", color: colorOf(ev.q) });
     } else if (ev?.type === "place") {
       for (const [i, p, n] of ev.add ?? []) if (p === me()) labels.set(i, `+${n}`);
     }
@@ -1426,10 +1347,11 @@ function watchScreen() {
       }
       return { last, a, d, started: k > 0, rolling };
     };
-    const dice = (/** @type {[number[], number[]] | null} */ roll, /** @type {boolean} */ rolling) =>
+    /** The throw's dice, each side's in its colour. */
+    const dice = (/** @type {[number[], number[]] | null} */ roll, /** @type {boolean} */ rolling, /** @type {string} */ pa, /** @type {string} */ pd) =>
       h(
         "div",
-        { class: `dice${rolling ? " rolling" : ""}` },
+        { class: `dice${rolling ? " rolling" : ""}`, style: { "--ca": colorOf(pa), "--cd": colorOf(pd) } },
         h("span", { class: "att" }, ...(roll ? roll[0] : [6, 6, 6]).map((x) => h("i", { class: "die" }, String(x)))),
         h("span", { class: "def" }, ...(roll ? roll[1] : [6, 6]).map((x) => h("i", { class: "die" }, String(x)))),
       );
@@ -1453,7 +1375,7 @@ function watchScreen() {
         c.tag = atMe ? t.now.youAttack : onMe ? t.now.youDefend : c.tag;
         c.title = t.now.attack(nameOf(ev.p));
         const r = thrown(ev.rolls, "roll", false, ev.n, ev.def);
-        fight = h("div", { class: "vs" }, side(ev.p, ev.from, r.a, "att"), h("div", { class: "mid" }, r.started ? dice(r.last, r.rolling) : h("span", { class: "swords" }, "⚔")), side(ev.foe, ev.to, r.d, "def"));
+        fight = h("div", { class: "vs" }, side(ev.p, ev.from, r.a, "att"), h("div", { class: "mid" }, r.started ? dice(r.last, r.rolling, ev.p, ev.foe) : h("span", { class: "swords" }, "⚔")), side(ev.foe, ev.to, r.d, "def"));
         if (revealed) {
           if (atMe) (c.result = ev.won ? t.now.youTook : t.now.youFailed), (c.good = ev.won);
           else if (onMe) (c.result = ev.won ? t.now.youLost : t.now.youHeld), (c.good = !ev.won);
@@ -1469,10 +1391,10 @@ function watchScreen() {
         const thenStarted = then && cur.marks.some(([n, s]) => n.startsWith("roll:") && tau >= s);
         if (then && (thenStarted || revealed)) {
           const r = thrown(then.rolls, "roll", false, then.n, then.def);
-          fight = h("div", { class: "vs" }, side(then.p, then.from, r.a, "att"), h("div", { class: "mid" }, r.started ? dice(r.last, r.rolling) : h("span", { class: "swords" }, "⚔")), side(then.foe, then.to, r.d, "def"));
+          fight = h("div", { class: "vs" }, side(then.p, then.from, r.a, "att"), h("div", { class: "mid" }, r.started ? dice(r.last, r.rolling, then.p, then.foe) : h("span", { class: "swords" }, "⚔")), side(then.foe, then.to, r.d, "def"));
         } else {
           const r = thrown(ev.rolls, "clash", true, ev.na, ev.nb);
-          fight = h("div", { class: "vs" }, side(ev.p, ev.a, r.a, "att"), h("div", { class: "mid" }, r.started ? dice(r.last, r.rolling) : h("span", { class: "swords" }, "✶")), side(ev.q, ev.b, r.d, "def"));
+          fight = h("div", { class: "vs" }, side(ev.p, ev.a, r.a, "att"), h("div", { class: "mid" }, r.started ? dice(r.last, r.rolling, ev.p, ev.q) : h("span", { class: "swords" }, "✶")), side(ev.q, ev.b, r.d, "def"));
         }
         if (revealed) {
           if (!then) c.result = t.now.bounced;

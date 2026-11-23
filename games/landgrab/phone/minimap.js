@@ -1,10 +1,10 @@
 // @ts-check
 /**
  * The world small, on a phone's canvas, in the TV's look (raised hex
- * tiles in their holders' colours on a dark sea): the whole world as a
- * locator to tap, or a close-up framed on a few territories (a
- * territory and its neighbours while planning, a fight during the
- * battle) with army badges and the orders as arrows.
+ * tiles in their holders' colours on a dark sea): the whole world to
+ * tap, or a close-up framed on a few territories (a territory and its
+ * neighbours while planning, a fight during the battle) with army
+ * badges, placements and the orders as arrows.
  */
 
 import { placeNames } from "../game/names.js";
@@ -12,12 +12,18 @@ import { HEX_ROW, HEX_SIDES, HEX_W, hexCenter, hexCorners, hexNeighbors } from "
 
 /** @typedef {import("../game/world.js").World} World */
 /** @typedef {{ own: string[], arm: number[] }} Board */
-/** @typedef {{ from: number, to: number, n?: number, kind: "atk" | "move" | "hot" }} Arrow */
+/**
+ * An arrow: one's own orders in white (attacks solid, moves dashed),
+ * the battle's in the mover's colour (`color`); `n` on its middle.
+ * @typedef {{ from: number, to: number, n?: number, kind: "atk" | "move", color?: string }} Arrow
+ */
 /**
  * @typedef {object} MapOptions
  * @property {number} [sel] the selected territory: outlined, the rest dimmed but `hi`
- * @property {Set<number>} [hi] territories not dimmed
- * @property {Map<number, string>} [labels] badges: a territory's text (its armies, "+3")
+ * @property {Set<number>} [hi] territories not dimmed (and outlined faintly)
+ * @property {boolean} [dim] with `sel`, the rest but `hi` dimmed (true)
+ * @property {Map<number, string>} [labels] badges: a territory's text (its armies)
+ * @property {Map<number, number>} [plus] armies placed: a white "+3" by the badge (on the territory without one)
  * @property {Arrow[]} [arrows]
  * @property {number[]} [frame] territories to frame (a close-up); the canvas keeps its CSS height
  * @property {number} [pad] around the frame, in hexes (1.5)
@@ -26,6 +32,8 @@ import { HEX_ROW, HEX_SIDES, HEX_W, hexCenter, hexCorners, hexNeighbors } from "
  * @property {Map<number, string>} [names] territories' names to write on the land (when close enough: not on the whole world)
  * @property {Set<number>} [strong] names in bold, chosen first (the selection, an order's two ends)
  * @property {string} [me] the player
+ * @property {boolean} [regions] a light seam where continents meet on land (true)
+ * @property {Map<string, string>} [regionNames] the continents' names (by id) to write in the sea next to them
  */
 /** @typedef {{ s: number, ox: number, oy: number }} View px per hex radius, and the map's origin on the canvas */
 
@@ -197,7 +205,8 @@ export function drawMap(canvas, w, board, colorOf, o = {}) {
   ctx.beginPath();
   for (const [x, y] of g.land) if (visible(x, y)) hex(x + 0.16, y + 0.3, 1.06);
   ctx.fill();
-  const dim = o.sel !== undefined && o.sel >= 0;
+  const picked = o.sel !== undefined && o.sel >= 0;
+  const dim = picked && o.dim !== false;
   const faded = (/** @type {number} */ t) => dim && t !== o.sel && !o.hi?.has(t);
   /** @type {Map<string, [number, number, number][]>} by colour (and faded: a "~" in front) */
   const groups = new Map();
@@ -255,6 +264,9 @@ export function drawMap(canvas, w, board, colorOf, o = {}) {
   line("rgba(3, 16, 22, .9)", Math.max(1, s * 0.22), (_a, b) => b < 0);
   line("rgba(12, 18, 24, .6)", Math.max(0.8, s * (close ? 0.2 : 0.16)), (a, b) => b >= 0 && board.own[a] !== board.own[b]);
   if (close) line("rgba(12, 18, 24, .28)", Math.max(0.6, s * 0.08), (a, b) => b >= 0 && board.own[a] === board.own[b]);
+  // Where continents meet on land: a light seam.
+  if (o.regions !== false) line("rgba(244, 234, 210, .75)", Math.max(1, s * 0.14), (a, b) => b >= 0 && w.territories[a]?.continent !== w.territories[b]?.continent);
+
   // Sea routes: dashed.
   if (close) {
     ctx.save();
@@ -278,12 +290,12 @@ export function drawMap(canvas, w, board, colorOf, o = {}) {
   // The selection: neighbours faintly, itself bright.
   const outline = (/** @type {number} */ t, /** @type {string} */ color, /** @type {number} */ width) => line(color, width, (a, b) => (a === t) !== (b === t));
   if (o.hi && dim) for (const t of o.hi) outline(t, "rgba(255, 255, 255, .5)", Math.max(1, s * 0.22));
-  if (dim && o.sel !== undefined) {
+  if (picked && o.sel !== undefined) {
     outline(o.sel, "rgba(0, 0, 0, .5)", Math.max(3, s * 0.7));
     outline(o.sel, "#fff", Math.max(2, s * 0.4));
   }
 
-  // Arrows: the orders (attacks red, marches parchment), the fight on the TV.
+  // Arrows: one's orders in white, the fight on the TV in the mover's colour.
   for (const a of o.arrows ?? []) {
     let [ax, ay] = anchor(w, a.from);
     let [bx, by] = anchor(w, a.to);
@@ -297,9 +309,11 @@ export function drawMap(canvas, w, board, colorOf, o = {}) {
     const bend = Math.min(2.5, len * 0.18);
     const mx = (ax + bx) / 2 - uy * bend;
     const my = (ay + by) / 2 + ux * bend;
-    const color = a.kind === "move" ? "#f4ead2" : a.kind === "hot" ? "#ffd166" : "#ff5a36";
+    const color = a.color ?? "#fff";
     const width = close ? Math.max(3, s * 0.42) : Math.max(1.8, s * 0.7);
-    ctx.lineCap = "round";
+    ctx.save();
+    ctx.lineCap = a.kind === "move" ? "butt" : "round";
+    if (a.kind === "move") ctx.setLineDash([width * 1.6, width * 1.1]);
     ctx.strokeStyle = "rgba(0, 0, 0, .55)";
     ctx.lineWidth = width + (close ? 3 : 2);
     ctx.beginPath();
@@ -309,6 +323,7 @@ export function drawMap(canvas, w, board, colorOf, o = {}) {
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.stroke();
+    ctx.restore();
     // The head, along the curve's end.
     const hx = bx - mx;
     const hy = by - my;
@@ -326,24 +341,128 @@ export function drawMap(canvas, w, board, colorOf, o = {}) {
     ctx.closePath();
     ctx.stroke();
     ctx.fill();
-    if (a.n && s >= 3) badge(ctx, X(mx), Y(my), String(a.n), color, Math.max(11, Math.min(15, s * 1.2)), a.kind === "move" ? "#1b1405" : "#fff", color);
+    const fs = Math.max(11, Math.min(15, s * 1.2));
+    if (a.n && s >= 3) badge(ctx, X(mx), Y(my), String(a.n), color, fs, "#fff", "rgba(10, 14, 20, .9)");
   }
+
+  if (o.regionNames?.size) regionNames(ctx, w, v, cssW, cssH, o.regionNames);
 
   const font = close ? Math.max(11, Math.min(16, s * 1.15)) : Math.max(9, Math.min(12, s * 2.1));
   // Names: on the land, by their badges, clear of them and of each other.
   // Not on the whole world: no room.
   if (o.names && o.names.size && s >= 2) names(ctx, w, v, cssW, cssH, o.names, o.strong ?? new Set(), new Set(o.labels?.keys() ?? []), font * 0.75 + 2);
 
-  // Badges: armies (or placements) on the territories that matter.
+  // Badges: armies on the territories that matter; placements in white by them.
   if (o.labels) {
     for (const [t, text] of o.labels) {
       const [x, y] = anchor(w, t);
       const own = board.own[t] ?? "";
-      const plus = text.startsWith("+");
-      badge(ctx, X(x), Y(y), text, plus ? "#3ccf91" : own ? colorOf(own) : WILD, font, plus ? "#062014" : "#fff", plus ? "#3ccf91" : "rgba(10, 14, 20, .88)");
+      badge(ctx, X(x), Y(y), text, own ? colorOf(own) : WILD, font, "#fff", "rgba(10, 14, 20, .88)");
     }
   }
+  for (const [t, n] of o.plus ?? []) {
+    if (!n) continue;
+    const [x, y] = anchor(w, t);
+    const on = o.labels?.has(t);
+    const f = on ? Math.max(10, font * 0.8) : font;
+    badge(ctx, X(x) + (on ? font * 1.05 : 0), Y(y) - (on ? font * 0.95 : 0), `+${n}`, "rgba(10, 14, 20, .9)", f, "#10161c", "#fff");
+  }
   return v;
+}
+
+/** Where the continents' names go, per world and layout. @type {WeakMap<World, Map<string, [string, number, number][]>>} */
+const regionSpots = new WeakMap();
+
+/**
+ * The continents' names in the sea, each as near its continent's middle
+ * as there is open sea for it, clear of the land and of each other, in
+ * parchment with a dark rim.
+ * @param {CanvasRenderingContext2D} ctx @param {World} w @param {View} v @param {number} cssW @param {number} cssH
+ * @param {Map<string, string>} names
+ */
+function regionNames(ctx, w, v, cssW, cssH, names) {
+  const { s, ox, oy } = v;
+  const px = Math.max(9, Math.min(13, s * 3.4));
+  const font = `${px}px "Lilita One", "Arial Black", sans-serif`;
+  ctx.font = font;
+  const key = `${cssW}x${cssH}|${s.toFixed(3)}|${ox.toFixed(1)}|${oy.toFixed(1)}|${[...names].join(",")}|${ctx.measureText("M").width.toFixed(2)}`;
+  let byKey = regionSpots.get(w);
+  if (!byKey) regionSpots.set(w, (byKey = new Map()));
+  let spots = byKey.get(key);
+  if (!spots) {
+    spots = [];
+    /** @type {[number, number, number, number][]} taken boxes, map units */
+    const taken = [];
+    // In map units: the canvas, the text's height.
+    const [vx0, vy0, vx1, vy1] = [-ox / s, -oy / s, (cssW - ox) / s, (cssH - oy) / s];
+    const bh = (px * 1.1) / s;
+    const near = 0.4;
+    const land = (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ bw) => {
+      const r0 = Math.max(0, Math.floor((y - 2) / HEX_ROW));
+      const r1 = Math.min(w.rows - 1, Math.ceil((y + bh + 1) / HEX_ROW));
+      for (let r = r0; r <= r1; r++) {
+        for (let c = Math.max(0, Math.floor(x / HEX_W) - 1); c <= Math.min(w.cols - 1, Math.ceil((x + bw) / HEX_W) + 1); c++) {
+          if ((w.cells[r * w.cols + c] ?? -1) < 0) continue;
+          const [cx, cy] = hexCenter(c, r, 1);
+          if (cx > x - 1 - near && cx < x + bw + 1 + near && cy > y - 1 - near && cy < y + bh + 1 + near) return true;
+        }
+      }
+      return false;
+    };
+    const overlaps = (/** @type {number[]} */ a, /** @type {number[]} */ b) => (a[0] ?? 0) < (b[0] ?? 0) + (b[2] ?? 0) && (b[0] ?? 0) < (a[0] ?? 0) + (a[2] ?? 0) && (a[1] ?? 0) < (b[1] ?? 0) + (b[3] ?? 0) && (b[1] ?? 0) < (a[1] ?? 0) + (a[3] ?? 0);
+    // The continent of the land nearest to a point: a name belongs by its own coast.
+    const nearest = (/** @type {number} */ x, /** @type {number} */ y) => {
+      let best = Infinity;
+      let cont = "";
+      for (const terr of w.territories) {
+        for (const i of terr.hexes) {
+          const [cx, cy] = hexCenter(i % w.cols, Math.floor(i / w.cols), 1);
+          const d = (cx - x) ** 2 + (cy - y) ** 2;
+          if (d < best) (best = d), (cont = terr.continent);
+        }
+      }
+      return cont;
+    };
+    const step = Math.max(0.5, 2 / s);
+    for (const c of w.continents) {
+      const name = (names.get(c.id) ?? "").toUpperCase();
+      if (!name) continue;
+      const bw = (ctx.measureText(name).width + 4) / s;
+      const hexes = c.territories.flatMap((id) => w.byId.get(id)?.hexes ?? []);
+      const mx = hexes.reduce((a, i) => a + hexCenter(i % w.cols, Math.floor(i / w.cols), 1)[0], 0) / Math.max(1, hexes.length);
+      const my = hexes.reduce((a, i) => a + hexCenter(i % w.cols, Math.floor(i / w.cols), 1)[1], 0) / Math.max(1, hexes.length);
+      /** @type {[number, number, number] | null} */
+      let best = null;
+      // By its own coast if there is room; else wherever is nearest.
+      for (const own of [true, false]) {
+        for (let y = vy0 + 0.3; y + bh < vy1 - 0.3; y += step) {
+          for (let x = vx0 + 0.3; x + bw < vx1 - 0.3; x += step) {
+            const score = Math.hypot(x + bw / 2 - mx, (y + bh / 2 - my) * 1.2);
+            if (best && score >= best[2]) continue;
+            if (taken.some((b) => overlaps([x - 0.5, y - 0.3, bw + 1, bh + 0.6], b))) continue;
+            if (land(x, y, bw) || (own && nearest(x + bw / 2, y + bh / 2) !== c.id)) continue;
+            best = [x, y, score];
+          }
+        }
+        if (best) break;
+      }
+      if (!best) continue;
+      taken.push([best[0], best[1], bw, bh]);
+      spots.push([name, best[0] + bw / 2, best[1] + bh / 2]);
+    }
+    byKey.set(key, spots);
+  }
+  ctx.font = font;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 3;
+  for (const [name, x, y] of spots) {
+    ctx.strokeStyle = "rgba(4, 18, 26, .9)";
+    ctx.strokeText(name, ox + x * s, oy + y * s + px * 0.06);
+    ctx.fillStyle = "rgba(244, 234, 210, .8)";
+    ctx.fillText(name, ox + x * s, oy + y * s + px * 0.06);
+  }
 }
 
 /** The names' font, at a size. @param {number} px @param {boolean} strong */

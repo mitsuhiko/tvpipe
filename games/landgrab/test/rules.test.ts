@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { botPlan } from "../game/bots.ts";
 import {
+  armiesAlong,
   autoPlace,
   checkPlan,
   deal,
@@ -131,6 +132,17 @@ test("checkPlan: own territories, neighbours, one army stays, no more than there
   err({ orders: [{ from: "aa", to: "bb", n: 0 }] }, "bad-plan");
   err({ cash: true }, "no-stars", 2);
   err([], "bad-plan");
+  // Moved armies may march on, in a later order only.
+  assert.deepEqual(
+    checkPlan(world, b, "x", 0, 0, { orders: [{ from: "aa", to: "bb", n: 2 }, { from: "bb", to: "dd", n: 2 }] }).orders,
+    [{ from: "aa", to: "bb", n: 2 }, { from: "bb", to: "dd", n: 2 }],
+  );
+  err({ orders: [{ from: "bb", to: "dd", n: 2 }, { from: "aa", to: "bb", n: 2 }] }, "too-few-armies");
+  err({ orders: [{ from: "aa", to: "bb", n: 2 }, { from: "bb", to: "dd", n: 3 }] }, "too-few-armies");
+  assert.deepEqual(
+    armiesAlong(world, b, "x", { aa: 1 }, [{ from: "aa", to: "bb", n: 3 }, { from: "bb", to: "dd", n: 2 }]).map((m) => [m.get("aa"), m.get("bb"), m.get("dd")]),
+    [[1, 4, 2], [1, 2, 2]],
+  );
   // Placed armies may march on; cashed stars add five.
   assert.equal(checkPlan(world, b, "x", 3, 3, { place: { bb: 8 }, orders: [{ from: "bb", to: "dd", n: 8 }], cash: true }).orders[0]!.n, 8);
 });
@@ -175,6 +187,15 @@ test("resolve: an order sends at most all but one army, and a move adds to the t
   const b = board({ aa: ["x", 4], bb: ["x", 1], dd: ["y", 1] });
   const { events } = resolve(world, b, new Map([["x", plan({ orders: [{ from: "aa", to: "bb", n: 9 }] })]]), ["x"], seeded(1));
   assert.deepEqual(events, [{ type: "move", p: "x", from: ix("aa"), to: ix("bb"), n: 3, was: [[ix("aa"), "x", 4], [ix("bb"), "x", 1]], set: [[ix("aa"), "x", 1], [ix("bb"), "x", 4]] }]);
+});
+
+test("resolve: armies moved in march on in a later order", () => {
+  const b = board({ aa: ["x", 3], bb: ["x", 1], dd: ["y", 1] });
+  const { events } = resolve(world, b, new Map([["x", plan({ orders: [{ from: "aa", to: "bb", n: 2 }, { from: "bb", to: "dd", n: 2 }] })]]), ["x"], seeded(1));
+  assert.deepEqual(
+    events.map((e) => [e.type, "n" in e ? e.n : 0]),
+    [["move", 2], ["attack", 2]],
+  );
 });
 
 test("resolve: two armies marching against each other clash halfway, the survivors march on", () => {

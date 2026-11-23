@@ -42,7 +42,9 @@ plan (everyone at once, secret) ──▶ battle (the TV plays it out) ──▶
   territories, then give **orders**: from one's territory to a
   neighbouring one, with a number of armies. To one's own territory it is
   a march, to anyone else's (or the wild lands') an attack. One army
-  always stays behind. Placed armies may march on in the same round. The
+  always stays behind. Placed armies may march on in the same round, and
+  so may armies moved in by an earlier order of one's own (the battle
+  keeps each player's order). The
   phone sends the whole plan after every change; **Ready** marks it done
   (changing it un-readies). Planning ends at the deadline or when everyone
   who is there is ready. Reinforcements nobody placed (an away phone, or
@@ -121,7 +123,9 @@ tokens, of each other, of the continents' labels and, where it can, of
 the HUD; one line or two, a smaller size where it is crowded). In a
 battle they zoom with the camera and dim with the rest. The HUD stays in the seas: the standings in the
 North-East Pacific, the round and clock top right, the fight card at the
-bottom, tvpipe's join badge bottom left.
+bottom, tvpipe's join badge bottom left. As on the phone (§7), colour
+means a holder: the HUD is parchment on ink, arrows and the fight
+card's sides are in their players' colours.
 
 - **Plan:** a banner opens the round; every player has a "thinking"
   marker that turns into a tick (their territories flash) when they are
@@ -141,28 +145,41 @@ bottom, tvpipe's join badge bottom left.
 
 ## 7. The phone
 
-A phone has no room for the map: it shows the world small on top (a
-canvas with every territory in its holder's colour, one's placements and
-orders drawn on it; tapping a territory opens it), a header with the
-round, the clock and the armies left to place, and **the fronts**: one's
-own territories next to foes, each with its armies, the placement
-stepper and the foes as chips, weakest first (a chip opens the attack
-at once; a territory a neighbour would probably take is marked). Inland
-territories come below, the orders at the end. A territory's **sheet**
-(from the bottom, over a backdrop) has a close-up that is a camera: it
-flies from the whole world down to the territory and its neighbours,
-with their names written on the land (the words of the list below, on
-the places), and lists Attack or Move for each. Choosing an amount
-(from the sheet or straight from a chip or an order) flies on to the
-route's two ends, the rest dimmed, with the order drawn as an arrow
-carrying the amount: where the armies go, to confirm before sending.
-Choosing an amount shows the chance to win (`game/odds.ts`: the exact odds of a fight to the end)
-and quick amounts (half, safe: the fewest with 80 %, all). Ready sits in
-a dock with a dot per player. During the battle the phone shows what is
-on the TV (the sides, the dice, the result, timed to the TV with
-`room.step.ms`; the close-up with the fight's two territories named),
-its own feed, and the standings, and buzzes with its
-own results as the TV shows them.
+Colour on the phone means a holder and nothing else: the six players'
+colours and the wild lands' parchment. The interface is parchment on ink
+(no brass, no red or green for actions); what an action is shows in its
+shape and icon. One's own orders are white on the map (an attack solid,
+a move dashed), placements white "+N" pills; a threat is a ⚠; the
+odds bar is parchment with words. Numbers read before →
+after ("3 → 5").
+
+The plan is **the map**: it fills the screen between the header and the
+dock, a bar under it says what the last tap did and what comes next,
+and there are no lists. The whole world shows first; a tap on it flies
+close to that territory and its neighbours (their names on the land),
+a "World" button flies back out. The header has the round, the clock
+and the two steps, each with what it still wants:
+
+1. **Place** (the armies left, ✓ once none are): a tap on one's own
+   territory selects it; the bar has − and + (and "+ all"), a tap on
+   it again places one more, and a warning when a player next door
+   would probably take it. Stars cash in from the bar. Armies left at
+   the end the host places.
+2. **Move & attack**: a tap where armies set out from (its neighbours
+   stand out, the rest dims), a tap on a neighbour: the bar turns into
+   the amount (the route "Persia 5 ⚔ Steppe 1", the odds from
+   `game/odds.ts`, a slider, quick amounts: half, safe: the fewest with
+   80 %, all), the map draws the order as it would be; confirming adds
+   it and clears the selection for the next one. A foe tapped first
+   asks for one's territory next to it. A territory's orders show in
+   the bar as chips (a tap changes one, ✕ takes it back). Orders chain
+   (§2): armies moved in by an earlier order may march on.
+
+During the battle the phone shows what is on the TV (the sides, the
+dice in each side's colour, the result, timed to the TV with
+`room.step.ms`; the close-up with the fight's two territories named and
+the arrow in the mover's colour, as on the TV), its own feed, and the
+standings, and buzzes with its own results as the TV shows them.
 
 ## 8. Checking it
 
