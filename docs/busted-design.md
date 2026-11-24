@@ -53,8 +53,8 @@ the game is a page of it.
   rounds; questions *family* (fine with kids and grandparents) or
   *party* (also the cheekier ones, about every other question); ballots
   *open* (the count shows who ranked whom) or *secret* (only the
-  medals); time to write (45, 60 or 90 s). On the host page only:
-  latecomers.
+  medals); time to write (45, 60 or 90 s); latecomers (from the next
+  round, or closed: `party.lateJoin`). All of them only between games.
 - **Joining late**: from the next round (or closed to newcomers, the
   latecomers setting). **Too few**: a round does not start with fewer
   than three players in the game; the game ends to its final page.

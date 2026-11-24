@@ -14,7 +14,7 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { Bot } from "../game/bots.ts";
-import { Busted, FAST_TIMINGS, type Ballots } from "../game/game.ts";
+import { Busted, FAST_TIMINGS, LATE_JOINS, type Ballots } from "../game/game.ts";
 import { LANGS, parseQuestions, type Kind, type Lang, type Level, type Question } from "../game/rules.ts";
 import { deskStrings, status } from "./strings.ts";
 
@@ -85,7 +85,8 @@ function settings(game: Busted, questions: Partial<Record<Lang, Question[]>>): F
       get: () => s().writeTime,
       set: (writeTime: number) => game.configure({ writeTime }),
     },
-    lateJoinField(game.party, ["wait", "closed"]),
+    // Through the game, so the phones see it (the VIP changes it there too).
+    { ...lateJoinField(game.party, LATE_JOINS), set: (lateJoin) => game.configure({ lateJoin }) },
   ];
 }
 

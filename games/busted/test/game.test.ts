@@ -448,7 +448,7 @@ test("phones drop out and come back all game long: the game ends with everyone i
 });
 
 test("the VIP's settings are checked, and none during a game", async () => {
-  const { g, players, close } = await game(3, { rounds: 2, timings: { rank: 2000 } });
+  const { g, party, players, close } = await game(3, { rounds: 2, timings: { rank: 2000 } });
   try {
     const vip = players[0]!.client;
     await assert.rejects(players[1]!.client.act("settings", { rounds: 6 }), { code: "not-vip" });
@@ -457,8 +457,19 @@ test("the VIP's settings are checked, and none during a game", async () => {
     await assert.rejects(vip.act("settings", { colour: "red" }), { code: "bad-settings" });
     await vip.act("settings", { rounds: 6, level: "party", ballots: "secret", writeTime: 90 });
     assert.equal(g.rounds, 6);
-    assert.deepEqual(g.settings, { level: "party", ballots: "secret", writeTime: 90 });
+    assert.deepEqual(g.settings, { level: "party", ballots: "secret", writeTime: 90, lateJoin: "wait" });
     assert.equal(vip.view["room"].level, "party");
+    // Latecomers: the host page's two choices; the party follows, and the host page hears of it.
+    assert.equal(vip.view["room"].lateJoin, "wait");
+    await assert.rejects(players[1]!.client.act("settings", { lateJoin: "closed" }), { code: "not-vip" });
+    await assert.rejects(vip.act("settings", { lateJoin: "open" }), { code: "bad-settings" });
+    await assert.rejects(vip.act("settings", { lateJoin: "never" }), { code: "bad-settings" });
+    assert.equal(party.lateJoin, "wait");
+    const heard = new Promise((r) => g.once("settings", r));
+    await vip.act("settings", { lateJoin: "closed" });
+    assert.deepEqual(await heard, { level: "party", ballots: "secret", writeTime: 90, lateJoin: "closed" });
+    assert.equal(party.lateJoin, "closed");
+    await until(() => players.every((p) => p.client.view["room"].lateJoin === "closed"));
     // The language is the room's: every phone and the TV follow the VIP.
     await assert.rejects(players[1]!.client.act("settings", { lang: "de" }), { code: "not-vip" });
     await assert.rejects(vip.act("settings", { lang: "fr" }), { code: "bad-settings" });
@@ -469,6 +480,8 @@ test("the VIP's settings are checked, and none during a game", async () => {
     await vip.act("start");
     await until(() => g.stage === "rank");
     await assert.rejects(vip.act("settings", { rounds: 8 }), { code: "running" });
+    await assert.rejects(vip.act("settings", { lateJoin: "wait" }), { code: "running" });
+    assert.equal(party.lateJoin, "closed");
     g.close();
   } finally {
     for (const b of players) b.close();

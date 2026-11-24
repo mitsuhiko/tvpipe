@@ -580,27 +580,30 @@ function openPad() {
 
 /** @param {HTMLElement} err */
 function settings(err) {
-  /** @type {{ key: string, buttons: HTMLButtonElement[], values: any[], line: HTMLElement | null }[]} */
+  /** @type {{ key: string, buttons: HTMLButtonElement[], values: any[], line: HTMLElement | null, lines: string[] | null }[]} */
   const items = [];
   const box = h("div", { class: "settings" }, h("h2", {}, t.settings));
-  const add = (/** @type {string} */ key, /** @type {any[]} */ values, /** @type {string[]} */ labels, /** @type {string} */ title, /** @type {boolean} */ withLine) => {
+  // `lines`: a line under the buttons for each value.
+  const add = (/** @type {string} */ key, /** @type {any[]} */ values, /** @type {string[]} */ labels, /** @type {string} */ title, /** @type {string[] | null} */ lines) => {
     const buttons = values.map((v, i) => /** @type {HTMLButtonElement} */ (h("button", { type: "button", onclick: () => act("settings", { [key]: v }, err).catch(() => {}) }, labels[i])));
-    const line = withLine ? h("p", { class: "line" }) : null;
+    const line = lines ? h("p", { class: "line" }) : null;
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons), line));
-    items.push({ key, buttons, values, line });
+    items.push({ key, buttons, values, line, lines });
   };
-  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel, false);
-  add("rounds", [6, 8, 10, 12], ["6", "8", "10", "12"], t.roundsLabel, false);
-  add("level", ["family", "party"], [t.family, t.party], t.levelLabel, true);
-  add("ballots", ["open", "secret"], [t.open, t.secret], t.ballotsLabel, false);
-  add("writeTime", [45, 60, 90], [45, 60, 90].map(t.seconds), t.writeLabel, false);
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel, null);
+  add("rounds", [6, 8, 10, 12], ["6", "8", "10", "12"], t.roundsLabel, null);
+  add("level", ["family", "party"], [t.family, t.party], t.levelLabel, t.levelLine);
+  add("ballots", ["open", "secret"], [t.open, t.secret], t.ballotsLabel, null);
+  add("writeTime", [45, 60, 90], [45, 60, 90].map(t.seconds), t.writeLabel, null);
+  add("lateJoin", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, t.lateLine);
   const update = () => {
     const r = room();
     box.hidden = !isVip();
     for (const it of items) {
       const cur = r[it.key];
-      it.buttons.forEach((b, i) => b.classList.toggle("on", it.values[i] === cur));
-      if (it.key === "level" && it.line) it.line.textContent = t.levelLine[cur === "party" ? 1 : 0] ?? "";
+      const at = it.values.indexOf(cur);
+      it.buttons.forEach((b, i) => b.classList.toggle("on", i === at));
+      if (it.line && it.lines) it.line.textContent = it.lines[Math.max(0, at)] ?? "";
     }
   };
   return { box, update };

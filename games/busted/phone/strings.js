@@ -54,6 +54,10 @@ export function strings(lang) {
       open: "offen",
       secret: "geheim",
       writeLabel: "Zeit zum Schreiben",
+      lateLabel: "Nachzügler",
+      lateWait: "nächste Runde",
+      lateClosed: "geschlossen",
+      lateLine: ["Wer später kommt, spielt ab der nächsten Runde mit.", "Während eines Spiels kommt niemand dazu."],
       /** @param {number} n */
       seconds: (n) => `${n} s`,
       extras: "Ehrengäste",
@@ -216,6 +220,10 @@ export function strings(lang) {
     open: "open",
     secret: "secret",
     writeLabel: "Time to write",
+    lateLabel: "Latecomers",
+    lateWait: "next round",
+    lateClosed: "closed",
+    lateLine: ["Whoever comes later plays from the next round.", "Nobody new joins during a game."],
     /** @param {number} n */
     seconds: (n) => `${n} s`,
     extras: "Honorary candidates",

@@ -21,6 +21,9 @@ the reporters' notebooks.
 - **Press photos** drawn on the phone, **honorary candidates** (the dog,
   Grandma) to vote for, and at the end a newsstand of magazine covers:
   everyone's titles and best-liked answer.
+- **Settings** (language, rounds, family or party questions, open or
+  secret ballots, time to write, latecomers) on the host page, or on the
+  VIP's phone in the lobby and at the end.
 
 The rules, the numbers and why: [`docs/busted-design.md`](../../docs/busted-design.md).
 

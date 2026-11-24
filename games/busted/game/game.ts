@@ -30,7 +30,7 @@
  * (with secret ballots) ever, or a suggestion's author before it is played.
  */
 
-import { cleanText, Emitter, PartyError, type Json, type Party, type Player, type Sender } from "@tvpipe/party";
+import { cleanText, Emitter, PartyError, type Json, type LateJoin, type Party, type Player, type Sender } from "@tvpipe/party";
 
 import { readPortrait, type Strokes } from "./face.ts";
 import {
@@ -138,6 +138,9 @@ export const WRITE_TIMES = [45, 60, 90] as const;
 export const BALLOTS = ["open", "secret"] as const;
 export type Ballots = (typeof BALLOTS)[number];
 export const LEVEL_CHOICES = ["family", "party"] as const;
+/** Who may join during a game: from the next round, or nobody (the host page offers the same two). */
+export const LATE_JOINS = ["wait", "closed"] as const satisfies readonly LateJoin[];
+export type LateJoins = (typeof LATE_JOINS)[number];
 
 /** The room's settings: the host page's, or the VIP's in the lobby. */
 export interface Settings {
@@ -147,6 +150,8 @@ export interface Settings {
   ballots: Ballots;
   /** Seconds to write an answer. */
   writeTime: number;
+  /** Latecomers: join from the next round (`wait`), or not during a game (`closed`); `party.lateJoin`. */
+  lateJoin: LateJoins;
 }
 
 /** A fixed first question (the live check's screenshots), by its text. */
@@ -285,7 +290,7 @@ export class Busted extends Emitter<GameEvents> {
   }
 
   get settings(): Settings {
-    return { level: this.#level, ballots: this.#ballots, writeTime: this.timings.write / 1000 };
+    return { level: this.#level, ballots: this.#ballots, writeTime: this.timings.write / 1000, lateJoin: this.party.lateJoin === "closed" ? "closed" : "wait" };
   }
 
   get phase(): Phase {
@@ -363,7 +368,7 @@ export class Busted extends Emitter<GameEvents> {
       vipOnly(from);
       const v = obj(d);
       const o: Partial<Settings> & { rounds?: number; lang?: Lang } = {};
-      for (const k of Object.keys(v)) if (!["lang", "rounds", "level", "ballots", "writeTime"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      for (const k of Object.keys(v)) if (!["lang", "rounds", "level", "ballots", "writeTime", "lateJoin"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
       const oneOf = <T extends Json>(key: string, list: readonly T[]): T | undefined => {
         if (v[key] === undefined) return undefined;
         if (!list.includes(v[key] as T)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
@@ -374,6 +379,7 @@ export class Busted extends Emitter<GameEvents> {
       o.level = oneOf("level", LEVEL_CHOICES);
       o.ballots = oneOf("ballots", BALLOTS);
       o.writeTime = oneOf("writeTime", WRITE_TIMES);
+      o.lateJoin = oneOf("lateJoin", LATE_JOINS);
       this.configure(o);
       return null;
     });
@@ -417,7 +423,7 @@ export class Busted extends Emitter<GameEvents> {
     this.#lobby();
   }
 
-  /** Changes the rounds, the timers, the language or the settings before a game; every phone and the TV follow. */
+  /** Changes the rounds, the timers, the language or the settings (latecomers too) before a game; every phone and the TV follow. */
   configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
     if (o.lang !== undefined && !this.langs.includes(o.lang)) throw new PartyError("bad-lang", `Nothing to play in ${o.lang}`);
@@ -428,6 +434,7 @@ export class Busted extends Emitter<GameEvents> {
     if (o.level !== undefined && LEVEL_CHOICES.includes(o.level)) this.#level = o.level;
     if (o.ballots !== undefined && BALLOTS.includes(o.ballots)) this.#ballots = o.ballots;
     if (o.writeTime !== undefined && o.writeTime > 0) this.timings.write = o.writeTime * 1000;
+    if (o.lateJoin !== undefined && LATE_JOINS.includes(o.lateJoin)) this.party.lateJoin = o.lateJoin;
     if (this.#phase === "lobby" || this.#phase === "final") {
       this.party.room.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
       this.party.screen.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
