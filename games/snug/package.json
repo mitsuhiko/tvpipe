@@ -1,7 +1,7 @@
 {
   "name": "snug",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A cooperative tiling puzzle for tvpipe (tvpipe game play): everyone fills the same shape with pieces nobody else can see until they are placed, against one clock",
   "license": "Apache-2.0",
   "type": "module",

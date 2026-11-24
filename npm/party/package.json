@@ -1,6 +1,6 @@
 {
   "name": "@tvpipe/party",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Party games for tvpipe (tvpipe game play): the game's host page keeps rooms, players, reconnects and views in sync with phone browsers, over tvpipe's relay; the phone/TV client and the local API client",
   "keywords": [
     "party-game",

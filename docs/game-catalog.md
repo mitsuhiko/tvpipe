@@ -147,3 +147,11 @@ series keeps finding the games' older releases by their notes' marker.
 0.4.0 (2026-11-22) released all ten games for the 0.4 series: drawbluff
 0.4.0, garble 0.3.0, jinx 0.3.1, krakel 0.2.0, pinch 0.1.2, and busted,
 crosstalk, landgrab, shifty and snug 0.1.0 (their first releases).
+
+A patch release in a series (0.4.1) bumps step 1's versions only (the
+games keep `"tvpipe": "X.Y"`) and releases only the games that changed
+since their last tag; the game library is served by tvpipe, not packed
+into a game, so a change to `npm/party` alone does not change a zip.
+0.4.1 released landgrab 0.2.0 (the phone plans on the map), pinch 0.1.3,
+snug 0.1.1 (the difficulty ladder) and worldquiz 0.1.0 (its first
+release).

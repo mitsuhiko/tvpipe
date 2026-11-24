@@ -21,7 +21,7 @@ path = "src/main.rs"
 
 [dependencies]
 argument = "0.1"
-tvpipe = { path = "../tvpipe", version = "0.4.0", features = [
+tvpipe = { path = "../tvpipe", version = "0.4.1", features = [
     "airplay",
     "fairplay",
     "cast",
