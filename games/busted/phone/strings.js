@@ -12,7 +12,7 @@ export function strings(lang) {
   if (lang === "de") {
     return {
       ...f,
-      otherLang: "English",
+      langName: "Deutsch",
       masthead: "Der Busted-Bote",
       connecting: "Verbinde …",
       scanToJoin: "Scanne den QR-Code auf dem Fernseher.",
@@ -44,6 +44,7 @@ export function strings(lang) {
       vipReady: "Alle da? Dann los.",
       waitVip: "Der VIP startet das Spiel.",
       settings: "Einstellungen",
+      langLabel: "Sprache",
       roundsLabel: "Runden",
       levelLabel: "Fragen",
       family: "Familie",
@@ -174,7 +175,7 @@ export function strings(lang) {
   }
   return {
     ...f,
-    otherLang: "Deutsch",
+    langName: "English",
     masthead: "The Daily Busted",
     connecting: "Connecting …",
     scanToJoin: "Scan the QR code on the TV.",
@@ -205,6 +206,7 @@ export function strings(lang) {
     vipReady: "Everyone here? Go.",
     waitVip: "The VIP starts the game.",
     settings: "Settings",
+    langLabel: "Language",
     roundsLabel: "Rounds",
     levelLabel: "Questions",
     family: "family",

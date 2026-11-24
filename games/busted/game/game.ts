@@ -362,13 +362,14 @@ export class Busted extends Emitter<GameEvents> {
     party.handle("settings", (d, from) => {
       vipOnly(from);
       const v = obj(d);
-      const o: Partial<Settings> & { rounds?: number } = {};
-      for (const k of Object.keys(v)) if (!["rounds", "level", "ballots", "writeTime"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const o: Partial<Settings> & { rounds?: number; lang?: Lang } = {};
+      for (const k of Object.keys(v)) if (!["lang", "rounds", "level", "ballots", "writeTime"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
       const oneOf = <T extends Json>(key: string, list: readonly T[]): T | undefined => {
         if (v[key] === undefined) return undefined;
         if (!list.includes(v[key] as T)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
         return v[key] as T;
       };
+      o.lang = oneOf("lang", this.langs);
       o.rounds = oneOf("rounds", ROUNDS);
       o.level = oneOf("level", LEVEL_CHOICES);
       o.ballots = oneOf("ballots", BALLOTS);
@@ -420,7 +421,7 @@ export class Busted extends Emitter<GameEvents> {
   configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
     if (o.lang !== undefined && !this.langs.includes(o.lang)) throw new PartyError("bad-lang", `Nothing to play in ${o.lang}`);
-    const was = JSON.stringify([this.rounds, this.settings]);
+    const was = JSON.stringify([this.#lang, this.rounds, this.settings]);
     if (o.rounds !== undefined) this.rounds = Math.max(2, Math.min(20, Math.round(o.rounds)));
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     if (o.lang !== undefined) this.#lang = o.lang;
@@ -431,7 +432,7 @@ export class Busted extends Emitter<GameEvents> {
       this.party.room.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
       this.party.screen.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
     }
-    if (JSON.stringify([this.rounds, this.settings]) !== was) this.emit("settings", this.settings);
+    if (JSON.stringify([this.#lang, this.rounds, this.settings]) !== was) this.emit("settings", this.settings);
   }
 
   /** Adds an honorary candidate (the lobby only): a name, voted for but never playing. */

@@ -3,8 +3,9 @@
  * Languages for Busted's phone and TV pages (their string tables:
  * `phone/strings.js`, `screen/strings.js`): which language, numbers,
  * plurals and lists the way the language writes them (Intl). The room's
- * language comes with the views (`room.lang`, `screen.lang`); the host
- * page sets it (game/rules.ts `LANGS`, `pickLang`).
+ * language comes with the views (`room.lang`, `screen.lang`), the same on
+ * every phone; the host page or the VIP sets it (game/rules.ts `LANGS`,
+ * `pickLang`).
  */
 
 /** @typedef {"en" | "de"} Lang */

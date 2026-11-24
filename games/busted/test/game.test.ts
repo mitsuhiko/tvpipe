@@ -459,6 +459,12 @@ test("the VIP's settings are checked, and none during a game", async () => {
     assert.equal(g.rounds, 6);
     assert.deepEqual(g.settings, { level: "party", ballots: "secret", writeTime: 90 });
     assert.equal(vip.view["room"].level, "party");
+    // The language is the room's: every phone and the TV follow the VIP.
+    await assert.rejects(players[1]!.client.act("settings", { lang: "de" }), { code: "not-vip" });
+    await assert.rejects(vip.act("settings", { lang: "fr" }), { code: "bad-settings" });
+    await vip.act("settings", { lang: "de" });
+    assert.equal(g.lang, "de");
+    await until(() => players.every((p) => p.client.view["room"].lang === "de"));
     g.configure({ rounds: 2 });
     await vip.act("start");
     await until(() => g.stage === "rank");

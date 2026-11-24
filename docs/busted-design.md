@@ -49,11 +49,12 @@ the game is a page of it.
   cap; the same name always gets the same doodle). Every page shows
   people by their photo, framed in their ink colour.
 - **Settings** (the host page, or the VIP's phone in the lobby and at the
-  end): rounds; questions *family* (fine with kids and grandparents) or
+  end): the language (the room's: every phone and the TV speak it);
+  rounds; questions *family* (fine with kids and grandparents) or
   *party* (also the cheekier ones, about every other question); ballots
   *open* (the count shows who ranked whom) or *secret* (only the
-  medals); time to write (45, 60 or 90 s). On the host page only: the
-  language and latecomers.
+  medals); time to write (45, 60 or 90 s). On the host page only:
+  latecomers.
 - **Joining late**: from the next round (or closed to newcomers, the
   latecomers setting). **Too few**: a round does not start with fewer
   than three players in the game; the game ends to its final page.
