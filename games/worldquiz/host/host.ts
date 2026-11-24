@@ -14,7 +14,7 @@ import { HostPage, languageField, lateJoinField, preferredLang, type Field, type
 import { Bot } from "../game/bots.ts";
 import { landOf, type Countries, type Shapes } from "../game/data.ts";
 import type { FlagColours } from "../game/flagcolours.ts";
-import { FAST_TIMINGS, Worldquiz } from "../game/game.ts";
+import { FAST_TIMINGS, LATE_JOINS, Worldquiz } from "../game/game.ts";
 import { KINDS, LANGS, ROUNDS, type Difficulty, type Kind, type Lang, type MapMode, type Mode, type Pool } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
@@ -50,7 +50,7 @@ function kindFields(game: Worldquiz): ToggleField[] {
   }));
 }
 
-/** Worldquiz's settings, as the host page shows them. */
+/** Worldquiz's settings, as the host page shows them; the VIP's phone has the same (phone/phone.js `settings`, the game's `settings` action). */
 function settings(game: Worldquiz): Field[] {
   const s = () => game.settings;
   return [
@@ -125,7 +125,8 @@ function settings(game: Worldquiz): Field[] {
       set: (disputed) => game.configure({ disputed }),
     },
     ...kindFields(game),
-    lateJoinField(game.party, ["wait", "closed"]),
+    // Through the game, so the phones see it (the VIP changes it there too).
+    { ...lateJoinField(game.party, LATE_JOINS), set: (lateJoin) => game.configure({ lateJoin }) },
   ];
 }
 

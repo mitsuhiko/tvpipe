@@ -64,7 +64,8 @@ cd games/worldquiz && npm install && npm run build
 Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once two
 are in (or the host page's Start). Settings (the host page, or the VIP's
-phone in the lobby): the game (with cards, or questions only: a
+phone in the lobby and after a game; between games only): the language
+(the room's, every phone's), the game (with cards, or questions only: a
 challenge for everyone every round, no cards), rounds (15, 30, 45),
 difficulty (easy, normal, hard: 90, 60 or 30 s to answer, how close a
 pin or a guess must be, 6 or 9 flags to pick from, how alike the wrong
@@ -72,9 +73,9 @@ choices are, borders on the phone's map or only coasts), the countries
 asked (the 80 or 150 best known, or all; the cards are always all),
 the kinds of challenge in the mix (all by default, at least one), the
 TV's map (flat or globe; every phone picks its own),
-and the disputed states (Kosovo, Palestine, Taiwan and Western Sahara as
-cards; off, their land is nobody's and they are nobody's neighbours);
-on the host page only, the language and latecomers.
+the disputed states (Kosovo, Palestine, Taiwan and Western Sahara as
+cards; off, their land is nobody's and they are nobody's neighbours),
+and latecomers (from the next round, or closed).
 
 ## Checking it
 
@@ -98,9 +99,10 @@ option, and guess near the number or anywhere on the slider.
 
 ## Languages
 
-English and German. The language is the room's: a setting on the host
-page, which starts with the browser's language and changes only between
-games. Cards show only the room's language; typed answers are read in
+English and German. The language is the room's, the same on every
+phone and the TV: a setting on the host page and the VIP's phone, which
+starts with the browser's language and changes only between games; a
+phone that has not joined yet speaks its browser's. Cards show only the room's language; typed answers are read in
 both.
 
 ## The fonts

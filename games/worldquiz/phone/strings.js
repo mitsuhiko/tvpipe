@@ -1,9 +1,8 @@
 // @ts-check
 /**
  * What Worldquiz's phone page says, in English and German: the room's
- * language (the join form, before there is a room, the player's pick or
- * the browser's). The cards' own words (fact labels, numbers) are in
- * `cards.js`.
+ * language, the same on every phone (before joining, the browser's).
+ * The cards' own words (fact labels, numbers) are in `cards.js`.
  */
 
 import { format } from "./i18n.js";
@@ -14,7 +13,7 @@ export function strings(lang) {
   if (lang === "de") {
     return {
       ...f,
-      otherLang: "English",
+      langName: "Deutsch",
       connecting: "Verbinde …",
       scanToJoin: "Scanne den QR-Code auf dem Fernseher, um mitzuspielen.",
       joinTitle: "Wer bist du?",
@@ -39,6 +38,11 @@ export function strings(lang) {
       vipReady: "Alle an Bord? Dann los.",
       waitVip: "Der VIP startet das Spiel.",
       settings: "Einstellungen",
+      langLabel: "Sprache",
+      lateLabel: "Nachzügler",
+      lateWait: "nächste Runde",
+      lateClosed: "geschlossen",
+      lateLine: ["Wer später kommt, spielt ab der nächsten Runde mit.", "Während eines Spiels kommt niemand dazu."],
       roundsLabel: "Runden",
       modeLabel: "Spiel",
       modes: { cards: "Mit Karten", quiz: "Nur Fragen" },
@@ -192,7 +196,7 @@ export function strings(lang) {
   }
   return {
     ...f,
-    otherLang: "Deutsch",
+    langName: "English",
     connecting: "Connecting …",
     scanToJoin: "Scan the QR code on the TV to join.",
     joinTitle: "Who are you?",
@@ -217,6 +221,11 @@ export function strings(lang) {
     vipReady: "Everyone on board? Let's go.",
     waitVip: "The VIP starts the game.",
     settings: "Settings",
+    langLabel: "Language",
+    lateLabel: "Latecomers",
+    lateWait: "next round",
+    lateClosed: "closed",
+    lateLine: ["Whoever comes later plays from the next round.", "Nobody new joins during a game."],
     roundsLabel: "Rounds",
     modeLabel: "Game",
     modes: { cards: "With cards", quiz: "Questions only" },

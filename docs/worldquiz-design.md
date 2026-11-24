@@ -33,18 +33,32 @@ the camera flies over, cards like postcards, chunky toy buttons.
 ## 2. A game
 
 - **Players: 2–10.** **Rounds: 15, 30 or 45** (§2.4).
+- **Language**: English or German, the room's: every phone speaks it
+  like the TV (before joining, the browser's); no phone switches only
+  itself (§3.4).
 - **Difficulty**: easy, normal (default), hard (§6).
 - **Countries asked**: the 80 or 150 (default) best known, or all
   (§6); separate from the difficulty. Hands are always the whole deck.
 - **Kinds of challenge**: which are in the mix, all by default (§4.11).
-- **Map**: flat (Mercator) or globe; each phone switches for itself, the
-  host page sets the TV's.
+- **Map**: flat (Mercator) or globe; each phone switches for itself
+  (not a setting), the host page or the VIP sets the TV's.
 - **Disputed states** (off by default): adds Kosovo, Palestine, Taiwan
   and Western Sahara to the deck (§3.1).
+- **Latecomers**: from the next round (default) or closed during a game
+  (§2.4).
 - **The deck** is every country (§3.1), shuffled. Drawn cards go to the
   discard pile; the deck is reshuffled from it only when it runs out, so
   every country comes up before any comes back. Cards in hand and
   challenge countries come from the same deck.
+
+Every setting is on the host page and on the VIP's phone (the lobby and
+the final screen) with the same choices: the game's `settings` action
+(`lang`, `mode`, `rounds`, `difficulty`, `countries`, `kinds`,
+`disputed`, `map`, `lateJoin`) takes only the VIP's, refuses a change
+with an unknown key or value as a whole, and, like the host page, any
+change while a game runs (no setting is live). Both sides go through
+`configure`: the phones see the room view's settings, and the host page
+redraws on the game's `settings` event.
 
 ### 2.1 A round
 
@@ -127,9 +141,9 @@ everyone is captain equally often (6 players, 15 rounds: 18). The
 furthest plane wins; a tie is broken by one location challenge among the
 tied players (closest wins, a further one on another tie).
 
-Late joiners start at the last place's stop from the next round; a player
-who leaves keeps their plane until the end; fewer than two players ends
-the game.
+Late joiners (unless the latecomers setting is closed) start at the
+last place's stop from the next round; a player who leaves keeps their
+plane until the end; fewer than two players ends the game.
 
 ### 2.5 Questions only
 
@@ -264,7 +278,8 @@ Each country has, per language, a display name, a capital (or several:
 §4.1), and accepted aliases from Wikidata plus our own ("USA",
 "Amerika", "Holland", "Kiew/Kyiv/Kiev", "Elfenbeinküste/Côte d'Ivoire/
 Ivory Coast", "Tschechien/Tschechische Republik/Czechia/Czech
-Republic"). **Cards show only the game's language**: a German game
+Republic"). The game's language is the room's, set by the host page or
+the VIP. **Cards show only the game's language**: a German game
 says Deutschland, Berlin, Zugspitze and nothing in English, and the
 reverse. Answers in either language are still accepted (knowing "Italy"
 in a German game is knowing it).
@@ -412,7 +427,7 @@ the four on the map, the odd one marked.
 
 ### 4.11 Which kinds
 
-A setting (`kinds`, the host page and the lobby): which kinds are in
+A setting (`kinds`, the host page and the VIP's phone): which kinds are in
 the mix, all by default, at least one. A challenge picks a kind at
 random among those some country of the pool can be asked in (odd one
 out needs three neighbours, name a neighbour one, a shape 20 km), then

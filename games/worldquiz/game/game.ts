@@ -12,8 +12,9 @@
  *
  * Views:
  * - `party.room` (every phone): `{ phase, lang, round, rounds, minPlayers, colors, steps, settings…, stage?,
- *   captain?, deadline?, kind?, question?, locked?, gone?, left? }`: `settings` are `rounds`, `difficulty`,
- *   `disputed`, `map`; `steps` by player id; `question` what a challenge shows (`name` for a capital or a
+ *   captain?, deadline?, kind?, question?, locked?, gone?, left? }`: `settings` are `mode`, `rounds`,
+ *   `difficulty`, `countries`, `kinds`, `disputed`, `map`, `lateJoin` (and `roundsSetting`, the setting's
+ *   rounds while `rounds` is the game's); `steps` by player id; `question` what a challenge shows (`name` for a capital or a
  *   place, `flag` for a flag); `locked` who has locked an answer in; `gone` per number the discarded cards
  *   of its top ten with their ranks (§2.2), `left` the cards left in the deck.
  * - `player.state` (one phone): `{ task, color, steps, … }`; `task` one of `lobby`, `wait` (a late joiner),
@@ -35,7 +36,7 @@
  * not give the country away).
  */
 
-import { Emitter, PartyError, type Json, type Party, type Player, type Sender } from "@tvpipe/party";
+import { Emitter, PartyError, type Json, type LateJoin, type Party, type Player, type Sender } from "@tvpipe/party";
 
 import { Matcher, type Candidate } from "./answer.ts";
 import type { Country, Lang, Ring } from "./data.ts";
@@ -150,6 +151,10 @@ export const FAST_TIMINGS: Timings = {
   answer: 8,
 };
 
+/** Who may join during a game: from the next round, or nobody (the host page offers the same two). */
+export const LATE_JOINS = ["wait", "closed"] as const satisfies readonly LateJoin[];
+export type LateJoins = (typeof LATE_JOINS)[number];
+
 export interface Settings {
   /** Cards (the captain's choice each round) or only challenges. */
   mode: Mode;
@@ -161,6 +166,8 @@ export interface Settings {
   kinds: Kind[];
   disputed: boolean;
   map: MapMode;
+  /** Latecomers: join from the next round (`wait`), or not during a game (`closed`); `party.lateJoin`. */
+  lateJoin: LateJoins;
 }
 
 export interface GameOptions {
@@ -270,7 +277,8 @@ export class Worldquiz extends Emitter<GameEvents> {
   readonly #colours: ReadonlyMap<string, FlagColours> | undefined;
   readonly #rng: () => number;
   #lang: Lang;
-  #settings: Settings;
+  /** The settings but the latecomers, which are the party's (`party.lateJoin`). */
+  #settings: Omit<Settings, "lateJoin">;
   readonly #colors = new Map<string, number>();
   readonly #names = new Map<string, string>();
   /** Steps per player id (players in the game). */
@@ -312,13 +320,15 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#land = options.land;
     this.#colours = options.colours;
     if (this.#all.length === 0) throw new Error("worldquiz: no countries");
-    this.#settings = { mode: "cards", rounds: 15, difficulty: "normal", countries: "known", kinds: [...KINDS], disputed: false, map: "flat", ...options.settings };
+    const { lateJoin, ...rest } = options.settings ?? {};
+    this.#settings = { mode: "cards", rounds: 15, difficulty: "normal", countries: "known", kinds: [...KINDS], disputed: false, map: "flat", ...rest };
+    if (lateJoin !== undefined && LATE_JOINS.includes(lateJoin)) party.lateJoin = lateJoin;
     this.#settings.kinds = cleanKinds(this.#settings.kinds) ?? [...KINDS];
     for (const c of this.#all) this.#byId.set(c.id, c);
   }
 
   get settings(): Settings {
-    return { ...this.#settings, kinds: [...this.#settings.kinds] };
+    return { ...this.#settings, kinds: [...this.#settings.kinds], lateJoin: this.party.lateJoin === "closed" ? "closed" : "wait" };
   }
 
   get phase(): Phase {
@@ -426,10 +436,10 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#lobby();
   }
 
-  /** Changes the language or the settings before a game; every phone and the TV follow. */
+  /** Changes the language or the settings (latecomers too) before a game; every phone, the TV and the host page follow. */
   configure(o: { lang?: Lang | undefined; timings?: Partial<Timings> | undefined } & Partial<Settings>): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
-    const was = JSON.stringify([this.#lang, this.#settings]);
+    const was = JSON.stringify([this.#lang, this.settings]);
     if (o.lang !== undefined && LANGS.includes(o.lang)) this.#lang = o.lang;
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     const s = this.#settings;
@@ -440,11 +450,12 @@ export class Worldquiz extends Emitter<GameEvents> {
     if (o.kinds !== undefined) s.kinds = cleanKinds(o.kinds) ?? s.kinds;
     if (o.disputed !== undefined) s.disputed = !!o.disputed;
     if (o.map !== undefined && MAPS.includes(o.map)) s.map = o.map;
+    if (o.lateJoin !== undefined && LATE_JOINS.includes(o.lateJoin)) this.party.lateJoin = o.lateJoin;
     if (this.#phase === "lobby" || this.#phase === "final") {
       this.party.room.set({ ...this.settings, roundsSetting: s.rounds, lang: this.#lang });
       this.party.screen.set({ ...this.settings, roundsSetting: s.rounds, lang: this.#lang });
     }
-    if (JSON.stringify([this.#lang, this.#settings]) !== was) this.emit("settings", this.settings);
+    if (JSON.stringify([this.#lang, this.settings]) !== was) this.emit("settings", this.settings);
   }
 
   /** Ends a running game (the party stays): the lobby at once, no final screen. */
@@ -1195,12 +1206,20 @@ export class Worldquiz extends Emitter<GameEvents> {
   }
 }
 
-/** The settings an action may change, checked. */
-export function parseSettings(d: Json): Partial<Settings> {
-  if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "mode, rounds, difficulty, countries, kinds, disputed, map");
+/** The settings an action may change (the host page's: the language and latecomers too), checked; a bad one refuses them all. */
+export function parseSettings(d: Json): Partial<Settings> & { lang?: Lang } {
+  if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", SETTING_KEYS.join(", "));
   const v = d as Record<string, Json>;
-  const o: Partial<Settings> = {};
-  for (const k of Object.keys(v)) if (!["mode", "rounds", "difficulty", "countries", "kinds", "disputed", "map"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+  const o: Partial<Settings> & { lang?: Lang } = {};
+  for (const k of Object.keys(v)) if (!(SETTING_KEYS as readonly string[]).includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+  if (v["lang"] !== undefined) {
+    if (!(LANGS as readonly Json[]).includes(v["lang"])) throw new PartyError("bad-settings", `lang: ${LANGS.join(", ")}`);
+    o.lang = v["lang"] as Lang;
+  }
+  if (v["lateJoin"] !== undefined) {
+    if (!(LATE_JOINS as readonly Json[]).includes(v["lateJoin"])) throw new PartyError("bad-settings", `lateJoin: ${LATE_JOINS.join(", ")}`);
+    o.lateJoin = v["lateJoin"] as LateJoins;
+  }
   if (v["countries"] !== undefined) {
     if (!(POOLS as readonly Json[]).includes(v["countries"])) throw new PartyError("bad-settings", `countries: ${POOLS.join(", ")}`);
     o.countries = v["countries"] as Pool;
@@ -1233,6 +1252,9 @@ export function parseSettings(d: Json): Partial<Settings> {
   }
   return o;
 }
+
+/** What the settings action takes. */
+const SETTING_KEYS = ["lang", "mode", "rounds", "difficulty", "countries", "kinds", "disputed", "map", "lateJoin"] as const;
 
 /** Kinds as a setting: known ones, each once, in KINDS' order; null when none is left. */
 export function cleanKinds(kinds: readonly string[]): Kind[] | null {

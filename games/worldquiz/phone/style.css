@@ -30,7 +30,6 @@ body {
 .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); border: 2.5px solid var(--ink); flex: none; }
 .steps { display: inline-flex; align-items: center; gap: 3px; flex: none; background: var(--paper); border-radius: 999px; padding: 2px 10px 2px 4px; font-weight: 900; box-shadow: 0 3px 0 var(--paper-lip); }
 .steps .plane svg { width: 24px; height: 24px; display: block; }
-#lang { flex: none; margin: 0 0 4px; }
 #banner { position: sticky; top: 50px; z-index: 4; background: #ef4444; color: #fff; text-align: center; padding: 6px; font-weight: 800; }
 
 main { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: 14px 12px 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }

@@ -247,7 +247,7 @@ test("settings: only the VIP, only known values, not during a game", async () =>
     await assert.rejects(players[0]!.client.act("settings", { rounds: 7 }), /rounds/);
     await assert.rejects(players[0]!.client.act("settings", { colour: 1 }), /not a setting/);
     await players[0]!.client.act("settings", { rounds: 30, difficulty: "hard", disputed: true, map: "globe" });
-    assert.deepEqual(g.settings, { mode: "cards", rounds: 30, difficulty: "hard", countries: "known", kinds: [...KINDS], disputed: true, map: "globe" });
+    assert.deepEqual(g.settings, { mode: "cards", rounds: 30, difficulty: "hard", countries: "known", kinds: [...KINDS], disputed: true, map: "globe", lateJoin: "wait" });
     await players[0]!.client.act("settings", { countries: "all", kinds: ["where", "capital"] });
     assert.equal(g.settings.countries, "all");
     assert.deepEqual(g.settings.kinds, ["capital", "where"]);
@@ -259,6 +259,61 @@ test("settings: only the VIP, only known values, not during a game", async () =>
     await assert.rejects(players[0]!.client.act("settings", { mode: "bets" }), /mode/);
     await players[0]!.client.act("settings", { mode: "quiz" });
     assert.equal(g.settings.mode, "quiz");
+    // One bad value refuses the whole change.
+    await assert.rejects(players[0]!.client.act("settings", { rounds: 45, map: "round" }), /map/);
+    assert.equal(g.settings.rounds, 30);
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("the VIP sets the language and latecomers too, as the host page does: every phone follows, not during a game", async () => {
+  const { g, party, players, close } = await game(3, { timings: { choose: 60_000 } });
+  const until = async (what: () => boolean, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (!what()) {
+      if (Date.now() > end) throw new Error("timed out");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  };
+  try {
+    const vip = players[0]!.client;
+    const heard: unknown[] = [];
+    g.on("settings", (s) => heard.push(s));
+    // The language: only the VIP, only a known one; every phone and the TV follow, and the host page hears of it.
+    await assert.rejects(players[1]!.client.act("settings", { lang: "de" }), /VIP/);
+    await assert.rejects(vip.act("settings", { lang: "fr" }), { code: "bad-settings" });
+    await assert.rejects(vip.act("settings", { lang: 1 }), { code: "bad-settings" });
+    assert.equal(g.lang, "en");
+    await vip.act("settings", { lang: "de" });
+    assert.equal(g.lang, "de");
+    assert.equal(heard.length, 1);
+    await until(() => players.every((p) => p.client.view["room"]?.lang === "de"));
+    assert.equal((party.screenView()["screen"] as Record<string, unknown>)["lang"], "de");
+    // Latecomers: the host page's two choices; the party follows, and so do the room view and the host page.
+    assert.equal(vip.view["room"].lateJoin, "wait");
+    await assert.rejects(players[1]!.client.act("settings", { lateJoin: "closed" }), /VIP/);
+    await assert.rejects(vip.act("settings", { lateJoin: "open" }), { code: "bad-settings" });
+    await assert.rejects(vip.act("settings", { lateJoin: "never" }), { code: "bad-settings" });
+    assert.notEqual(party.lateJoin, "closed");
+    await vip.act("settings", { lateJoin: "closed" });
+    assert.equal(party.lateJoin, "closed");
+    assert.equal((heard.at(-1) as { lateJoin: string }).lateJoin, "closed");
+    await until(() => players.every((p) => p.client.view["room"]?.lateJoin === "closed"));
+    // The host page's field goes through the game too: the phones see its change.
+    g.configure({ lateJoin: "wait" });
+    assert.equal(party.lateJoin, "wait");
+    await until(() => players.every((p) => p.client.view["room"]?.lateJoin === "wait"));
+    // Nothing during a game (no setting is live on the host page either).
+    await vip.act("start");
+    await until(() => g.phase === "round");
+    for (const change of [{ lang: "en" }, { lateJoin: "closed" }, { rounds: 45 }, { kinds: ["where"] }, { countries: "all" }]) {
+      await assert.rejects(vip.act("settings", change), { code: "running" });
+    }
+    assert.equal(g.lang, "de");
+    assert.equal(party.lateJoin, "wait");
+    g.close();
   } finally {
     for (const b of players) b.close();
     close();

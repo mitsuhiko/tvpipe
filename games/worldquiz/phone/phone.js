@@ -20,7 +20,7 @@ import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { decodeRings, decodeShapes, WorldMap } from "../screen/map.js";
 import { cardEl, FACTS, flagSrc, GLOBE, h, ICONS, KIND_ICONS_MORE, LABELS, numbers, SHORT, STRONG } from "./cards.js";
 import { watchFit } from "./fit.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { strings } from "./strings.js";
 
 /** @typedef {import("./cards.js").Fact} Fact */
@@ -54,7 +54,6 @@ blockEmoji();
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 const logoEl = /** @type {HTMLElement} */ (document.getElementById("logo"));
 logoEl.append(logo());
 
@@ -66,39 +65,26 @@ const V = () => demoView ?? client.view ?? {};
 const myId = () => (demoView ? "me" : client.you?.id);
 
 // ---------------------------------------------------------------------------
-// The language: the room's; before there is a room (the join form) the player's pick, else the browser's.
+// The language: the room's, the same on every phone (the host page or the
+// VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "worldquiz:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = V().room?.lang;
   return typeof l === "string" ? pickLang(l) : null;
 }
 /** @type {"en" | "de"} */
-let lang = roomLang() ?? ownLang() ?? browserLang();
+let lang = roomLang() ?? browserLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
+/** Follows the room's language; true when it changed (the screen has to be built again). */
 function useLang() {
-  const l = roomLang() ?? ownLang() ?? browserLang();
+  const l = roomLang() ?? browserLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  try {
-    localStorage.setItem(LANG_KEY, lang === "de" ? "en" : "de");
-  } catch {}
-  if (useLang() && shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-});
 
 let shown = "";
 /** @type {(() => void) | null} called on every view while the screen stays */
@@ -323,8 +309,6 @@ function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
   setTask("join");
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", autocorrect: "off", spellcheck: "false", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   let saved = "";
@@ -346,7 +330,6 @@ function joinForm(error = "", typed) {
         err.textContent = "";
         try {
           await client.join(name);
-          langButton.hidden = true;
         } catch (x) {
           joinForm(message(x), name);
         }
@@ -425,7 +408,6 @@ function render(view) {
     shown = key;
     refresh = null;
     clean();
-    langButton.hidden = true;
     setTask(me.task ?? "none");
     build(me, room);
     window.scrollTo(0, 0);
@@ -484,6 +466,7 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons), line));
     items.push({ key, buttons, values, line, lines });
   };
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel);
   add("mode", ["cards", "quiz"], [t.modes.cards, t.modes.quiz], t.modeLabel, (v) => t.modeLine[/** @type {"cards"} */ (v)] ?? "");
   add("rounds", [15, 30, 45], ["15", "30", "45"], t.roundsLabel);
   add("difficulty", ["easy", "normal", "hard"], [t.levels.easy, t.levels.normal, t.levels.hard], t.difficultyLabel, (v) => t.levelLine[/** @type {"easy"} */ (v)] ?? "");
@@ -512,6 +495,7 @@ function settings(err) {
     ),
   );
   box.append(h("div", { class: "setting" }, h("label", {}, t.kindsLabel), h("div", { class: "kindgrid" }, ...kindButtons), h("p", { class: "line" }, t.kindsLine)));
+  add("lateJoin", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, (v) => t.lateLine[v === "closed" ? 1 : 0] ?? "");
   const update = () => {
     const room = V().room ?? {};
     box.hidden = !isVip();
@@ -1357,7 +1341,7 @@ function fakeView(name) {
     { id: "p4", name: "Cy", vip: false, connected: false },
   ];
   const colors = { me: "#3b82f6", p2: "#ef4444", p3: "#22c55e", p4: "#ff6b00" };
-  const room = { lang: l, phase: "round", round: 3, rounds: 16, minPlayers: 2, colors, steps: { me: 2, p2: 1, p3: 3, p4: 0 }, difficulty: "normal", disputed: false, map: qs.get("map") === "globe" ? "globe" : "flat", captain: "p2", left: 151, deckSize: 194 };
+  const room = { lang: l, phase: "round", round: 3, rounds: 16, minPlayers: 2, colors, steps: { me: 2, p2: 1, p3: 3, p4: 0 }, difficulty: "normal", disputed: false, map: qs.get("map") === "globe" ? "globe" : "flat", lateJoin: "wait", captain: "p2", left: 151, deckSize: 194 };
   const ranks = { population: 19, area: 63, neighbours: 1, highest: 76, gdp: 17 };
   const germany = {
     id: "DE",
