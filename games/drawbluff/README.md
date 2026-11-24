@@ -8,7 +8,7 @@ drawing, everyone votes for the real one. Points for finding the truth
 player fooled by your lie (500); a round's points count as many times
 as its number (round 2 double, round 3 triple, …). A game has 1 to 5
 rounds (2 by default), as the host page or the VIP's phone sets it in
-the lobby.
+the lobby or on the final screen.
 
 Up to 8 players it is the classic game: every drawing on the TV, every
 other player lies. From 9 the round has six spotlight drawings (the rest
@@ -28,8 +28,9 @@ the game ends there, to its final screen. The design and the numbers:
 [`docs/drawbluff-scale.md`](../../docs/drawbluff-scale.md).
 
 It speaks English and German: the room's language is a setting on the
-host page (the default: the host browser's language), and every phone,
-the TV and the host page follow it, with prompts written for each
+host page and the VIP's phone (the default: the host browser's
+language), and every phone (unless it switched for itself), the TV and
+the host page follow it, with prompts written for each
 language (1993 in 17 structures in English, 2091 in 18 in German) in the
 forms players type their lies in (about a third with a leading article,
 short labels, sentences, telegraphic), so neither the truth nor the
@@ -42,7 +43,10 @@ own while one is free; a newcomer gets one of the least used) and draws
 with pens made from it in OKLCH: its dark and light shade, or in colour
 mode black and red, yellow, green and blue leaning towards it (`palette`
 in `game/rules.ts`; a drawing carries its artist's pens). The host page
-and the VIP's phone set the rules before a game: the rounds, undo on the pad (off by
+and the VIP's phone set the rules before a game (every setting of the
+host page is on the VIP's phone too, in the lobby and on the final
+screen, and a change there shows on the host page): the language, the
+rounds, the timers (fast, normal or slow), latecomers, undo on the pad (off by
 default: every stroke counts), colour mode, and adult prompts
 (`data/prompts.adult.txt`, `data/prompts.adult.de.txt`: 18+, cheeky, not
 explicit), and animated drawings (like Drawful Animate: every player

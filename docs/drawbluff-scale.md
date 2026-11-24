@@ -351,9 +351,11 @@ a room dealt all 665: about 41 games of 8 players and 2 rounds.)
 
 A room has one language, English or German (`LANGS`): a setting on
 the host page (Language; the default is the host browser's language,
-German for `de…`, and its last choice), changeable in the lobby and on
+German for `de…`, and its last choice) and on the VIP's phone (the
+`settings` action's `lang`, one of the languages with prompts,
+`room.langs`; else `bad-settings`), changeable in the lobby and on
 the podium, not during a game (`configure({ lang })`, `bad-lang`
-without prompts). The game sends it in every view, `room.lang` to the
+without prompts; `running`). The game sends it in every view, `room.lang` to the
 phones and `screen.lang` to the TV, so every screen follows it; the
 prompts, the decoys and the bots' lies are in it, and titles compare
 the German way (`titleKey(…, "de")`). Each page has its strings
@@ -442,7 +444,8 @@ start to its podium, and activates every waiting player at the podium.
   `--late-join=wait|open|closed` in both hosts). The VIP changes it in
   the lobby and on the podium (`late-join` `{mode}`, three buttons on
   the VIP's phone: Next round / Anytime / Closed; refused while a game
-  runs); every phone sees the line under it (`room.lateJoin`). The TV
+  runs; a change tells the host page, whose Latecomers field offers the
+  same three); every phone sees the line under it (`room.lateJoin`). The TV
   shows it under the lobby's QR code (from `join.lateJoin`: "Join
   anytime, even during the game" in green, "Latecomers join at the next
   round", "Joining closes when the game starts"); during a game

@@ -16,6 +16,8 @@ const en = (f) => ({
   join: "Join",
   /** The other language, for the switch. */
   otherLang: "Deutsch",
+  /** This language's own name (the VIP's language buttons). */
+  langName: "English",
   /** The header's sound switch. */
   soundOn: "Sound on",
   soundOff: "Sound off",
@@ -129,6 +131,17 @@ const en = (f) => ({
   rules: "Rules",
   /** @param {number} n */
   roundsLine: (n) => f.p(n, { one: "One round.", other: "# rounds." }),
+  /** @type {Record<string, string>} the room's language, by language */
+  langLine: {
+    en: "Prompts in English, on the TV and every phone.",
+    de: "Prompts in German, on the TV and every phone.",
+  },
+  /** @type {Record<string, [string, string]>} the button, the line */
+  timers: {
+    fast: ["Fast", "Fast: less time to draw, lie and vote."],
+    normal: ["Normal", "Normal time to draw, lie and vote."],
+    slow: ["Slow", "Slow: more time to draw, lie and vote."],
+  },
   /** @type {Record<"animate" | "undo" | "colorMode" | "adult", [[string, string], [string, string]]>} off, on: the button, the line */
   settings: {
     animate: [
@@ -168,6 +181,7 @@ const de = (f) => ({
   yourName: "Dein Name",
   join: "Mitspielen",
   otherLang: "English",
+  langName: "Deutsch",
   soundOn: "Ton an",
   soundOff: "Ton aus",
   nameTaken: "Den Namen hat schon jemand. Bist du das auf einem anderen Handy? Dann schließ das Spiel dort zuerst.",
@@ -252,6 +266,15 @@ const de = (f) => ({
   colourNames: ["Rot", "Orange", "Gelb", "Hellgrün", "Grün", "Türkis", "Himmelblau", "Blau", "Violett", "Pink"],
   rules: "Regeln",
   roundsLine: (n) => f.p(n, { one: "Eine Runde.", other: "# Runden." }),
+  langLine: {
+    en: "Begriffe auf Englisch, auf dem Fernseher und jedem Handy.",
+    de: "Begriffe auf Deutsch, auf dem Fernseher und jedem Handy.",
+  },
+  timers: {
+    fast: ["Schnell", "Schnell: weniger Zeit zum Zeichnen, Lügen und Abstimmen."],
+    normal: ["Normal", "Normale Zeit zum Zeichnen, Lügen und Abstimmen."],
+    slow: ["Langsam", "Langsam: mehr Zeit zum Zeichnen, Lügen und Abstimmen."],
+  },
   settings: {
     animate: [
       ["Standbild", "Alle zeichnen ein Bild."],

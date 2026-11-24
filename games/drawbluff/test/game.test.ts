@@ -14,7 +14,7 @@ async function until(cond: () => boolean, ms = 3000): Promise<void> {
 }
 
 import { bots, LIES } from "../game/bots.ts";
-import { Drawbluff, MAX_ROUNDS } from "../game/game.ts";
+import { Drawbluff, FAST_TIMINGS, MAX_ROUNDS, SLOW_TIMINGS } from "../game/game.ts";
 import { palette, PLAYER_COLORS, seeded, type Lang } from "../game/rules.ts";
 import { ADULT_BY_LANG, PROMPT_LIST, PROMPTS_BY_LANG } from "./prompts.ts";
 
@@ -651,6 +651,44 @@ test("colours, pens and the rules: picked in the lobby, the VIP's settings, adul
     assert.equal((party.screen.peek() as { rounds: number }).rounds, 5);
     await players[0]!.client.act("settings", { rounds: 1 });
     assert.equal(g.rounds, 1);
+    // Not a setting: refused.
+    await assert.rejects(players[0]!.client.act("settings", { speed: 2 }), (e: { code: string }) => e.code === "bad-settings");
+    // The timers: the host page's three choices, the VIP's too.
+    assert.equal(room(0)["timers"], "normal");
+    await assert.rejects(players[1]!.client.act("settings", { timers: "fast" }), (e: { code: string }) => e.code === "not-vip");
+    for (const timers of ["quick", 1, true]) {
+      await assert.rejects(players[0]!.client.act("settings", { timers }), (e: { code: string }) => e.code === "bad-settings", String(timers));
+    }
+    let n = changes.length;
+    await players[0]!.client.act("settings", { timers: "slow" });
+    assert.deepEqual(g.timings, SLOW_TIMINGS);
+    assert.equal(g.timers, "slow");
+    assert.equal(changes.length, n + 1);
+    await until(() => players.every((_, i) => room(i)["timers"] === "slow"));
+    await players[0]!.client.act("settings", { timers: "fast" });
+    assert.deepEqual(g.timings, FAST_TIMINGS);
+    await until(() => room(1)["timers"] === "fast");
+    // The language: the room's, one with prompts (the host page's choices).
+    assert.deepEqual(room(0)["langs"], ["en", "de"]);
+    await assert.rejects(players[1]!.client.act("settings", { lang: "de" }), (e: { code: string }) => e.code === "not-vip");
+    for (const lang of ["fr", "", 1]) {
+      await assert.rejects(players[0]!.client.act("settings", { lang }), (e: { code: string }) => e.code === "bad-settings", String(lang));
+    }
+    n = changes.length;
+    await players[0]!.client.act("settings", { lang: "de" });
+    assert.equal(g.lang, "de");
+    assert.equal(changes.length, n + 1);
+    await until(() => players.every((_, i) => room(i)["lang"] === "de") && (party.screen.peek() as { lang: string }).lang === "de");
+    await players[0]!.client.act("settings", { lang: "en", timers: "normal" });
+    assert.equal(g.lang, "en");
+    assert.equal(g.timers, "normal");
+    // Latecomers: a VIP's change tells the host page too.
+    n = changes.length;
+    await players[0]!.client.act("late-join", { mode: "open" });
+    assert.equal(changes.length, n + 1);
+    await players[0]!.client.act("late-join", { mode: "wait" });
+    assert.equal(party.lateJoin, "wait");
+    g.configure({ timings: fast, adult: true });
     await until(() => players.every((_, i) => me(i).palette.length === 5 && room(i)["colorMode"] === true));
     assert.deepEqual(me(1).palette, palette(free, true));
     assert.equal((party.screen.peek() as { adult: boolean }).adult, true);
@@ -679,6 +717,8 @@ test("colours, pens and the rules: picked in the lobby, the VIP's settings, adul
     assert.ok(players.every((_, i) => me(i).undo === true && me(i).palette.length === 5));
     await assert.rejects(players[2]!.client.act("color", { color: free }), (e: { code: string }) => e.code === "running");
     await assert.rejects(players[0]!.client.act("settings", { undo: false }), (e: { code: string }) => e.code === "running");
+    await assert.rejects(players[0]!.client.act("settings", { lang: "de" }), (e: { code: string }) => e.code === "running");
+    await assert.rejects(players[0]!.client.act("settings", { timers: "slow" }), (e: { code: string }) => e.code === "running");
     await end;
     assert.equal(prompts.length, 3);
     for (const p of prompts) assert.ok(adult.has(p), `${p}: an adult prompt`);

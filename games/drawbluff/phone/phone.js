@@ -3,13 +3,13 @@
  * Drawbluff's phone page: joining, the lobby, the drawing pad, lies,
  * votes, scores. Everything it shows comes from the party's view
  * (`{ roster, room, me }`); everything it does is an action. It speaks
- * the room's language (`room.lang`), or the one the player picked with
- * the switch in the header (kept on this phone).
+ * the room's language (`room.lang`, the VIP's or the host page's), or the
+ * one the player picked with the switch in the header (kept on this phone).
  */
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { watchFit } from "./fit.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { Sfx } from "./sfx.js";
 import { strings } from "./strings.js";
 import { drawDrawing, drawStroke, FRAME_MS, framesOf, GRID, PALETTE } from "./strokes.js";
@@ -562,24 +562,60 @@ function colorPicker(err) {
   return { box, update };
 }
 
+/** The timers' choices (`TIMERS` in game/game.ts). */
+const TIMERS = ["fast", "normal", "slow"];
+
 /**
- * The room's rules: the VIP's buttons (the rounds, undo, colours, adult
- * prompts, animation), a line each for everybody.
+ * The room's rules: the VIP's buttons (the language, the rounds, the
+ * timers, undo, colours, adult prompts, animation), a line each for
+ * everybody. Every row has its setting in `data-key`.
  * @param {HTMLElement} err
  */
 function rules(err) {
   /** @type {{ key: "animate" | "undo" | "colorMode" | "adult", row: HTMLElement, buttons: HTMLButtonElement[], line: HTMLElement }[]} */
   const items = [];
   const box = h("div", { class: "rules" }, h("h2", {}, t.rules));
+  // The language: the room's, every phone (that did not pick its own) and the TV follow it.
+  const langButtons = LANGS.map((l) =>
+    /** @type {HTMLButtonElement} */ (
+      h(
+        "button",
+        {
+          lang: l,
+          onclick: () => {
+            // The VIP follows the room again (their own switch is undone).
+            try {
+              localStorage.removeItem(LANG_KEY);
+            } catch {}
+            act("settings", { lang: l }, err)
+              .then(() => {
+                if (!useLang() || !client.view?.me) return;
+                shown = "";
+                render(client.view);
+              })
+              .catch(() => {});
+          },
+        },
+        strings(l).langName,
+      )
+    ),
+  );
+  const langRow = h("div", { class: "row seg lang", "data-key": "lang" }, ...langButtons);
+  const langLine = h("p", { class: "muted" });
+  box.append(langRow, langLine);
   // The rounds: 1 to MAX_ROUNDS (game.ts).
   const roundButtons = [1, 2, 3, 4, 5].map((n) => /** @type {HTMLButtonElement} */ (h("button", { onclick: () => act("settings", { rounds: n }, err).catch(() => {}) }, String(n))));
-  const roundRow = h("div", { class: "row seg rounds" }, ...roundButtons);
+  const roundRow = h("div", { class: "row seg rounds", "data-key": "rounds" }, ...roundButtons);
   const roundLine = h("p", { class: "muted" });
   box.append(roundRow, roundLine);
+  const timerButtons = TIMERS.map((v) => /** @type {HTMLButtonElement} */ (h("button", { onclick: () => act("settings", { timers: v }, err).catch(() => {}) }, t.timers[v]?.[0])));
+  const timerRow = h("div", { class: "row seg timers", "data-key": "timers" }, ...timerButtons);
+  const timerLine = h("p", { class: "muted" });
+  box.append(timerRow, timerLine);
   for (const key of /** @type {const} */ (["undo", "colorMode", "adult", "animate"])) {
     const [off, on] = t.settings[key];
     const buttons = [false, true].map((value, i) => /** @type {HTMLButtonElement} */ (h("button", { onclick: () => act("settings", { [key]: value }, err).catch(() => {}) }, (i ? on : off)[0])));
-    const row = h("div", { class: "row seg" }, ...buttons);
+    const row = h("div", { class: "row seg", "data-key": key }, ...buttons);
     const line = h("p", { class: "muted" });
     box.append(row, line);
     items.push({ key, row, buttons, line });
@@ -588,10 +624,22 @@ function rules(err) {
     const v = client.view;
     const room = v.room ?? {};
     const vip = (v.roster ?? []).find((/** @type {any} */ r) => r.id === client.you?.id)?.vip;
+    const playing = typeof room.lang === "string" ? pickLang(room.lang) : lang;
+    const langs = Array.isArray(room.langs) ? room.langs : [playing];
+    langRow.hidden = !vip;
+    langButtons.forEach((b, i) => {
+      b.classList.toggle("chosen", LANGS[i] === playing);
+      b.disabled = !langs.includes(LANGS[i]);
+    });
+    langLine.textContent = t.langLine[playing] ?? "";
     const rounds = typeof room.rounds === "number" ? room.rounds : 0;
     roundRow.hidden = !vip;
     roundButtons.forEach((b, i) => b.classList.toggle("chosen", i + 1 === rounds));
     roundLine.textContent = rounds ? t.roundsLine(rounds) : "";
+    const timers = typeof room.timers === "string" && TIMERS.includes(room.timers) ? room.timers : "normal";
+    timerRow.hidden = !vip;
+    timerButtons.forEach((b, i) => b.classList.toggle("chosen", TIMERS[i] === timers));
+    timerLine.textContent = t.timers[timers]?.[1] ?? "";
     for (const { key, row, buttons, line } of items) {
       const on = !!room[key];
       row.hidden = !vip;

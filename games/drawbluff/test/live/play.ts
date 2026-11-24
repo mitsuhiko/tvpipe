@@ -319,11 +319,11 @@ try {
   const pick = await phone.eval<number>(`[...document.querySelectorAll(".colors button")].findIndex((b) => !b.classList.contains("taken") && !b.classList.contains("chosen"))`);
   await phone.eval(`document.querySelectorAll(".colors button")[${pick}].click(); true`);
   await phone.until(`document.querySelectorAll(".colors button")[${pick}]?.classList.contains("chosen")`);
-  await phone.eval(`document.querySelectorAll(".rules .seg:not(.rounds)")[0].querySelectorAll("button")[1].click(); true`);
+  await phone.eval(`document.querySelector(".rules [data-key=undo]").querySelectorAll("button")[1].click(); true`);
   await win.until(`drawbluff.game.settings.undo === true`);
   log("phone: picked a colour, turned undo on");
   if (args.animate) {
-    await phone.eval(`document.querySelectorAll(".rules .seg:not(.rounds)")[3].querySelectorAll("button")[1].click(); true`);
+    await phone.eval(`document.querySelector(".rules [data-key=animate]").querySelectorAll("button")[1].click(); true`);
     await win.until(`drawbluff.game.settings.animate === true`);
     log("phone: turned animated drawings on");
   }

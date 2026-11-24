@@ -8,7 +8,8 @@
  *
  * Views:
  * - `party.room` (every phone): `{ phase, lang, round, rounds, players, spot?, spots?, deadline?, drawing?, artist?, minPlayers?,
- *   undo, colorMode, adult, animate, adultOk, colors, taken }` (the settings, the colours to pick and how many have each)
+ *   undo, colorMode, adult, animate, adultOk, langs, timers, lateJoin?, colors, taken }` (the settings, the languages
+ *   with prompts, the timers' choice, the colours to pick and how many have each)
  * - `player.state` (one phone): `{ task, score, rank, of, color, palette, … }`, `task` one of
  *   `lobby`, `wait` (a late joiner), `draw` (`prompt`, `palette`, `undo`, `frames`, `deadline`, `done`),
  *   `lie` (`key`, `drawing`, `artist`, `liars`, `early`, `deadline`, `done`, `lie`),
@@ -25,8 +26,9 @@
  * Every player has a colour (`PLAYER_COLORS`, picked in the lobby, else
  * the least used) and draws with pens made from it (`palette`): its dark
  * and light shade, or with `colorMode` black and four colours leaning to
- * it. The settings (the host page's, or the VIP's in the lobby): the
- * `rounds` (1 to `MAX_ROUNDS`), `undo`
+ * it. The settings (the host page's, or the VIP's in the lobby and on the
+ * final screen, action `settings`; `late-join` for latecomers): the
+ * `lang`, the `rounds` (1 to `MAX_ROUNDS`), the `timers` (`TIMERS`), `undo`
  * on the pad (off: every stroke counts), `colorMode`, `adult` (the
  * adult prompts, where the language has them), `animate` (every drawing
  * is an animation of `FRAMES` frames that the pages flip through, with
@@ -114,6 +116,11 @@ export const SLOW_TIMINGS: Timings = {
   gallery: 7000,
 };
 
+/** The timers setting's choices (the host page's and the VIP's). */
+export const TIMERS = { fast: FAST_TIMINGS, normal: DEFAULT_TIMINGS, slow: SLOW_TIMINGS } as const;
+export type TimerChoice = keyof typeof TIMERS;
+export const TIMER_CHOICES = Object.keys(TIMERS) as TimerChoice[];
+
 /** Newcomers the TV names ("+ Anna"); more: a count. */
 export const JOINED_NAMES = 3;
 
@@ -183,7 +190,7 @@ export interface ScoreLine {
 export interface GameEvents {
   phase: [phase: string];
   end: [scores: ScoreLine[]];
-  /** The settings or the rounds changed (the host page's or the VIP's). */
+  /** The settings, the rounds, the timers, the language or the latecomers changed (the host page's or the VIP's). */
   settings: [settings: Settings];
 }
 
@@ -334,6 +341,11 @@ export class Drawbluff extends Emitter<GameEvents> {
     return [...this.#prompts.keys()];
   }
 
+  /** The timers' choice the timings are (other timings, a test's: `normal`). */
+  get timers(): TimerChoice {
+    return TIMER_CHOICES.find((k) => (Object.keys(TIMERS[k]) as (keyof Timings)[]).every((t) => this.timings[t] === TIMERS[k][t])) ?? "normal";
+  }
+
   /** Shows the lobby and waits for the VIP to start. */
   open(): void {
     const party = this.party;
@@ -358,18 +370,28 @@ export class Drawbluff extends Emitter<GameEvents> {
     });
     party.handle("settings", (d, from) => {
       if (from.role !== "player" || !from.vip) throw new PartyError("not-vip", "Only the VIP can change this");
-      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "rounds, undo, colorMode, adult, animate");
-      const o: Partial<Settings> & { rounds?: number } = {};
-      const rounds = (d as Record<string, Json>)["rounds"];
+      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "lang, rounds, timers, undo, colorMode, adult, animate");
+      const v = d as Record<string, Json>;
+      for (const k of Object.keys(v)) if (!["lang", "rounds", "timers", "undo", "colorMode", "adult", "animate"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const o: Partial<Settings> & { rounds?: number; lang?: Lang; timings?: Timings } = {};
+      if (v["lang"] !== undefined) {
+        if (typeof v["lang"] !== "string" || !this.langs.includes(v["lang"] as Lang)) throw new PartyError("bad-settings", `lang: ${this.langs.join(", ")}`);
+        o.lang = v["lang"] as Lang;
+      }
+      const rounds = v["rounds"];
       if (rounds !== undefined) {
         if (typeof rounds !== "number" || !Number.isInteger(rounds) || rounds < 1 || rounds > MAX_ROUNDS) throw new PartyError("bad-settings", `rounds: 1 to ${MAX_ROUNDS}`);
         o.rounds = rounds;
       }
+      if (v["timers"] !== undefined) {
+        if (typeof v["timers"] !== "string" || !TIMER_CHOICES.includes(v["timers"] as TimerChoice)) throw new PartyError("bad-settings", `timers: ${TIMER_CHOICES.join(", ")}`);
+        o.timings = TIMERS[v["timers"] as TimerChoice];
+      }
       for (const k of ["undo", "colorMode", "adult", "animate"] as const) {
-        const v = (d as Record<string, Json>)[k];
-        if (v === undefined) continue;
-        if (typeof v !== "boolean") throw new PartyError("bad-settings", `${k}: true or false`);
-        o[k] = v;
+        const x = v[k];
+        if (x === undefined) continue;
+        if (typeof x !== "boolean") throw new PartyError("bad-settings", `${k}: true or false`);
+        o[k] = x;
       }
       this.configure(o);
       return null;
@@ -391,8 +413,11 @@ export class Drawbluff extends Emitter<GameEvents> {
       if (this.#running) throw new PartyError("running", "Not during a game");
       const mode = typeof d === "object" && d !== null && "mode" in d ? (d as { mode: unknown }).mode : d;
       if (typeof mode !== "string" || !LATE_JOIN.includes(mode as LateJoin)) throw new PartyError("bad-mode", "closed, wait or open");
+      const was = party.lateJoin;
       party.lateJoin = mode as LateJoin;
       party.room.set({ lateJoin: mode });
+      // The host page shows it too.
+      if (mode !== was) this.emit("settings", this.settings);
       return null;
     });
     // Joiners in the lobby (or after the game) see the lobby; during a
@@ -513,8 +538,9 @@ export class Drawbluff extends Emitter<GameEvents> {
     return { color: this.colorOf(p), palette: palette(this.colorOf(p), this.#settings.colorMode) };
   }
 
-  #settingsView(): Record<string, boolean> {
-    return { ...this.#settings, adultOk: this.adultOk };
+  /** The room's settings for the phones: the VIP's buttons and everybody's lines. */
+  #settingsView(): Record<string, Json> {
+    return { ...this.#settings, adultOk: this.adultOk, lang: this.#lang, langs: this.langs, timers: this.timers };
   }
 
   /**
@@ -530,7 +556,7 @@ export class Drawbluff extends Emitter<GameEvents> {
     if (o.lang !== undefined && !this.#prompts.has(o.lang)) throw new PartyError("bad-lang", `No prompts in ${o.lang}`);
     const lang = o.lang ?? this.#lang;
     if (o.adult === true && !this.#adultPrompts.has(lang)) throw new PartyError("no-adult", `No adult prompts in ${lang}`);
-    const rounds = this.rounds;
+    const was = JSON.stringify([this.#lang, this.rounds, this.timings, this.#settings]);
     if (o.rounds !== undefined) this.rounds = Math.max(1, Math.min(MAX_ROUNDS, Math.round(o.rounds)));
     if (o.timings) this.timings = { ...DEFAULT_TIMINGS, ...o.timings };
     if (o.lang !== undefined && o.lang !== this.#lang) {
@@ -538,7 +564,6 @@ export class Drawbluff extends Emitter<GameEvents> {
       this.party.room.set({ lang: o.lang });
       this.party.screen.set({ lang: o.lang });
     }
-    const was = JSON.stringify(this.#settings);
     const colorMode = this.#settings.colorMode;
     if (o.undo !== undefined) this.#settings.undo = o.undo;
     if (o.colorMode !== undefined) this.#settings.colorMode = o.colorMode;
@@ -552,7 +577,7 @@ export class Drawbluff extends Emitter<GameEvents> {
       this.party.room.set({ rounds: this.rounds });
       this.party.screen.set({ ...this.#settings, rounds: this.rounds });
     }
-    if (JSON.stringify(this.#settings) !== was || this.rounds !== rounds) this.emit("settings", this.settings);
+    if (JSON.stringify([this.#lang, this.rounds, this.timings, this.#settings]) !== was) this.emit("settings", this.settings);
   }
 
   /**
