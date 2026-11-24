@@ -24,7 +24,8 @@ interface Opts {
 
 async function game(n: number, o: Opts = {}) {
   const relay = new MemoryRelay();
-  const party = new Party({ grace: 50, maxPlayers: 10 }).listen(relay);
+  // Bots think 3 ms, far faster than phones: the default 20 messages a second would cut them off (4008 rate-limited) and leave nobody connected for the tiebreak.
+  const party = new Party({ grace: 50, maxPlayers: 10, limits: { rate: 400, burst: 400 } }).listen(relay);
   const g = new Worldquiz(party, { countries: COUNTRIES, land: LAND, settings: { rounds: 15, ...o.settings }, timings: { ...fast, ...o.timings }, rng: seeded(n), lang: o.lang });
   g.open();
   const phases: string[] = [];
