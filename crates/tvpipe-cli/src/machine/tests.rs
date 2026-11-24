@@ -151,6 +151,36 @@ fn navigate_hands_the_page_on() {
 }
 
 #[test]
+fn playback_commands() {
+    let f = Fixture::new();
+    f.send(slrw::MAGIC.to_vec());
+    // Before play of a file: warnings.
+    f.command(r#"{"type":"pause"}"#);
+    let c = tvpipe::__cli::PlaybackControl::new();
+    set_playback(c.clone());
+    // Not seekable yet: refused.
+    f.command(r#"{"type":"seek","position_ms":1000}"#);
+    f.command(r#"{"type":"stop"}"#);
+    f.until("stop", |f| f.stops() == 1);
+    assert_eq!(c.status().position, Duration::ZERO);
+    c.enable(Some(Duration::from_secs(60)), false);
+    f.command(r#"{"type":"seek","position_ms":30000}"#);
+    f.command(r#"{"type":"seek","by_ms":-5000}"#);
+    f.command(r#"{"type":"seek"}"#);
+    f.command(r#"{"type":"seek","position_ms":-3}"#);
+    f.command(r#"{"type":"pause"}"#);
+    f.command(r#"{"type":"stop"}"#);
+    f.until("stop", |f| f.stops() == 2);
+    let st = c.status();
+    assert_eq!(st.position, Duration::from_secs(25));
+    assert!(st.paused);
+    f.command(r#"{"type":"resume"}"#);
+    f.command(r#"{"type":"stop"}"#);
+    f.until("stop", |f| f.stops() == 3);
+    assert!(!c.status().paused);
+}
+
+#[test]
 fn forwards_after_claim_and_keeps_config() {
     let mut f = Fixture::new();
     f.send(slrw::MAGIC.to_vec());

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { discover, pair, PageSession, Session, play, share, testPattern, TvpipeError } from "../src/index.ts";
+import { discover, pair, PageSession, PlaySession, Session, play, share, testPattern, TvpipeError } from "../src/index.ts";
 import { stubBinary } from "./helpers.ts";
 
 const unix = process.platform !== "win32";
@@ -232,4 +232,43 @@ test("a shared page goes to another page in the same tab", { skip: !unix }, asyn
   ]);
   // Without a URL there is no page to change.
   assert.equal("navigate" in Session.prototype, false);
+});
+
+test("a played file seeks and pauses", { skip: !unix }, async () => {
+  const { binary, dir } = stubBinary(`
+    emit({ type: "receiver", name: "TV", protocol: "cast", state: "connected" });
+    emit({ type: "connected", receivers: ["TV"] });
+    emit({ type: "started", route: "passthrough", video: { codec: "h264", width: 1280, height: 720, fps: 30 }, audio: [], latency_ms: 300 });
+    emit({ type: "playback", position_ms: 0, duration_ms: 60000, paused: false });
+    for (;;) {
+      const c = await nextCommand();
+      state.commands = (state.commands || []).concat([c]);
+      save();
+      if (!c || c.type === "stop") break;
+      if (c.type === "pause") emit({ type: "playback", position_ms: 1200, duration_ms: 60000, paused: true });
+    }
+    emit({ type: "end", reason: "stopped", receivers: [] });
+    finish(0);
+  `);
+  const s = await play("movie.mp4", { binary, to: "TV" });
+  assert.ok(s instanceof PlaySession);
+  assert.deepEqual(s.playback, { type: "playback", positionMs: 0, durationMs: 60000, paused: false });
+  const paused = new Promise((r) => s.once("playback", r));
+  s.seek(30_000);
+  s.seekBy(-10_000.4);
+  s.pause();
+  assert.deepEqual(await paused, { type: "playback", positionMs: 1200, durationMs: 60000, paused: true });
+  s.resume();
+  assert.throws(() => s.seek(-1), (e: unknown) => e instanceof TvpipeError && e.code === "invalid-argument");
+  assert.throws(() => s.seekBy(Number.NaN), (e: unknown) => e instanceof TvpipeError && e.code === "invalid-argument");
+  await s.stop();
+  assert.throws(() => s.pause(), (e: unknown) => e instanceof TvpipeError && e.code === "closed");
+  const commands = (JSON.parse(readFileSync(join(dir, "state.json"), "utf8")) as { commands: unknown[] }).commands;
+  assert.deepEqual(commands, [
+    { type: "seek", position_ms: 30000 },
+    { type: "seek", by_ms: -10000 },
+    { type: "pause" },
+    { type: "resume" },
+    { type: "stop" },
+  ]);
 });

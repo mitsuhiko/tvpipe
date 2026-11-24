@@ -5,6 +5,10 @@
 //!   ([`source::MediaReader`] over [`mkv`](super::mkv)) into
 //!   [`EncodedFrame`]s in our conventions: AVCC with 4-byte lengths, pts in
 //!   90 kHz / sample ticks on one timeline starting near zero.
+//!   [`FileSource::seek`] jumps to a video IDR picture near a time: MP4 by
+//!   walking the sample tables (or the `moof`s) without reading media
+//!   data, Matroska by an index of the Clusters and reading from the
+//!   nearest one.
 //! - [`probe`] opens a file and scans its first seconds: stream info, SPS,
 //!   B-frame reordering, bitrate.
 //! - [`check`] decides from that and every sink's [`Capabilities`] whether
@@ -15,16 +19,18 @@
 //! sampling frequencies); ITU-T H.264 §7.4.2.1.1, Annex E.2.1;
 //! ARCHITECTURE.md, "Inputs"; docs/measurements.md.
 
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
 pub use crate::media::formats::{parse_asc, sink_takes};
 use crate::media::h264::{self, AvcConfig, Sps};
+use crate::media::mkv;
 use crate::media::mp4::{self, Codec as Mp4Codec, TrackType as Mp4TrackType};
 use crate::media::source::{self, MediaReader};
 use crate::types::{
@@ -40,6 +46,9 @@ const PROBE_MAX_FRAMES: usize = 2000;
 const ORIGIN_LOOKAHEAD: usize = 512;
 /// Frame rate slack when comparing with a receiver's maximum.
 const FPS_TOLERANCE: f64 = 1.005;
+/// Most audio frames held back while landing on a seek's keyframe.
+const MAX_LANDING_AUDIO: usize = 1024;
+const NS_PER_S: i128 = 1_000_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Container {
@@ -143,7 +152,7 @@ pub struct FileFrame {
 
 enum Inner {
     Mp4(Mp4State),
-    Mkv(MediaReader<BufReader<File>>),
+    Mkv(MediaReader<File>),
 }
 
 struct Mp4State {
@@ -157,6 +166,15 @@ struct Mp4State {
     lookahead: VecDeque<mp4::Sample>,
 }
 
+/// A Matroska Cluster for seeking.
+#[derive(Debug, Clone, Copy)]
+struct ClusterMark {
+    pos: u64,
+    /// Its Timestamp on the [`FileSource`] timeline, in ns (the video's
+    /// CodecDelay and TrackTimestampScale ignored: a starting point only).
+    ns: i128,
+}
+
 /// A demuxed file yielding frames in our conventions. Not paced.
 pub struct FileSource {
     path: PathBuf,
@@ -164,6 +182,19 @@ pub struct FileSource {
     inner: Inner,
     /// Frames dropped because their pts fell before the stream start.
     dropped_negative: u64,
+    /// Frames to return before reading on: audio read while landing on a
+    /// seek's keyframe.
+    ready: VecDeque<FileFrame>,
+    /// Audio goes to `ready` (until the keyframe is returned).
+    buffering: bool,
+    /// After a seek: video is dropped until the keyframe at or after this
+    /// pts (90 kHz).
+    awaiting_key: Option<u64>,
+    /// After a seek: audio presented before this pts (90 kHz) is dropped,
+    /// until the first frame at or after it.
+    audio_from: Option<u64>,
+    /// Matroska Clusters, indexed at the first seek.
+    clusters: Option<Vec<ClusterMark>>,
 }
 
 impl FileSource {
@@ -185,6 +216,11 @@ impl FileSource {
             info,
             inner,
             dropped_negative: 0,
+            ready: VecDeque::new(),
+            buffering: false,
+            awaiting_key: None,
+            audio_from: None,
+            clusters: None,
         })
     }
 
@@ -202,6 +238,10 @@ impl FileSource {
 
     /// Starts over (for `--loop`): the same timestamps as the first pass.
     pub fn rewind(&mut self) -> Result<()> {
+        self.ready.clear();
+        self.buffering = false;
+        self.awaiting_key = None;
+        self.audio_from = None;
         match &mut self.inner {
             Inner::Mp4(m) => {
                 m.demux.rewind();
@@ -219,21 +259,290 @@ impl FileSource {
     /// The next video or audio frame; `None` at the end of the file.
     pub fn next_frame(&mut self) -> Result<Option<FileFrame>> {
         loop {
+            if !self.buffering {
+                if let Some(f) = self.ready.pop_front() {
+                    return Ok(Some(f));
+                }
+            }
             let got = match &mut self.inner {
                 Inner::Mp4(m) => next_mp4(m)?,
                 Inner::Mkv(r) => next_mkv(r)?,
             };
             match got {
-                Next::End => return Ok(None),
+                Next::End => {
+                    self.buffering = false;
+                    self.awaiting_key = None;
+                    return Ok(self.ready.pop_front());
+                }
                 Next::Skip => continue,
                 Next::Negative => {
                     self.dropped_negative += 1;
                     continue;
                 }
-                Next::Frame(f) => return Ok(Some(f)),
+                Next::Frame(f) => {
+                    if let Some(f) = self.after_seek(f) {
+                        return Ok(Some(f));
+                    }
+                }
             }
         }
     }
+
+    /// Positions the source at a video keyframe (an IDR picture for H.264;
+    /// any sync sample / keyframe for HEVC) near `target_ns`, a time on the
+    /// timeline of the frames' pts (ns since that timeline's zero):
+    ///
+    /// - `forward`: the first keyframe at or after the target, or if there
+    ///   is none the last one before it;
+    /// - otherwise the last keyframe at or before the target, or if there is
+    ///   none the first one after it.
+    ///
+    /// The target is compared at 90 kHz (rounded to the nearest tick), so
+    /// seeking to a returned time lands on the same keyframe either way.
+    /// Returns the keyframe's pts in ns (its 90 kHz pts, rounded to the
+    /// nearest ns). Then
+    /// [`next_frame`](Self::next_frame) returns that keyframe first, then
+    /// the audio read before it in the file that is presented at or after
+    /// it, then the frames as usual, except that audio presented before the
+    /// keyframe is dropped (only until the first audio frame at or after
+    /// it). Video before the keyframe never comes. Works at any position,
+    /// also after the end of the file; [`rewind`](Self::rewind) still
+    /// starts over.
+    ///
+    /// `Ok(None)`: the file has no keyframe to land on. MP4 is left where
+    /// it was; Matroska is rewound to its first Cluster. After an error the
+    /// position is unspecified (seek again or rewind).
+    ///
+    /// MP4 walks the sample tables in memory (fragmented: reads the `moof`
+    /// boxes from the start) and reads only candidate keyframes' data.
+    /// Matroska indexes the Clusters once (one small read per Cluster),
+    /// then reads from the Cluster before the first one that starts after
+    /// the target (backwards: then earlier Clusters, one by one, until a
+    /// keyframe is found), and lands by reading its Cluster again from its
+    /// start. A keyframe stored in an earlier Cluster than one starting
+    /// after it is not found going forward. After an unknown-size Cluster
+    /// the index ends and seeks beyond it read the file from there.
+    pub fn seek(&mut self, target_ns: u128, forward: bool) -> Result<Option<u128>> {
+        let target = ticks(target_ns.min(u64::MAX as u128) as i128, VIDEO_CLOCK_RATE);
+        let key = match &mut self.inner {
+            Inner::Mp4(m) => seek_mp4(m, target, forward)?,
+            Inner::Mkv(_) => self.seek_mkv(target, forward)?,
+        };
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        self.ready.clear();
+        self.buffering = true;
+        self.awaiting_key = Some(key);
+        self.audio_from = Some(key);
+        let rate = VIDEO_CLOCK_RATE as u128;
+        Ok(Some((key as u128 * NS_PER_S as u128 + rate / 2) / rate))
+    }
+
+    /// Applies a seek's landing rules to a frame read; `None` when it is
+    /// dropped or held back in `ready`.
+    fn after_seek(&mut self, f: FileFrame) -> Option<FileFrame> {
+        if f.frame.track == TrackKind::Video {
+            let Some(key) = self.awaiting_key else {
+                return Some(f);
+            };
+            if f.frame.keyframe && f.frame.pts >= key {
+                self.awaiting_key = None;
+                self.buffering = false;
+                return Some(f);
+            }
+            return None;
+        }
+        if let Some(from) = self.audio_from {
+            let rate = self.info.audio.as_ref().map_or(1, |a| a.sample_rate.max(1));
+            if (f.frame.pts as u128) * (VIDEO_CLOCK_RATE as u128) < from as u128 * rate as u128 {
+                return None;
+            }
+            self.audio_from = None;
+        }
+        if self.buffering {
+            if self.ready.len() + 1 >= MAX_LANDING_AUDIO {
+                // No keyframe in sight: stop holding audio back.
+                self.buffering = false;
+            }
+            self.ready.push_back(f);
+            return None;
+        }
+        Some(f)
+    }
+
+    /// `target` in 90 kHz ticks.
+    fn seek_mkv(&mut self, target: i128, forward: bool) -> Result<Option<u64>> {
+        let clusters = match self.clusters.take() {
+            Some(c) => c,
+            None => self.index_clusters()?,
+        };
+        let Inner::Mkv(r) = &mut self.inner else {
+            return Ok(None);
+        };
+        let rv = seek_mkv(r, &clusters, target, forward);
+        if let Ok(None) = rv {
+            self.ready.clear();
+            self.buffering = false;
+            self.awaiting_key = None;
+            self.audio_from = None;
+        }
+        self.clusters = Some(clusters);
+        rv
+    }
+
+    /// Lists the Clusters on a handle of its own (never empty: the first
+    /// Cluster is always there).
+    fn index_clusters(&self) -> Result<Vec<ClusterMark>> {
+        let Inner::Mkv(r) = &self.inner else {
+            return Ok(Vec::new());
+        };
+        let first = r.demuxer().first_cluster();
+        let scale = r.demuxer().timestamp_scale() as i128;
+        let origin = r.origin_ns() as i128;
+        let mut file = File::open(&self.path)
+            .map_err(|e| Error::io(format!("open {}", self.path.display()), e))?;
+        let index = mkv::index_clusters(&mut file, first)?;
+        let mut out: Vec<ClusterMark> = index
+            .clusters
+            .iter()
+            .map(|c| ClusterMark {
+                pos: c.pos,
+                ns: c.timestamp as i128 * scale + origin,
+            })
+            .collect();
+        if out.first().map(|c| c.pos) != Some(first) {
+            out.insert(
+                0,
+                ClusterMark {
+                    pos: first,
+                    ns: i128::MIN,
+                },
+            );
+        }
+        if !index.complete {
+            debug!(
+                "{}: {} Clusters indexed, seeking beyond reads on",
+                self.path.display(),
+                out.len()
+            );
+        }
+        Ok(out)
+    }
+}
+
+/// Where a 90 kHz pts lies relative to a target (90 kHz).
+fn relative(pts: i128, target: i128) -> Ordering {
+    pts.cmp(&target)
+}
+
+/// [`FileSource::seek`] for MP4 (`target` in 90 kHz ticks): the
+/// keyframe's 90 kHz pts.
+fn seek_mp4(m: &mut Mp4State, target: i128, forward: bool) -> Result<Option<u64>> {
+    let (scale, origin) = (m.video_scale, m.origin_ns);
+    let (length_size, is_h264) = (m.length_size, m.is_h264);
+    // The pts next_mp4 gives the sample.
+    let to_90k = move |pts: i64| ticks(to_ns(pts, scale) - origin, VIDEO_CLOCK_RATE);
+    let cmp = |pts: i64| relative(to_90k(pts), target);
+    let accept = |data: &[u8]| !is_h264 || h264::is_idr(data, length_size).unwrap_or(false);
+    let Some(point) = m.demux.seek(m.video_id, forward, cmp, accept)? else {
+        return Ok(None);
+    };
+    m.lookahead.clear();
+    Ok(Some(to_90k(point.pts).max(0) as u64))
+}
+
+/// [`FileSource::seek`] for Matroska (`target` in 90 kHz ticks): leaves `r`
+/// at the start of the keyframe's Cluster and returns its pts.
+fn seek_mkv(
+    r: &mut MediaReader<File>,
+    clusters: &[ClusterMark],
+    target: i128,
+    forward: bool,
+) -> Result<Option<u64>> {
+    let Some(first) = clusters.first() else {
+        return Ok(None);
+    };
+    // The Cluster before the first that starts after the target: Clusters
+    // can start a little before the previous one (an audio track's own).
+    let target_ns = target * NS_PER_S / VIDEO_CLOCK_RATE as i128;
+    let k = clusters
+        .iter()
+        .position(|c| c.ns > target_ns)
+        .map_or(clusters.len() - 1, |i| i.saturating_sub(1));
+    let found = if forward {
+        match mkv_key_after(r, clusters[k].pos, target)? {
+            Some(f) => Some(f),
+            None => mkv_key_before(r, clusters, k, target)?,
+        }
+    } else {
+        match mkv_key_before(r, clusters, k, target)? {
+            Some(f) => Some(f),
+            None => mkv_key_after(r, clusters[k].pos, target)?,
+        }
+    };
+    match found {
+        Some((pos, pts)) => {
+            r.seek_cluster(pos)?;
+            Ok(Some(pts))
+        }
+        None => {
+            r.seek_cluster(first.pos)?;
+            Ok(None)
+        }
+    }
+}
+
+/// The first keyframe at or after `target` reading from the Cluster at
+/// `pos`: (its Cluster's position, its pts).
+fn mkv_key_after(r: &mut MediaReader<File>, pos: u64, target: i128) -> Result<Option<(u64, u64)>> {
+    r.seek_cluster(pos)?;
+    while let Some(f) = r.next_frame()? {
+        let fr = &f.frame;
+        if fr.track == TrackKind::Video
+            && fr.keyframe
+            && relative(fr.pts as i128, target) != Ordering::Less
+        {
+            return Ok(Some((r.demuxer().cluster_position(), fr.pts)));
+        }
+    }
+    Ok(None)
+}
+
+/// The last keyframe at or before `target`, looking from Cluster `k` on,
+/// then in the Clusters before it one by one.
+fn mkv_key_before(
+    r: &mut MediaReader<File>,
+    clusters: &[ClusterMark],
+    k: usize,
+    target: i128,
+) -> Result<Option<(u64, u64)>> {
+    for start in (0..=k.min(clusters.len().saturating_sub(1))).rev() {
+        // Below `k`, a Cluster's own frames: the later ones were read.
+        let stop = clusters.get(start + 1).filter(|_| start < k).map(|c| c.pos);
+        r.seek_cluster(clusters[start].pos)?;
+        let mut best = None;
+        while let Some(f) = r.next_frame()? {
+            let at = r.demuxer().cluster_position();
+            if stop.is_some_and(|s| at >= s) {
+                break;
+            }
+            let fr = &f.frame;
+            if fr.track != TrackKind::Video {
+                continue;
+            }
+            if relative(fr.pts as i128, target) == Ordering::Greater {
+                break;
+            }
+            if fr.keyframe {
+                best = Some((at, fr.pts));
+            }
+        }
+        if best.is_some() {
+            return Ok(best);
+        }
+    }
+    Ok(None)
 }
 
 enum Next {
@@ -315,7 +624,7 @@ fn next_mp4(m: &mut Mp4State) -> Result<Next> {
     }))
 }
 
-fn next_mkv(r: &mut MediaReader<BufReader<File>>) -> Result<Next> {
+fn next_mkv(r: &mut MediaReader<File>) -> Result<Next> {
     let Some(f) = r.next_frame()? else {
         return Ok(Next::End);
     };
@@ -598,7 +907,8 @@ fn open_mp4(file: File) -> Result<(Inner, FileInfo)> {
 }
 
 fn open_mkv(file: File) -> Result<(Inner, FileInfo)> {
-    let reader = MediaReader::new(BufReader::with_capacity(64 * 1024, file), &[])?;
+    // The demuxer buffers its input itself.
+    let reader = MediaReader::new(file, &[])?;
     let si = reader.info().clone();
     let sps = if si.video.codec == VideoCodec::H264 {
         let cfg = AvcConfig::parse(&si.video.avcc)?;
@@ -1187,5 +1497,199 @@ pub(crate) mod tests {
                 "H.264 is interlaced"
             ]
         );
+    }
+
+    /// Every keyframe's pts in a full pass.
+    fn keys(frames: &[FileFrame]) -> Vec<u64> {
+        frames
+            .iter()
+            .filter(|f| f.frame.track == TrackKind::Video && f.frame.keyframe)
+            .map(|f| f.frame.pts)
+            .collect()
+    }
+
+    /// What `seek` should pick from `keys` (90 kHz), by its definition.
+    fn expected_key(keys: &[u64], target_ns: u128, forward: bool) -> u64 {
+        let t = (target_ns.min(u64::MAX as u128) * 90_000 + 500_000_000) / 1_000_000_000;
+        let after = keys.iter().copied().find(|&k| k as u128 >= t);
+        let before = keys.iter().copied().rev().find(|&k| k as u128 <= t);
+        if forward {
+            after.or(before).unwrap()
+        } else {
+            before.or(after).unwrap()
+        }
+    }
+
+    fn ns(pts_90k: u64) -> u128 {
+        (pts_90k as u128 * 1_000_000_000 + 45_000) / 90_000
+    }
+
+    /// Seeks, reads to the end and checks the landing against a full pass:
+    /// the keyframe (an IDR) first, then exactly the full pass's video from
+    /// it, and audio never presented before it, up to the same end.
+    fn seek_and_check(
+        src: &mut FileSource,
+        full: &[FileFrame],
+        target_ns: u128,
+        forward: bool,
+    ) -> u64 {
+        let rate = src.info().audio.as_ref().map_or(1, |a| a.sample_rate) as u128;
+        let got = src.seek(target_ns, forward).unwrap().unwrap();
+        let key = ticks(got as i128, VIDEO_CLOCK_RATE) as u64;
+        assert_eq!(ns(key), got);
+        let want = expected_key(&keys(full), target_ns, forward);
+        assert_eq!(key, want, "target {target_ns} ns forward {forward}");
+        let after = collect(src);
+        let first = &after[0].frame;
+        assert_eq!(
+            (first.track, first.keyframe, first.pts),
+            (TrackKind::Video, true, key)
+        );
+        if src.info().video.codec == VideoCodec::H264 {
+            assert!(h264::is_idr(&first.data, 4).unwrap());
+        }
+        let video = |fs: &[FileFrame], from: u64| -> Vec<(u64, Arc<[u8]>)> {
+            fs.iter()
+                .filter(|f| f.frame.track == TrackKind::Video && f.frame.pts >= from)
+                .map(|f| (f.frame.pts, f.frame.data.clone()))
+                .collect()
+        };
+        assert_eq!(video(&after, 0), video(full, key));
+        let audio: Vec<u64> = after
+            .iter()
+            .filter(|f| f.frame.track != TrackKind::Video)
+            .map(|f| f.frame.pts)
+            .collect();
+        for &a in &audio {
+            assert!(
+                a as u128 * 90_000 >= key as u128 * rate,
+                "audio {a} before {key}"
+            );
+        }
+        let full_audio: Vec<u64> = full
+            .iter()
+            .filter(|f| f.frame.track != TrackKind::Video)
+            .map(|f| f.frame.pts)
+            .filter(|&a| a as u128 * 90_000 >= key as u128 * rate)
+            .collect();
+        if src.info().container == Container::Mp4 {
+            assert_eq!(audio, full_audio);
+        } else {
+            // Matroska audio pts restart from the 1 ms container
+            // timestamps after a seek: the same frames, within a tick.
+            assert!(audio.len().abs_diff(full_audio.len()) <= 1);
+            assert!(
+                audio.last().unwrap().abs_diff(*full_audio.last().unwrap())
+                    <= rate as u64 / 1000 + 1
+            );
+        }
+        key
+    }
+
+    /// Forward, backward, exact, off by one, zero, past the end, after the
+    /// end, repeated, then rewind.
+    fn seek_everywhere(name: &str, expect_keys: &[u64]) {
+        let mut src = FileSource::open(&fixture(name)).unwrap();
+        let full = collect(&mut src);
+        assert_eq!(keys(&full), expect_keys, "{name}");
+        let (k0, k1) = (expect_keys[0], expect_keys[1]);
+        let cases = [
+            (0, true, k0),
+            (0, false, k0),
+            (300_000_000, true, k1),
+            (300_000_000, false, k0),
+            (ns(k1), true, k1),
+            (ns(k1), false, k1),
+            // Half a tick (5555.6 ns) either side.
+            (ns(k1) - 5_000, true, k1),
+            (ns(k1) - 5_000, false, k1),
+            (ns(k1) - 6_000, true, k1),
+            (ns(k1) - 6_000, false, k0),
+            (ns(k1) + 6_000, true, k1),
+            (ns(k1) + 6_000, false, k1),
+            (900_000_000, true, k1),
+            (900_000_000, false, k1),
+            (10_000_000_000, true, k1),
+            (u128::MAX, false, k1),
+        ];
+        // Each seek starts where the previous one ended: at the end.
+        for (target, forward, want) in cases {
+            assert_eq!(
+                seek_and_check(&mut src, &full, target, forward),
+                want,
+                "{name}"
+            );
+        }
+        // Mid-stream, and back again.
+        assert_eq!(src.seek(0, false).unwrap(), Some(ns(k0)));
+        for _ in 0..10 {
+            src.next_frame().unwrap().unwrap();
+        }
+        assert_eq!(seek_and_check(&mut src, &full, 700_000_000, false), k1);
+        assert_eq!(src.seek(0, true).unwrap(), Some(ns(k0)));
+        src.next_frame().unwrap().unwrap();
+        src.rewind().unwrap();
+        let again = collect(&mut src);
+        assert_eq!(again.len(), full.len(), "{name}");
+        for (a, b) in again.iter().zip(&full) {
+            assert_eq!((a.frame.pts, &a.frame.data), (b.frame.pts, &b.frame.data));
+        }
+    }
+
+    #[test]
+    fn seek_mp4() {
+        // Keyframes at frames 0 and 15 of 30 fps, after 1024 samples of
+        // AAC priming at 48 kHz.
+        seek_everywhere("bf0.mp4", &[1920, 46920]);
+    }
+
+    #[test]
+    fn seek_fragmented_mp4() {
+        // 15360 Hz: 0 and 7780 ticks.
+        seek_everywhere("frag.mp4", &[0, 45586]);
+    }
+
+    #[test]
+    fn seek_matroska() {
+        // 0 and 500 ms, after Opus's 2.5 ms CodecDelay. Two sized
+        // Clusters (the second starts at 501 ms, after its keyframe).
+        seek_everywhere("file.mkv", &[225, 45225]);
+        // One Cluster per few frames: backward seeks step back through
+        // Clusters without keyframes.
+        seek_everywhere("live.mkv", &[225, 45225]);
+    }
+
+    #[test]
+    fn seek_matroska_unknown_size_clusters() {
+        // file.mkv with both Cluster sizes (3-byte VINTs) made unknown: the
+        // index ends at the first Cluster and seeks read on from there.
+        let mut data = std::fs::read(fixture("file.mkv")).unwrap();
+        for pos in [962, 22251] {
+            assert_eq!(&data[pos..pos + 4], &[0x1f, 0x43, 0xb6, 0x75]);
+            assert_eq!(data[pos + 4] & 0xe0, 0x20);
+            data[pos + 4..pos + 7].copy_from_slice(&[0x3f, 0xff, 0xff]);
+        }
+        let path = std::env::temp_dir().join(format!("tvpipe-seek-{}.mkv", std::process::id()));
+        std::fs::write(&path, &data).unwrap();
+        let mut f = File::open(&path).unwrap();
+        let index = mkv::index_clusters(&mut f, 962).unwrap();
+        assert_eq!(index.clusters.len(), 1);
+        assert!(!index.complete);
+        let mut src = FileSource::open(&path).unwrap();
+        let full = collect(&mut src);
+        assert_eq!(keys(&full), [225, 45225]);
+        assert_eq!(seek_and_check(&mut src, &full, 600_000_000, false), 45225);
+        assert_eq!(seek_and_check(&mut src, &full, 100_000_000, true), 45225);
+        assert_eq!(seek_and_check(&mut src, &full, 100_000_000, false), 225);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn seek_hevc_lands_on_sync_samples() {
+        let mut src = FileSource::open(&fixture("hevc.mp4")).unwrap();
+        let full = collect(&mut src);
+        assert_eq!(keys(&full), [0]);
+        assert_eq!(src.seek(300_000_000, true).unwrap(), Some(0));
+        assert_eq!(collect(&mut src).len(), full.len());
     }
 }

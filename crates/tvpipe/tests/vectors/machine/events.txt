@@ -99,6 +99,14 @@ name = stats
 type = stats
 json = {"type":"stats","elapsed_ms":2005,"video_frames":60,"audio_frames":273,"receivers":[{"name":"Living Room","pushed":333,"dropped":1,"dropped_full":2,"dropped_waiting":3}]}
 
+name = playback
+type = playback
+json = {"type":"playback","position_ms":754120,"duration_ms":6312000,"paused":true}
+
+name = playback of a URL without a length
+type = playback
+json = {"type":"playback","position_ms":0,"paused":false}
+
 name = devices
 type = devices
 json = {"type":"devices","devices":[{"name":"Living Room","addresses":["192.0.2.10"],"model":"AppleTV14,1","airplay":{"instance":"Living Room","host":"Living-Room.local","port":7000,"address":"192.0.2.10:7000","model":"AppleTV14,1","srcvers":"860.7.1","osvers":"26.1","deviceid":"AA:BB:CC:00:00:0A","features":"0x4A7FDFD5,0x3C177FDE","flags":"0x644","pk":"0000000000000000000000000000000000000000000000000000000000000000","mirroring":true,"password":false,"password_pin":false,"pin":true,"home_only":false,"paired":false}},{"name":"Kitchen speaker","addresses":["192.0.2.11"],"cast":{"instance":"Google-Nest-Mini-0123","host":"0123.local","port":8009,"address":"192.0.2.11:8009","friendly_name":"Kitchen speaker","model":"Google Nest Mini","id":"0123456789abcdef","capabilities":199172,"video":false,"group":false}}]}

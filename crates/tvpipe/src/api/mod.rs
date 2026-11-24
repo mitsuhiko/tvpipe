@@ -349,7 +349,12 @@ fn spawn(options: &Options, cmd: Command) -> Result<Session> {
 /// they are connected.
 pub fn play(input: Input, options: Options) -> Result<Session> {
     start_session(&options, |o| {
-        spawn(o, Command::Play(o.play_options(input.spec())))
+        let mut opts = o.play_options(input.spec());
+        // Files and URLs seek and pause (`Session::seek`, `pause`).
+        if matches!(opts.input, InputSpec::Path(_)) {
+            opts.playback = Some(crate::playback::PlaybackControl::new());
+        }
+        spawn(o, Command::Play(opts))
     })
 }
 

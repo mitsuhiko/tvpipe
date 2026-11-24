@@ -572,6 +572,7 @@ impl Options {
             ffmpeg: self.ffmpeg.clone(),
             input,
             threads: self.encoder_threads,
+            playback: None,
         }
     }
 

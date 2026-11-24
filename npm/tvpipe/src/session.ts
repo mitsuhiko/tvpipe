@@ -10,6 +10,7 @@ import type {
   EndEvent,
   KeyframeEvent,
   LogEvent,
+  PlaybackEvent,
   PlayerEvent,
   ReceiverEvent,
   ReceiverProtocol,
@@ -54,6 +55,7 @@ export interface SessionEvents {
   connected: [ConnectedEvent];
   started: [StartedEvent];
   stats: [StatsEvent];
+  playback: [PlaybackEvent];
   keyframe: [KeyframeEvent];
   log: [LogEvent];
   end: [EndInfo];
@@ -87,6 +89,8 @@ export class Session extends EventEmitter<SessionEvents> implements AsyncDisposa
   info: StartedInfo | undefined;
   /** The latest statistics (every second while streaming). */
   stats: StatsEvent | undefined;
+  /** `play()` of a file or a URL with a length: where it is, once it streams. */
+  playback: PlaybackEvent | undefined;
   /** Resolves when the session ended; rejects with a {@link TvpipeError} when it failed. */
   readonly done: Promise<EndInfo>;
   protected readonly proc: TvpipeProcess;
@@ -178,6 +182,10 @@ export class Session extends EventEmitter<SessionEvents> implements AsyncDisposa
       case "stats":
         this.stats = ev;
         this.emit("stats", ev);
+        break;
+      case "playback":
+        this.playback = ev;
+        this.emit("playback", ev);
         break;
       case "keyframe":
         this.emit("keyframe", ev);
@@ -283,4 +291,49 @@ export class PageSession extends Session {
       throw new TvpipeError("closed", "navigate: the session is over");
     }
   }
+}
+
+/**
+ * `play()`: a file or a URL with a length also seeks and pauses (see
+ * {@link Session.playback} and the `playback` event; live inputs and
+ * capture devices refuse with a warning, a `log` event).
+ */
+export class PlaySession extends Session {
+  /**
+   * Jumps to `positionMs` in the input. Files sent unchanged land on a
+   * keyframe near it (in the direction of the jump), re-encoded ones
+   * exactly; forward jumps stop a few seconds before the end. The
+   * `playback` event says where it landed. Returns at once.
+   */
+  seek(positionMs: number): void {
+    this.#command("seek", { position_ms: whole("seek", positionMs, 0) });
+  }
+
+  /** Jumps by `deltaMs` from where it is (negative: back); see {@link PlaySession.seek}. */
+  seekBy(deltaMs: number): void {
+    this.#command("seek", { by_ms: whole("seekBy", deltaMs) });
+  }
+
+  /** Pauses: the receivers keep showing the picture, without sound. */
+  pause(): void {
+    this.#command("pause");
+  }
+
+  /** Plays on after {@link PlaySession.pause}. */
+  resume(): void {
+    this.#command("resume");
+  }
+
+  #command(type: string, fields: Record<string, unknown> = {}): void {
+    if (!this.running || !this.proc.command({ type, ...fields })) {
+      throw new TvpipeError("closed", `${type}: the session is over`);
+    }
+  }
+}
+
+function whole(what: string, n: number, min = -Infinity): number {
+  if (!Number.isFinite(n) || n < min) {
+    throw new TvpipeError("invalid-argument", `${what}: not a valid time: ${n}`);
+  }
+  return Math.round(n);
 }

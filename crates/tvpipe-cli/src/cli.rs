@@ -735,7 +735,8 @@ static PLAY: Cli<PlayArg> = Cli::new("play")
         .help("File or URL; '-' for SLRW raw input on stdin")])
     .after_help(
         "Arguments after '--' are passed to ffmpeg as input arguments, e.g.\n  \
-         tvpipe play --to TV -- -f avfoundation -i 1:0",
+         tvpipe play --to TV -- -f avfoundation -i 1:0\n\n\
+         While a file plays: ←/→ jump 10 s, ↓/↑ a minute, space pauses, q stops.",
     );
 
 static PATTERN: Cli<PlayArg> = Cli::new("pattern")
@@ -1284,6 +1285,7 @@ fn parse_play(mut p: Parser<PlayArg>, mode: Mode, g: &mut Global) -> Result<Play
         raw_audio: None,
         ffmpeg: None,
         input: InputSpec::TestPattern,
+        playback: None,
     };
     let mut input = None;
     loop {

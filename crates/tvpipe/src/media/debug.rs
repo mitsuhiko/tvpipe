@@ -100,6 +100,8 @@ pub fn run(opts: &PipelineOptions) -> Result<()> {
             url: p.clone(),
             realtime: false,
             looped: false,
+            start: None,
+            freeze: false,
         },
         InputSpec::FfmpegArgs(a) => Source::Args(a.clone()),
         InputSpec::TestPattern => Source::TestPattern { clock: true },

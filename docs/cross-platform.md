@@ -152,9 +152,12 @@ in another on the same user-defined bridge network.
 
 - Ctrl-C: `crates/tvpipe/src/signals.rs` (the `signals` feature; the CLI's
   `q` is `crates/tvpipe-cli/src/interrupt.rs`).
-- `q` as a single key: `crates/tvpipe-cli/src/tty.rs` runs `stty -icanon
-  -echo` (restored at the end); where there is no `stty` (Windows
-  consoles) it stays `q` + Enter.
+- Single keys (`q`, the playback arrows): `crates/tvpipe-cli/src/tty/`
+  runs `stty -icanon -echo` on Unix (restored at the end) and sets the
+  console mode on Windows consoles (`tty/windows.rs`: line input and echo
+  off, virtual terminal input on; also ANSI output and the width). Not
+  yet checked on a Windows machine: the table above is from before, when
+  Windows consoles stayed in line mode (`q` + Enter).
 - Timer resolution: `crates/tvpipe/src/util/timer.rs`, Windows only.
 - Config directory: `crates/tvpipe/src/storage.rs` (`%APPDATA%\tvpipe`).
 - `ffmpeg.exe`/`ffprobe.exe`: `std::env::consts::EXE_SUFFIX` in

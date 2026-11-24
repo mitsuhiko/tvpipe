@@ -12,6 +12,7 @@ use crate::ctx::Ctx;
 use crate::error::{Error, Result};
 use crate::events::{EndInfo, EndReason, Event, Events, Protocol, ReceiverState, Started, Stats};
 use crate::opts::Command;
+use crate::playback::PlaybackStatus;
 use crate::session::GameIo;
 use crate::util::stop::Stop;
 
@@ -147,6 +148,8 @@ pub struct Session {
     stop: Stop,
     /// `share` of a URL: another page for its tab.
     page: Option<crate::opts::PageControl>,
+    /// `play` of a file or URL: seeking and pausing.
+    playback: Option<crate::playback::PlaybackControl>,
     thread: Option<JoinHandle<()>>,
     dispatcher: Option<JoinHandle<()>>,
 }
@@ -190,6 +193,10 @@ impl Session {
         crate::util::timer::raise_resolution();
         let page = match &cmd {
             Command::Share(o) => o.page.as_ref().and_then(|p| p.control.clone()),
+            _ => None,
+        };
+        let playback = match &cmd {
+            Command::Play(o) => o.playback.clone(),
             _ => None,
         };
         let shared = Arc::new(Shared {
@@ -241,6 +248,7 @@ impl Session {
             shared,
             stop,
             page,
+            playback,
             thread: Some(thread),
             dispatcher,
         })
@@ -363,6 +371,59 @@ impl Session {
         crate::browser::headless::check_url(&url)?;
         page.navigate(url);
         Ok(())
+    }
+
+    /// [`play`](crate::play) of a file or a URL with a length: where it
+    /// is, and whether it can seek and pause (`seekable` is false until
+    /// the input is open, for live inputs, and after the end).
+    pub fn playback(&self) -> PlaybackStatus {
+        self.playback
+            .as_ref()
+            .map(|c| c.status())
+            .unwrap_or_default()
+    }
+
+    /// Jumps to `position` in the input. Files sent unchanged land on a
+    /// keyframe near it (in the direction of the jump); re-encoded ones
+    /// exactly. Forward jumps stop a few seconds before the end.
+    /// [`Event::Playback`] says where it landed. A later seek replaces a
+    /// pending one.
+    pub fn seek(&self, position: Duration) -> Result<()> {
+        self.control("seek", |c| c.seek_to(position))
+    }
+
+    /// Jumps by `delta_ms` from where the input is (negative: back),
+    /// or from where a seek not done yet goes; see [`Session::seek`].
+    pub fn seek_by(&self, delta_ms: i64) -> Result<()> {
+        self.control("seek", |c| c.seek_by(delta_ms))
+    }
+
+    /// Pauses: the receivers keep showing the picture (and get no sound)
+    /// until [`resume`](Session::resume).
+    pub fn pause(&self) -> Result<()> {
+        self.control("pause", |c| c.set_paused(true))
+    }
+
+    /// Plays on after [`pause`](Session::pause).
+    pub fn resume(&self) -> Result<()> {
+        self.control("resume", |c| c.set_paused(false))
+    }
+
+    fn control(
+        &self,
+        what: &str,
+        f: impl FnOnce(&crate::playback::PlaybackControl) -> bool,
+    ) -> Result<()> {
+        if self.shared.lock().finished {
+            return Err(Error::closed(format!("{what}: the session is over")));
+        }
+        match &self.playback {
+            Some(c) if f(c) => Ok(()),
+            _ => Err(Error::usage(format!(
+                "{what}: only play of a file or a URL with a length seeks and pauses, once it streams"
+            ))
+            .with_code("unsupported")),
+        }
     }
 
     /// A handle that stops the session from another thread.

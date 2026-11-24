@@ -41,6 +41,14 @@ pub fn set_page(control: tvpipe::__cli::opts::PageControl) {
     let _ = PAGE.set(control);
 }
 
+/// `play` of a file or URL, for `seek`, `pause` and `resume` commands.
+static PLAYBACK: OnceLock<tvpipe::__cli::PlaybackControl> = OnceLock::new();
+
+/// The playback control of this process's `play` (`main`).
+pub fn set_playback(control: tvpipe::__cli::PlaybackControl) {
+    let _ = PLAYBACK.set(control);
+}
+
 /// Writes one line on stdout. A closed stdout is ignored: the parent
 /// stopped listening.
 fn write_line(line: &str) {
@@ -454,7 +462,36 @@ fn command(s: &Shared, payload: &[u8], pins: &mpsc::Sender<String>) {
             None => warn!("stdin: pin command without a pin"),
         },
         Some("navigate") => navigate(v["url"].as_str()),
+        Some(what @ ("seek" | "pause" | "resume")) => playback(what, &v),
         other => warn!("stdin: unknown command {other:?}"),
+    }
+}
+
+/// `{"type":"seek","position_ms":…}` or `{"type":"seek","by_ms":…}`,
+/// `{"type":"pause"}`, `{"type":"resume"}`: `play` of a file or a URL
+/// with a length; refusals are warnings, the `playback` event says what
+/// happened.
+fn playback(what: &str, v: &tvpipe::__cli::json::Value) {
+    let Some(c) = PLAYBACK.get() else {
+        warn!("stdin: {what}: only play of a file or URL seeks and pauses");
+        return;
+    };
+    let done = match what {
+        "pause" => c.set_paused(true),
+        "resume" => c.set_paused(false),
+        _ => match (v["position_ms"].as_u64(), v["by_ms"].as_i64()) {
+            (Some(ms), None) => c.seek_to(std::time::Duration::from_millis(ms)),
+            (None, Some(ms)) => c.seek_by(ms),
+            _ => {
+                warn!("stdin: seek needs position_ms or by_ms");
+                return;
+            }
+        },
+    };
+    if done {
+        debug!("stdin: {what}");
+    } else {
+        warn!("stdin: {what}: this input cannot seek or pause (not yet, or not at all)");
     }
 }
 

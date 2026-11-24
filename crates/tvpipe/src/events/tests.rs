@@ -25,6 +25,7 @@ fn variant(e: &Event) -> &'static str {
         Event::Started(_) => "started",
         Event::Keyframe => "keyframe",
         Event::Stats(_) => "stats",
+        Event::Playback(_) => "playback",
         Event::Devices(_) => "devices",
         Event::PinRequired(_) => "pin-required",
         Event::Paired(_) => "paired",
@@ -325,6 +326,22 @@ fn examples() -> Vec<(&'static str, Event)> {
             }),
         ),
         (
+            "playback",
+            Event::Playback(PlaybackEvent {
+                position_ms: 754_120,
+                duration_ms: Some(6_312_000),
+                paused: true,
+            }),
+        ),
+        (
+            "playback of a URL without a length",
+            Event::Playback(PlaybackEvent {
+                position_ms: 0,
+                duration_ms: None,
+                paused: false,
+            }),
+        ),
+        (
             "devices",
             Event::Devices(DevicesEvent {
                 devices: vec![device, speaker],
@@ -446,7 +463,7 @@ fn every_variant_has_a_vector_and_round_trips() {
     let examples = examples();
     let mut types: Vec<&str> = examples.iter().map(|(_, e)| variant(e)).collect();
     types.dedup();
-    assert_eq!(types.len(), 18, "{types:?}");
+    assert_eq!(types.len(), 19, "{types:?}");
     for (name, e) in &examples {
         assert_eq!(e.type_name(), variant(e), "{name}");
         let back = Event::from_json(&e.to_json()).unwrap();

@@ -52,6 +52,7 @@ broke), by an `error`.
 | `started` | the input is open and the receivers started | `route` (`passthrough`, `ffmpeg`, `builtin`, `encoded`, `browser`), `video` (`codec`, `width`, `height`, `fps`), `audio` (list of `codec`, `sample_rate`, `channels`), `latency_ms` |
 | `keyframe` | a receiver needs an IDR (encoded SLRW with keyframe requests on, see below) | |
 | `stats` | every second while frames flow | `elapsed_ms`, `video_frames`, `audio_frames`, `receivers` (`name`, `pushed`, `dropped`, `dropped_full`, `dropped_waiting`) |
+| `playback` | `play` of a file or a URL with a length: once streaming started (it can seek and pause), then after each seek, pause and resume ([`playback.md`](playback.md)) | `position_ms` (a seek's: where it landed), `duration_ms` (if known), `paused` |
 | `devices` | `discover` (instead of the table or `--json`) | `devices`: the `discover --json` objects |
 | `pin-required` | `pair` needs the PIN the TV shows, or its AirPlay password | `name`, `address`, `password` (true: it shows no PIN and the answer is its password, taken as given but for a line ending; a PIN is trimmed) |
 | `paired` | `pair` succeeded and the pairing verified | `name`, `model`, `file` (the credentials file) |
@@ -100,6 +101,8 @@ JSON object of at most 64 KiB.
 | `{"type":"stop"}` | stop now, without playing out what is queued; receivers get their TEARDOWN/STOP; exit status 0 |
 | `{"type":"pin","pin":"1234"}` | the answer to `pin-required` (the PIN or the password) |
 | `{"type":"navigate","url":"https://…"}` | `share URL`: show this page in the same tab (an `http(s)://` or `file://` URL, or a host name, as the `URL` argument); the receivers keep their sessions and the page shares again (`log` lines say so). Refused (another command, a scheme tvpipe does not open, Google Meet): a `warn` log line |
+| `{"type":"seek","position_ms":N}`, `{"type":"seek","by_ms":N}` | `play` of a file or a URL with a length: jump to `N` ms, or by `N` ms (negative: back); files sent unchanged land on a keyframe near it, forward jumps stop 3 s before the end. A `playback` event says where it landed. Refused (live input, not streaming yet): a `warn` log line |
+| `{"type":"pause"}`, `{"type":"resume"}` | the same inputs: pause (the receivers keep the picture, without sound) and play on; a `playback` event follows |
 
 Unknown commands are logged and ignored. Outside machine mode kind 6 is an
 error like any unknown kind.

@@ -147,6 +147,9 @@ pub struct PlayOptions {
     pub input: InputSpec,
     /// Threads of the built-in encoder (0: automatic).
     pub threads: usize,
+    /// Seeking and pausing while it plays (`Session::seek`, the CLI's
+    /// keys, the machine interface); `None`: nobody asks.
+    pub playback: Option<crate::playback::PlaybackControl>,
 }
 
 /// The `--to` that names the browser receiver (`--to browser`).

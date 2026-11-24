@@ -19,6 +19,16 @@ $ tvpipe play --to TV https://example.com/stream.m3u8
 
 `--loop` starts over at the end. `--no-audio` sends only the picture.
 
+While a file plays, the keys move around in it:
+
+| Key | |
+|---|---|
+| ← / → | 10 seconds back / forward |
+| ↓ / ↑ | a minute back / forward |
+| Space | pause, and play on |
+
+The status line shows where it is (`00:12:30 / 01:45:00`). A file sent unchanged jumps to the nearest keyframe in that direction, so a jump may be a few seconds shorter or longer; a re-encoded one jumps exactly, after a moment. While paused the TV keeps showing the picture, without sound. URLs with a length (not live streams) seek and pause too.
+
 tvpipe reads files at playback speed. A live source already arrives at that speed, and `--no-realtime` turns the pacing off for it.
 
 ## Screens and cameras

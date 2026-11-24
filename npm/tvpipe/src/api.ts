@@ -9,7 +9,7 @@ import { resolveBinary, type BinaryOptions } from "./binary.ts";
 import { TvpipeError } from "./errors.ts";
 import type { DevicesEvent, RawDevice, StartedEvent, TunnelProvider, TvpipeEvent } from "./events.ts";
 import { TvpipeProcess, type ProcessOptions } from "./process.ts";
-import { PageSession, Session, type SessionOptions } from "./session.ts";
+import { PageSession, PlaySession, Session, type SessionOptions } from "./session.ts";
 import { StreamSession, type AudioSpec, type VideoSpec } from "./stream.ts";
 
 // ---------------------------------------------------------------------------
@@ -388,14 +388,15 @@ const isStarted: Ready = (ev) => ev.type === "started";
 /**
  * Plays a file, URL or capture device. Resolves once streaming started;
  * the session ends at the end of the input (`done`) or with `stop()`.
+ * Files and URLs with a length seek and pause ({@link PlaySession}).
  */
-export function play(input: Input, options: PlayOptions = {}): Promise<Session> {
+export function play(input: Input, options: PlayOptions = {}): Promise<PlaySession> {
   const inputArgs =
     typeof input === "object" && !(input instanceof URL) ? ["--", ...input.ffmpeg] : [String(input)];
   return start(
     options,
     (to) => ["play", ...commonArgs(to, options), ...playArgs(options), ...inputArgs],
-    (proc) => new Session(proc, options),
+    (proc) => new PlaySession(proc, options),
     isStarted,
   );
 }
@@ -414,6 +415,8 @@ export function testPattern(options: PlayOptions = {}): Promise<Session> {
  * Plays to a browser tab on this computer (`to: "browser"` plus whatever
  * `to` adds); `session.playerUrl` is the page. Without input: the test pattern.
  */
+export function preview(input: Input, options?: PlayOptions): Promise<PlaySession>;
+export function preview(input?: undefined, options?: PlayOptions): Promise<Session>;
 export function preview(input?: Input, options: PlayOptions = {}): Promise<Session> {
   const extra = options.to === undefined ? [] : Array.isArray(options.to) ? options.to : [options.to];
   const opts = { ...options, to: ["browser", ...extra.filter((t) => targetName(t).toLowerCase() !== "browser")] };

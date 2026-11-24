@@ -46,6 +46,8 @@ mod net;
 #[allow(missing_docs)]
 mod opts;
 // Reachable only through `__cli`, which is not public API.
+mod playback;
+// Reachable only through `__cli`, which is not public API.
 #[cfg(feature = "playshare")]
 #[allow(missing_docs)]
 mod playshare;
@@ -73,6 +75,7 @@ pub use api::{pair, pair_with, unpair, Pairing};
 pub use error::{Error, ErrorKind, Result};
 pub use events::{EndInfo, Event, Paired, PinRequest, Started, Stats};
 pub use net::discover::{AirPlayService, CastService, DeviceInfo as Device, Endpoint};
+pub use playback::PlaybackStatus;
 pub use storage::{storage_fn, Storage, StorageBackend, StorageFn};
 pub use types::{Encoder, Resolution};
 
@@ -141,6 +144,7 @@ pub mod __cli {
         pub use crate::playshare::tool::{run as game_tool, ToolAction, ToolOptions};
         pub use crate::playshare::{run, Ask, Options, TunnelChoice, WindowMode};
     }
+    pub use crate::playback::PlaybackControl;
     pub use crate::session::{run, GameIo};
     pub use crate::util::stop::Stop;
 

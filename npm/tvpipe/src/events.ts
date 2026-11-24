@@ -127,6 +127,20 @@ export interface StatsEvent {
   receivers: ReceiverStats[];
 }
 
+/**
+ * `play` of a file or a URL with a length: it can seek and pause (once it
+ * streams), or it seeked, paused or resumed.
+ */
+export interface PlaybackEvent {
+  type: "playback";
+  /** The input's position (a seek's: the keyframe it landed on). */
+  positionMs: number;
+  /** The input's length, if known. */
+  durationMs?: number;
+  /** Paused: the receivers show the picture at `positionMs`. */
+  paused: boolean;
+}
+
 export interface PinRequiredEvent {
   type: "pin-required";
   name: string;
@@ -209,6 +223,7 @@ export type TvpipeEvent =
   | StartedEvent
   | KeyframeEvent
   | StatsEvent
+  | PlaybackEvent
   | PinRequiredEvent
   | PairedEvent
   | UnpairedEvent
@@ -233,6 +248,7 @@ export const EVENT_TYPES = [
   "started",
   "keyframe",
   "stats",
+  "playback",
   "pin-required",
   "paired",
   "unpaired",

@@ -4,8 +4,10 @@
 //! Ctrl-C and SIGTERM come through the library's `tvpipe::signals` (the
 //! `signals` feature; the platform FFI lives there, see ARCHITECTURE.md,
 //! "Platform-Specific Code"). [`watch_stdin`] adds a std-only way to stop:
-//! `q` on a terminal, a single key where `stty` can switch the terminal
-//! to that (`crate::tty`), else `q` + Enter. While something is watched
+//! `q` on a terminal, a single key where the terminal can be switched to
+//! that (`crate::tty`), else `q` + Enter. With single keys, `play` of a
+//! file also seeks (arrows) and pauses (space) through
+//! [`set_playback`]'s control. While something is watched
 //! the first `q` asks on the status line (`ui::confirm`). Lines answer
 //! [`ask`] (the `share --tunnel` confirmation), with the terminal back in
 //! line mode meanwhile.
@@ -15,12 +17,12 @@
 use std::io::{IsTerminal, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
-use tvpipe::__cli::Stop;
+use tvpipe::__cli::{PlaybackControl, Stop};
 
-use crate::ui::confirm::Key;
+use crate::ui::confirm::{Key, Keys};
 
 /// [`link`] installed the handler.
 static LINKED: AtomicBool = AtomicBool::new(false);
@@ -29,6 +31,13 @@ static WATCHING: AtomicBool = AtomicBool::new(false);
 /// Where the watcher sends the next line that is not `q`, if [`ask`]
 /// waits for one.
 static ANSWER: Mutex<Option<mpsc::Sender<String>>> = Mutex::new(None);
+/// `play` of a file: the arrows seek, space pauses.
+static PLAYBACK: OnceLock<PlaybackControl> = OnceLock::new();
+
+/// The keys seek and pause `control` (`play` of a file or URL).
+pub fn set_playback(control: PlaybackControl) {
+    let _ = PLAYBACK.set(control);
+}
 
 /// Installs the Ctrl-C/SIGTERM handler and forwards it to `stop`.
 /// Returns false if the platform refused; Ctrl-C then kills the process
@@ -103,10 +112,20 @@ pub fn watch_stdin(stop: Stop) {
         .name("stdin-quit".into())
         .spawn(move || {
             let press = |key| {
+                match (key, PLAYBACK.get()) {
+                    (Key::Seek(ms), Some(c)) => {
+                        c.seek_by(ms);
+                    }
+                    (Key::Pause, Some(c)) => {
+                        c.toggle_pause();
+                    }
+                    _ => {}
+                }
                 if crate::ui::key(key) {
                     stop.request();
                 }
             };
+            let mut keys = Keys::default();
             let mut stdin = std::io::stdin().lock();
             let mut buf = [0u8; 64];
             let mut line = Vec::new();
@@ -121,7 +140,9 @@ pub fn watch_stdin(stop: Stop) {
                     let asking = ANSWER.lock().unwrap_or_else(|e| e.into_inner()).is_some();
                     if crate::tty::keys() && !asking {
                         line.clear();
-                        press(Key::from_byte(b));
+                        for key in keys.feed(b) {
+                            press(key);
+                        }
                     } else if b == b'\n' {
                         // The terminal echoed the line: the status line
                         // moved up.

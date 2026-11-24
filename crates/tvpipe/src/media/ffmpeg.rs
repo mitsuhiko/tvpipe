@@ -109,6 +109,13 @@ impl Probe {
     pub fn has_filter(&self, name: &str) -> bool {
         self.filters.contains(name)
     }
+
+    /// [`Source::Url`]'s `freeze` works (ffmpeg 4.3 and later).
+    pub fn can_freeze(&self) -> bool {
+        ["split", "freezeframes", "volume"]
+            .iter()
+            .all(|f| self.has_filter(f))
+    }
 }
 
 /// The oldest ffmpeg major version we test against (we need `-ch_layout`,
@@ -207,6 +214,14 @@ pub enum Source {
         url: OsString,
         realtime: bool,
         looped: bool,
+        /// Where to start (`-ss` before `-i`: ffmpeg decodes from the
+        /// keyframe before and starts exactly there; the output's
+        /// timestamps still start at zero).
+        start: Option<std::time::Duration>,
+        /// Paused: the picture at `start` over and over (the
+        /// `freezeframes` filter), silence, paced like the input and
+        /// looped so it never ends. Needs [`Probe::can_freeze`].
+        freeze: bool,
     },
     /// User-given input arguments (they include `-i`). The first input's
     /// first video stream is used, and the first audio stream of the
@@ -267,6 +282,8 @@ struct InputMaps {
     audio: Option<String>,
     /// The input's constant frame rate, when we know it.
     video_fps: Option<Ratio>,
+    /// [`Source::Url`]'s `freeze`.
+    freeze: bool,
 }
 
 /// Input options for low decoder delay (apply to the next `-i`). Not
@@ -316,6 +333,8 @@ fn push_inputs(
             url,
             realtime,
             looped,
+            start,
+            freeze,
         } => {
             // A paced local file with audio is opened twice, once per
             // stream: `-re` paces each input as a whole, and with files
@@ -331,8 +350,11 @@ fn push_inputs(
                 if *realtime {
                     push_realtime(a, probe);
                 }
-                if *looped {
+                if *looped || *freeze {
                     a.extend(["-stream_loop", "-1"]);
+                }
+                if let Some(t) = start.filter(|t| !t.is_zero()) {
+                    a.push("-ss").push(format!("{:.3}", t.as_secs_f64()));
                 }
                 a.extend(LOW_DELAY_INPUT).push("-i").push(url);
             }
@@ -340,6 +362,7 @@ fn push_inputs(
                 video: "0:v:0".into(),
                 audio: Some(if split { "1:a:0?" } else { "0:a:0?" }.into()),
                 video_fps: None,
+                freeze: *freeze,
             })
         }
         Source::Args(args) => {
@@ -352,6 +375,7 @@ fn push_inputs(
                 video: "0:v:0".into(),
                 audio: Some(format!("{}:a:0?", inputs.saturating_sub(1))),
                 video_fps: None,
+                freeze: false,
             })
         }
         Source::TestPattern { clock } => {
@@ -384,6 +408,7 @@ fn push_inputs(
                 video: "0:v:0".into(),
                 audio: Some("1:a:0".into()),
                 video_fps: None,
+                freeze: false,
             })
         }
         Source::Raw { video, audio } => {
@@ -419,6 +444,7 @@ fn push_inputs(
                 video: "0:v:0".into(),
                 audio: audio_map,
                 video_fps: Some(v.fps),
+                freeze: false,
             })
         }
     }
@@ -455,6 +481,11 @@ fn video_filter(w: u32, h: u32, fps: Option<Ratio>, encoder: Encoder) -> String 
     f
 }
 
+/// Every frame replaced by the first (ffmpeg-filters(1), freezeframes:
+/// its second input gives the replacement), at the input's pace.
+const FREEZE_FILTER: &str =
+    "split[f][r];[f][r]freezeframes=first=1:last=9223372036854775807:replace=0,";
+
 fn push_video(
     a: &mut ArgList,
     plan: &EncodePlan,
@@ -473,11 +504,15 @@ fn push_video(
     let bufsize = ((kbps as u64 * 2 * v.fps.den as u64) / v.fps.num as u64).max(1);
     a.extend(["-map", &maps.video, "-c:v", name])
         .push("-vf")
-        .push(video_filter(
-            v.width,
-            v.height,
-            (maps.video_fps != Some(v.fps)).then_some(v.fps),
-            encoder,
+        .push(format!(
+            "{}{}",
+            if maps.freeze { FREEZE_FILTER } else { "" },
+            video_filter(
+                v.width,
+                v.height,
+                (maps.video_fps != Some(v.fps)).then_some(v.fps),
+                encoder,
+            )
         ))
         .extend(["-bf", "0", "-g"])
         .push(&gop)
@@ -554,8 +589,17 @@ fn opus_frame_duration(samples: u32) -> Option<&'static str> {
 /// ffmpeg's ALAC encoder always produces frames of this many samples.
 pub const FFMPEG_ALAC_FRAME_SAMPLES: u32 = 4096;
 
-fn push_audio(a: &mut ArgList, i: usize, p: &AudioPlan, map: &str, probe: &Probe) -> Result<()> {
+fn push_audio(
+    a: &mut ArgList,
+    i: usize,
+    p: &AudioPlan,
+    map: &str,
+    probe: &Probe,
+    silent: bool,
+) -> Result<()> {
     let s = |opt: &str| format!("{opt}:a:{i}");
+    // `volume=0` while paused (a frozen picture).
+    let mute = if silent { "volume=0," } else { "" };
     if p.sample_rate == 0 || p.channels == 0 {
         return Err(Error::usage("audio plan needs sample rate and channels"));
     }
@@ -637,13 +681,17 @@ fn push_audio(a: &mut ArgList, i: usize, p: &AudioPlan, map: &str, probe: &Probe
             // PCM has no frame size of its own; cut fixed-size packets.
             // Resample first: `-ar`/`-ac` conversions run after this filter.
             a.push(s("-c")).push("pcm_s16le").push(s("-filter")).push(format!(
-                "aresample={rate},aformat=sample_fmts=s16:sample_rates={rate}:channel_layouts={layout},\
+                "{mute}aresample={rate},aformat=sample_fmts=s16:sample_rates={rate}:channel_layouts={layout},\
                  asetnsamples=n={n}:p=0",
                 rate = p.sample_rate,
                 layout = layout_name(p.channels),
                 n = p.frame_samples
             ));
+            return Ok(());
         }
+    }
+    if silent {
+        a.push(s("-filter")).push("volume=0");
     }
     Ok(())
 }
@@ -692,7 +740,7 @@ pub fn build(
                             return Err(Error::usage("two audio plans for one family"));
                         }
                         seen.push(ap.family);
-                        push_audio(&mut a, i, ap, map, probe)?;
+                        push_audio(&mut a, i, ap, map, probe, maps.freeze)?;
                         tracks.push(TrackSpec {
                             kind: TrackKind::Audio(ap.family),
                             frame_samples: ap.frame_samples,
@@ -1031,6 +1079,8 @@ pub(crate) mod tests {
             url: "movie file.mkv".into(),
             realtime: true,
             looped: false,
+            start: None,
+            freeze: false,
         };
         let inv = build(&src, Output::Encode(&plan()), &probe(), "warning").unwrap();
         assert_eq!(
@@ -1071,6 +1121,8 @@ pub(crate) mod tests {
             url: file.clone().into_os_string(),
             realtime,
             looped: true,
+            start: None,
+            freeze: false,
         };
         let inv = build(&src(true), Output::Encode(&plan()), &probe(), "warning").unwrap();
         let j = joined(&inv);

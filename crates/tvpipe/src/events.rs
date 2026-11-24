@@ -42,6 +42,9 @@ pub enum Event {
     Keyframe,
     /// Once a second while frames flow.
     Stats(Stats),
+    /// `play` of a file or a URL with a length: it can seek and pause
+    /// (once when it starts), or it seeked, paused or resumed.
+    Playback(PlaybackEvent),
     /// `discover`'s result.
     Devices(DevicesEvent),
     /// Pairing needs the PIN the TV shows.
@@ -481,6 +484,28 @@ pub struct Stats {
     pub video_bytes: u64,
 }
 
+/// Where a `play` that seeks and pauses is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PlaybackEvent {
+    /// The input's position (a seek's: the keyframe it landed on).
+    pub position_ms: u64,
+    /// The input's length, if known.
+    pub duration_ms: Option<u64>,
+    /// Paused: the receivers show the picture at `position_ms`.
+    pub paused: bool,
+}
+
+impl From<crate::playback::PlaybackStatus> for PlaybackEvent {
+    fn from(s: crate::playback::PlaybackStatus) -> PlaybackEvent {
+        PlaybackEvent {
+            position_ms: s.position.as_millis() as u64,
+            duration_ms: s.duration.map(|d| d.as_millis() as u64),
+            paused: s.paused,
+        }
+    }
+}
+
 /// `discover`'s devices.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -747,6 +772,7 @@ impl Event {
             Event::Started(_) => "started",
             Event::Keyframe => "keyframe",
             Event::Stats(_) => "stats",
+            Event::Playback(_) => "playback",
             Event::Devices(_) => "devices",
             Event::PinRequired(_) => "pin-required",
             Event::Paired(_) => "paired",
@@ -836,6 +862,10 @@ impl Event {
                     "receivers",
                     Value::array(s.receivers.iter().map(stats_json)),
                 ),
+            Event::Playback(p) => v
+                .with("position_ms", p.position_ms)
+                .with_opt("duration_ms", p.duration_ms)
+                .with("paused", p.paused),
             Event::Devices(d) => v.with(
                 "devices",
                 Value::array(d.devices.iter().map(|d| d.to_value())),
@@ -971,6 +1001,11 @@ impl Event {
                 audio_frames: v.require_u64("audio_frames")?,
                 receivers: list(v, "receivers", stats_from)?,
                 video_bytes: 0,
+            }),
+            "playback" => Event::Playback(PlaybackEvent {
+                position_ms: v.require_u64("position_ms")?,
+                duration_ms: v.get("duration_ms").and_then(Value::as_u64),
+                paused: v.get("paused").and_then(Value::as_bool).unwrap_or(false),
             }),
             "devices" => Event::Devices(DevicesEvent {
                 devices: list(v, "devices", crate::net::discover::DeviceInfo::from_value)?,

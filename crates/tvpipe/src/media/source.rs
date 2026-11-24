@@ -7,12 +7,15 @@
 //! so audio pts advance by each frame's sample count and only resync to the
 //! container timestamp when it drifts by more than one container tick.
 //!
+//! Over a file (`R: Seek`), [`MediaReader::seek_cluster`] continues at a
+//! Cluster (passthrough seeking, [`crate::media::passthrough`]).
+//!
 //! Sources: RFC 9559 (CodecID, CodecPrivate, CodecDelay); ISO/IEC 14496-3
 //! §1.6.2.1 (AudioSpecificConfig); RFC 6716 §3.1 (Opus TOC byte); RFC 7845
 //! §5.1 (OpusHead); ISO/IEC 14496-15 §5.3.3.1;
 //! ARCHITECTURE.md, "Timing and Latency".
 
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
@@ -213,6 +216,25 @@ impl<R: Read> MediaReader<R> {
     /// Frames dropped because their pts was before the stream start.
     pub fn dropped_negative(&self) -> u64 {
         self.dropped_negative
+    }
+
+    /// Added to the container's nanoseconds to get this reader's
+    /// timeline (the largest CodecDelay).
+    pub fn origin_ns(&self) -> i64 {
+        self.origin_ns
+    }
+}
+
+impl<R: Read + Seek> MediaReader<R> {
+    /// Continues at the Cluster whose header starts at byte `pos`
+    /// ([`Demuxer::seek_cluster`]); audio pts restart from the container
+    /// timestamps.
+    pub fn seek_cluster(&mut self, pos: u64) -> Result<()> {
+        self.demux.seek_cluster(pos)?;
+        for t in &mut self.tracks {
+            t.next_pts = None;
+        }
+        Ok(())
     }
 }
 
@@ -582,6 +604,8 @@ mod tests {
             url: vectors::path("tests/fixtures/media/live.mkv").into(),
             realtime: false,
             looped: false,
+            start: None,
+            freeze: false,
         };
         let inv = ffmpeg::build(&src, Output::Encode(&plan), &probe, "error").unwrap();
         let mut proc = Process::spawn(&bin, &inv.args).unwrap();

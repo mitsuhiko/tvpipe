@@ -99,11 +99,14 @@ once), so a single failing receiver is not reported twice.
 
 ## Terminals
 
-All from the environment, no OS calls (AGENTS.md):
+From the environment, and on Windows the console mode
+(`crates/tvpipe-cli/src/tty/windows.rs`, the CLI's one file with OS
+calls, AGENTS.md):
 
 - **Status line and QR codes**: stderr is a terminal and understands ANSI:
-  `TERM` set and not `dumb`, or a Windows terminal that says so otherwise
-  (`WT_SESSION`, `ConEmuANSI=ON`, `ANSICON`). The line is drawn with
+  `TERM` set and not `dumb`, a Windows terminal that says so otherwise
+  (`WT_SESSION`, `ConEmuANSI=ON`, `ANSICON`), or a Windows console that
+  took virtual terminal processing (switched on at start). The line is drawn with
   autowrap off (`ESC[?7l`) and cut to the width, so it never wraps, and
   only redrawn when it changes (a ticker looks 10 times a second). In
   line mode (below), a line typed on the terminal (`q`, Enter) moves the
@@ -113,38 +116,55 @@ All from the environment, no OS calls (AGENTS.md):
   `CLICOLOR_FORCE` or `FORCE_COLOR` (not `0`) force them. One accent
   (cyan) for the title, `✓`, `●` and URLs; dim for secondary text;
   yellow `!`, red `✗`.
-- **Width**: `COLUMNS`, else `tput cols`, else 80. Narrow terminals get
+- **Width**: `COLUMNS`, else the Windows console's window, else `tput
+  cols`, else 80. Narrow terminals get
   wrapped lines and a shorter status line (the hint goes first, then
   the numbers from the right; the clock stays).
 - **Not a terminal** (pipes, CI, log files): the same lines without
   colours, QR codes or status line; one `• Streaming 1280×720 at 30 fps`
   line when the stream starts.
-- **Windows consoles** without ANSI (old conhost, `TERM` unset) get the
-  plain lines; enabling VT processing would need
-  `SetConsoleMode`, which is not done (no platform code outside the
-  allowed files).
+- **Windows consoles** that refuse virtual terminal processing (before
+  Windows 10 1511) get the plain lines.
 
 ## Keys
 
 Sessions (play, share, screen, `debug pattern`, `debug tunnel`, `game
 play`) read `q` from the terminal, when stdin is one and is not the input
-(`-`), never with `--machine` (`crates/tvpipe-cli/src/interrupt.rs`):
+(`-`), never with `--machine` (`crates/tvpipe-cli/src/interrupt.rs`);
+`play` of a file or a URL with a length also the playback keys:
 
-- **Single keys**: `crates/tvpipe-cli/src/tty.rs` runs `stty -icanon
-  -echo min 1 time 0` (std::process, stdin inherited; no OS calls), so
-  `q` needs no Enter and typed keys are not echoed. The state `stty -g`
-  printed comes back when tvpipe ends (normally, on an error, after `q`
+| Key | |
+|---|---|
+| ← / → | 10 s back / forward |
+| ↓ / ↑ | a minute back / forward |
+| Space | pause / resume |
+
+A note (`• Space pauses, ←/→ jump 10 s, ↑/↓ a minute`) names them once
+the file plays; the status line then shows the position and the length
+instead of the time streamed (`00:12:30 / 01:45:00`), and `● Paused`
+while paused. How seeking and pausing work: [`playback.md`](playback.md).
+
+- **Single keys**: on Unix `crates/tvpipe-cli/src/tty/` runs `stty
+  -icanon -echo min 1 time 0` (std::process, stdin inherited; no OS
+  calls); on a Windows console it sets the console mode instead (line
+  input and echo off, virtual terminal input on; Ctrl-C still a signal),
+  and an MSYS terminal, whose stdin is a pipe, gets stty. So `q` needs no
+  Enter, typed keys are not echoed, and arrows come as escape sequences
+  (`ESC [ C`, also with modifiers or as `ESC O C`; `ui::confirm::Keys`
+  decodes them). The state before (what `stty -g` printed, or the console
+  mode) comes back when tvpipe ends (normally, on an error, after `q`
   or Ctrl-C), on a panic (a hook), before a second Ctrl-C ends the
   process (`tvpipe::signals::before_forced_exit`, which also clears the
   status line), and while a prompt reads a line (`share --tunnel`'s
   `[y/N]`, pair's PIN). The hint says `q to stop`.
-- **Line mode**: where there is no `stty`, or it changes nothing
-  (Windows consoles), `q` + Enter, as before; the hint says
-  `q + Enter to stop`.
+- **Line mode**: where neither works (no `stty`, or one that changes
+  nothing), `q` + Enter, as before; the hint says `q + Enter to stop`.
+  No playback keys.
 - **The question**: while something would notice (a receiver connected,
   a browser viewer, phones in a game), the first `q` asks on the status
   line; `q` again stops, any other key (any other line in line mode)
-  keeps going, and after 5 s the status line comes back by itself.
+  keeps going, and after 5 s the status line comes back by itself. The
+  playback keys do their own thing and leave the question as it is.
   Otherwise `q` stops at once. Without a status line (stderr not a
   terminal, `-v`) `q` stops at once. Ctrl-C never asks; a second Ctrl-C
   exits at once.
@@ -160,5 +180,5 @@ terminal emulator (what stays on the screen), with colours (escapes made
 visible), without a terminal, at 40 columns; every width from 0 to 199
 for panics and status lines wider than the terminal; the question after
 `q` (`confirm.*`: the timeout, another key, Ctrl-C, line mode, a game,
-50 columns).
+50 columns); a file that seeks and pauses (`playback.*`).
 `UPDATE_SNAPSHOTS=1` rewrites `crates/tvpipe-cli/src/ui/snapshots/`.

@@ -61,6 +61,8 @@ println!("{:?}", s.player_url());
 
 `play` (files, URLs, ffmpeg inputs), `test_pattern`, `preview` and `share` return a `Session`. Files, URLs and `share` need crate features that are off by default, see below.
 
+A file, or a URL with a length, also seeks and pauses: `seek(Duration)`, `seek_by(ms)`, `pause()` and `resume()`; `playback()` says where it is, and an `Event::Playback` follows every change.
+
 ## Events, stopping and errors
 
 ```rust

@@ -166,12 +166,24 @@ pub fn install(command: &Command, no_qr: bool, stop_hint: StopHint, stop: Stop) 
         &Facts {
             env: &env,
             stderr_tty: std::io::stderr().is_terminal(),
+            console_ansi: console_ansi(),
             stop: stop_hint,
             no_qr,
         },
-        &term::tput_cols,
+        &term::columns,
     );
     install_with(command, caps, stop)
+}
+
+/// A Windows console on stderr takes ANSI sequences (switched on).
+#[cfg(windows)]
+fn console_ansi() -> bool {
+    crate::tty::windows::ansi_stderr()
+}
+
+#[cfg(not(windows))]
+fn console_ansi() -> bool {
+    false
 }
 
 fn install_with(command: &Command, caps: Caps, stop: Stop) -> Events {
@@ -186,6 +198,11 @@ fn install_with(command: &Command, caps: Caps, stop: Stop) -> Events {
     let _ = log::set_logger(Mode::People.level(), |r| {
         with(|ui, now| ui.log(r, now));
     });
+    // `play` of a file: its position on the status line.
+    let playback = match command {
+        Command::Play(o) => o.playback.clone(),
+        _ => None,
+    };
     if caps.live {
         let _ = std::thread::Builder::new()
             .name("ui-ticker".into())
@@ -194,6 +211,9 @@ fn install_with(command: &Command, caps: Caps, stop: Stop) -> Events {
                 loop {
                     let requested = stop.wait(Duration::from_millis(100));
                     with(|ui, now| {
+                        if let Some(c) = &playback {
+                            ui.set_playback(c.status());
+                        }
                         if requested && !stopping {
                             ui.stopping(now);
                         } else {

@@ -14,8 +14,8 @@
   fixtures.
 - Never panic on data from the network or from ffmpeg: return errors.
 - Platform-neutral code only, no OS media or discovery APIs. `cfg` for
-  config and cache paths, `signals.rs` and `util/timer.rs` only
-  (ARCHITECTURE.md, "Platform-Specific Code").
+  config and cache paths, `signals.rs`, `util/timer.rs` and the CLI's
+  `tty/windows.rs` only (ARCHITECTURE.md, "Platform-Specific Code").
 - Clean room: nothing outside `crates/tvpipe-fairplay` (LGPL) may copy from
   it; do not read the tainted sources (doubletake, UxPlay, playfair, …)
   unless you are the FairPlay porter or a spec writer (ARCHITECTURE.md,

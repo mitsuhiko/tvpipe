@@ -39,6 +39,8 @@ use crate::media::clock::MediaClock;
 use crate::media::ffmpeg::{self, Output, Process, Source};
 use crate::media::h264::{self, AvcConfig};
 #[cfg(feature = "files")]
+use crate::media::h264skip::SkipFrames;
+#[cfg(feature = "files")]
 use crate::media::passthrough::{self, CheckOptions, FileInfo, FileSource, PassPlan};
 #[cfg(feature = "ffmpeg")]
 use crate::media::rawin::{Forwarder, RawInput};
@@ -46,6 +48,7 @@ use crate::media::slrw::{self, Kind, Packet, SlrwReader};
 #[cfg(feature = "ffmpeg")]
 use crate::media::source::MediaReader;
 use crate::opts::{PlayOptions, RawAudioSpec, RawVideoSpec};
+use crate::playback::PlaybackControl;
 use crate::types::StreamInfo;
 use crate::types::{
     AudioCodec, AudioFamily, AudioFormat, AudioInfo, Capabilities, EncodePlan, EncodedFrame,
@@ -244,6 +247,29 @@ pub struct FfmpegInput {
     info: StreamInfo,
     encoder: Option<Encoder>,
     stop: Stop,
+    /// Seeking and pausing (a file, or a URL with a duration).
+    seeker: Option<Seeker>,
+}
+
+#[cfg(feature = "ffmpeg")]
+/// Seeks and pauses by starting ffmpeg again (docs/playback.md): at the
+/// new position, or frozen on the picture at the paused one.
+struct Seeker {
+    control: PlaybackControl,
+    bin: PathBuf,
+    probe: ffmpeg::Probe,
+    source: Source,
+    plan: EncodePlan,
+    timeline: Timeline,
+    /// Where (in the input's time) the running ffmpeg started.
+    start: Duration,
+    /// The input's time of the last video frame out.
+    position: Duration,
+    paused: bool,
+    /// Paused without a picture (no `freezeframes`): ffmpeg is stopped.
+    stopped: bool,
+    /// The video frame duration (ns), for the timeline.
+    video_frame_ns: u128,
 }
 
 #[cfg(feature = "ffmpeg")]
@@ -259,23 +285,10 @@ impl FfmpegInput {
         raw: Option<(RawInput, Box<dyn Read + Send>)>,
         stop: Stop,
     ) -> Result<FfmpegInput> {
-        let (loglevel, level) = if crate::log::enabled(Level::Debug) {
-            ("info", Level::Debug)
-        } else {
-            ("warning", Level::Warn)
-        };
-        let inv = ffmpeg::build(source, Output::Encode(plan), probe, loglevel)?;
-        let mut proc = Process::spawn_logging(bin, &inv.args, level)?;
-        let stdout = proc
-            .take_stdout()
-            .ok_or_else(|| Error::process("ffmpeg stdout not piped"))?;
+        let (proc, reader, encoder) = spawn_ffmpeg(bin, probe, source, plan)?;
         let proc = Arc::new(Mutex::new(proc));
         let watcher = Watcher::start(proc.clone(), stop.clone())?;
         let forwarder = raw.map(|(r, input)| r.start(input)).transpose()?;
-        let reader = match MediaReader::new(stdout, &inv.tracks) {
-            Ok(r) => r,
-            Err(e) => return Err(lock(&proc).failure().unwrap_or(e)),
-        };
         let info = reader.info().clone();
         Ok(FfmpegInput {
             proc,
@@ -283,11 +296,190 @@ impl FfmpegInput {
             forwarder,
             reader,
             info,
-            encoder: inv.encoder,
+            encoder,
             stop,
+            seeker: None,
         })
     }
+
+    /// Lets `control` seek and pause this input, if it is a file or a URL
+    /// (`duration`: its length, from ffprobe). Other sources ignore it.
+    pub fn seekable(
+        mut self,
+        control: PlaybackControl,
+        duration: Option<Duration>,
+        bin: &Path,
+        probe: &ffmpeg::Probe,
+        source: &Source,
+        plan: &EncodePlan,
+    ) -> FfmpegInput {
+        let Source::Url { looped, .. } = source else {
+            return self;
+        };
+        control.enable(duration, *looped);
+        let fps = self.info.video.fps;
+        self.seeker = Some(Seeker {
+            control,
+            bin: bin.to_owned(),
+            probe: probe.clone(),
+            source: source.clone(),
+            plan: plan.clone(),
+            timeline: Timeline::default(),
+            start: Duration::ZERO,
+            position: Duration::ZERO,
+            paused: false,
+            stopped: false,
+            video_frame_ns: frame_ns(fps),
+        });
+        self
+    }
+
+    /// Applies what the control asked for: starts ffmpeg again at the new
+    /// position, frozen while paused.
+    fn apply(&mut self) -> Result<()> {
+        let Some(s) = self.seeker.as_mut() else {
+            return Ok(());
+        };
+        let mut seek = s.control.take_seek();
+        let pause = s.control.take_pause();
+        if seek.is_none() && pause.is_none() {
+            return Ok(());
+        }
+        // A key held down: one restart for the seeks that follow quickly.
+        if seek.is_some() {
+            for _ in 0..SEEK_SETTLE_STEPS {
+                if !sleep_until(Instant::now() + SEEK_SETTLE_STEP, &self.stop) {
+                    return Ok(());
+                }
+                match s.control.take_seek() {
+                    Some(t) => seek = Some(t),
+                    None => break,
+                }
+            }
+        }
+        let paused = pause.unwrap_or(s.paused);
+        let at = seek.map_or(s.position, |(t, _)| t);
+        let freeze = paused && s.probe.can_freeze();
+        if paused && !freeze && !s.paused {
+            debug!("ffmpeg lacks freezeframes: pausing without a picture");
+        }
+        debug!(
+            "ffmpeg: {} at {:.3} s",
+            if freeze { "frozen" } else { "playing" },
+            at.as_secs_f64()
+        );
+        lock(&self.proc).kill();
+        let _ = lock(&self.proc).wait();
+        s.paused = paused;
+        s.position = at;
+        s.start = at;
+        s.control.paused(paused);
+        if seek.is_some() {
+            s.control.seeked(at);
+        }
+        s.stopped = paused && !freeze;
+        if s.stopped {
+            return Ok(());
+        }
+        let source = match &s.source {
+            Source::Url {
+                url,
+                realtime,
+                looped,
+                ..
+            } => Source::Url {
+                url: url.clone(),
+                realtime: *realtime,
+                looped: *looped,
+                start: Some(at),
+                freeze,
+            },
+            other => other.clone(),
+        };
+        let (proc, reader, _) = spawn_ffmpeg(&s.bin, &s.probe, &source, &s.plan)?;
+        same_stream(&self.info, reader.info())?;
+        *lock(&self.proc) = proc;
+        self.reader = reader;
+        // Each ffmpeg's output starts at zero.
+        s.timeline.rebase(0);
+        Ok(())
+    }
+
+    /// Paused without ffmpeg running: waits for the next request.
+    fn wait_stopped(&mut self) -> bool {
+        loop {
+            let Some(s) = self.seeker.as_ref() else {
+                return true;
+            };
+            if !s.stopped || s.control.pending() {
+                return true;
+            }
+            if !sleep_until(Instant::now() + STOP_POLL, &self.stop) {
+                return false;
+            }
+        }
+    }
 }
+
+#[cfg(feature = "ffmpeg")]
+/// Starts ffmpeg and reads its Matroska header.
+fn spawn_ffmpeg(
+    bin: &Path,
+    probe: &ffmpeg::Probe,
+    source: &Source,
+    plan: &EncodePlan,
+) -> Result<(Process, MediaReader<ChildStdout>, Option<Encoder>)> {
+    let (loglevel, level) = if crate::log::enabled(Level::Debug) {
+        ("info", Level::Debug)
+    } else {
+        ("warning", Level::Warn)
+    };
+    let inv = ffmpeg::build(source, Output::Encode(plan), probe, loglevel)?;
+    let mut proc = Process::spawn_logging(bin, &inv.args, level)?;
+    let stdout = proc
+        .take_stdout()
+        .ok_or_else(|| Error::process("ffmpeg stdout not piped"))?;
+    match MediaReader::new(stdout, &inv.tracks) {
+        Ok(r) => Ok((proc, r, inv.encoder)),
+        Err(e) => Err(proc.failure().unwrap_or(e)),
+    }
+}
+
+#[cfg(feature = "ffmpeg")]
+/// A restarted ffmpeg must make the stream the receivers were set up for.
+fn same_stream(was: &StreamInfo, now: &StreamInfo) -> Result<()> {
+    let (a, b) = (&was.video, &now.video);
+    let video = a.codec == b.codec
+        && (a.width, a.height, a.fps) == (b.width, b.height, b.fps)
+        && (a.avcc == b.avcc || same_avc_decoding(&a.avcc, &b.avcc));
+    if !video || was.audio != now.audio {
+        return Err(Error::unsupported(
+            "ffmpeg made a different stream after seeking; cannot continue",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "ffmpeg")]
+/// Two avcC records whose pictures decode the same (an SPS that differs
+/// only in its VUI, the same PPS).
+fn same_avc_decoding(a: &[u8], b: &[u8]) -> bool {
+    let (Ok(a), Ok(b)) = (AvcConfig::parse(a), AvcConfig::parse(b)) else {
+        return false;
+    };
+    a.pps == b.pps
+        && a.sps.len() == b.sps.len()
+        && a.sps
+            .iter()
+            .zip(&b.sps)
+            .all(|(x, y)| h264::same_decoding(x, y))
+}
+
+#[cfg(feature = "ffmpeg")]
+/// How long a seek waits for more seeks (a key held down), per step.
+const SEEK_SETTLE_STEP: Duration = Duration::from_millis(60);
+#[cfg(feature = "ffmpeg")]
+const SEEK_SETTLE_STEPS: usize = 8;
 
 #[cfg(feature = "ffmpeg")]
 impl Input for FfmpegInput {
@@ -296,13 +488,58 @@ impl Input for FfmpegInput {
     }
 
     fn next_frame(&mut self) -> Result<Option<EncodedFrame>> {
-        match self.reader.next_frame() {
-            Ok(f) => Ok(f.map(|f| f.frame)),
-            Err(e) if self.stop.requested() => {
-                debug!("demuxer after stop request: {e}");
-                Ok(None)
+        loop {
+            if self.seeker.as_ref().is_some_and(|s| s.control.pending()) {
+                if let Err(e) = self.apply() {
+                    return if self.stop.requested() {
+                        Ok(None)
+                    } else {
+                        Err(e)
+                    };
+                }
             }
-            Err(e) => Err(lock(&self.proc).failure().unwrap_or(e)),
+            if !self.wait_stopped() {
+                return Ok(None);
+            }
+            if self.seeker.as_ref().is_some_and(|s| s.stopped) {
+                continue;
+            }
+            let f = match self.reader.next_frame() {
+                Ok(f) => f.map(|f| f.frame),
+                // A restart for a seek killed the previous ffmpeg.
+                Err(_) if self.seeker.as_ref().is_some_and(|s| s.control.pending()) => continue,
+                Err(e) if self.stop.requested() => {
+                    debug!("demuxer after stop request: {e}");
+                    return Ok(None);
+                }
+                Err(e) => return Err(lock(&self.proc).failure().unwrap_or(e)),
+            };
+            let Some(mut f) = f else {
+                if let Some(s) = &self.seeker {
+                    s.control.disable();
+                }
+                return Ok(None);
+            };
+            if let Some(s) = self.seeker.as_mut() {
+                let (rate, dur_ns) = match f.track {
+                    TrackKind::Video => (VIDEO_CLOCK_RATE, s.video_frame_ns),
+                    TrackKind::Audio(family) => {
+                        let a = self.info.audio.iter().find(|(fam, _)| *fam == family);
+                        let rate = a.map_or(48_000, |(_, a)| a.sample_rate.max(1));
+                        let samples = a.map_or(0, |(_, a)| a.frame_samples) as u128;
+                        (rate, samples * 1_000_000_000 / rate as u128)
+                    }
+                };
+                let at = ticks_to_duration(f.pts, rate);
+                let now = Instant::now();
+                f.pts = s.timeline.map(f.track, f.pts, rate, dur_ns, now);
+                s.timeline.sent(f.pts, rate, now);
+                if f.track == TrackKind::Video && !s.paused {
+                    s.position = s.start + at;
+                    s.control.set_position(s.position);
+                }
+            }
+            return Ok(Some(f));
         }
     }
 
@@ -314,6 +551,9 @@ impl Input for FfmpegInput {
     }
 
     fn finish(mut self: Box<Self>, clean_eof: bool) -> Result<()> {
+        if let Some(s) = &self.seeker {
+            s.control.disable();
+        }
         drop(self.watcher.take());
         let result = {
             let mut p = lock(&self.proc);
@@ -332,6 +572,102 @@ impl Input for FfmpegInput {
             }
         }
         result
+    }
+}
+
+/// A video frame's duration in ns at `fps` (30 fps when unknown).
+fn frame_ns(fps: crate::util::ratio::Ratio) -> u128 {
+    if fps.num == 0 {
+        33_333_333
+    } else {
+        1_000_000_000u128 * fps.den as u128 / fps.num as u128
+    }
+}
+
+/// The timeline a seekable input sends on (docs/playback.md): continuous
+/// across seeks, pauses and restarts, so the receivers never see time go
+/// back or jump. Each segment of the input (after a seek, a restart, a
+/// loop) gets an offset that puts its start where the output is. The
+/// offset is applied in each track's own ticks, the same for every frame
+/// of a segment, so sample-exact audio stays exact.
+#[derive(Debug, Default)]
+struct Timeline {
+    /// Added to the input's time (ns) of the current segment.
+    offset_ns: i128,
+    /// The end of the last frame out (ns).
+    next_out_ns: u128,
+    /// The next frame starts a segment that begins at this input time
+    /// (ns): the earliest frame of any track.
+    rebase: Option<u128>,
+    /// Per track, the pts of its last frame out (never goes back).
+    last: Vec<(TrackKind, u64)>,
+    /// When frames went out, for where the output is "now".
+    clock: MediaClock,
+}
+
+/// `ns` in ticks at `rate`, rounded to the nearest (also negative).
+fn ns_ticks(ns: i128, rate: u32) -> i128 {
+    let v = ns * rate as i128;
+    if v >= 0 {
+        (v + 500_000_000) / 1_000_000_000
+    } else {
+        (v - 500_000_000) / 1_000_000_000
+    }
+}
+
+impl Timeline {
+    /// The output pts of a `track` frame at `pts` (`rate` Hz) in the
+    /// input lasting `dur_ns`, going out at `now`. A new segment starts
+    /// right after the last frame out, or where the output is at `now` if
+    /// that is later (a restart took a while, a pause lasted).
+    fn map(&mut self, track: TrackKind, pts: u64, rate: u32, dur_ns: u128, now: Instant) -> u64 {
+        if let Some(start) = self.rebase.take() {
+            self.catch_up(now);
+            self.offset_ns = self.next_out_ns as i128 - start as i128;
+        }
+        let out = (pts as i128 + ns_ticks(self.offset_ns, rate)).clamp(0, u64::MAX as i128) as u64;
+        self.out(track, out, rate, dur_ns)
+    }
+
+    /// The output pts for a frame that is not the input's (a repeated
+    /// picture while paused) lasting `dur_ns`: right after the last frame
+    /// out, or at `now`'s place if that is later.
+    fn insert(&mut self, track: TrackKind, rate: u32, dur_ns: u128, now: Instant) -> u64 {
+        self.catch_up(now);
+        let out = ns_ticks(self.next_out_ns as i128, rate).clamp(0, u64::MAX as i128) as u64;
+        self.out(track, out, rate, dur_ns)
+    }
+
+    fn catch_up(&mut self, now: Instant) {
+        if let Some(t) = self.clock.media_time_at(now) {
+            self.next_out_ns = self.next_out_ns.max(t.as_nanos());
+        }
+    }
+
+    fn out(&mut self, track: TrackKind, mut out: u64, rate: u32, dur_ns: u128) -> u64 {
+        match self.last.iter_mut().find(|(t, _)| *t == track) {
+            Some((_, last)) => {
+                // A track that starts before its segment (it should not):
+                // bunched up rather than going back.
+                out = out.max(*last);
+                *last = out;
+            }
+            None => self.last.push((track, out)),
+        }
+        let out_ns = out as u128 * 1_000_000_000 / rate.max(1) as u128;
+        self.next_out_ns = self.next_out_ns.max(out_ns + dur_ns);
+        out
+    }
+
+    /// A frame at output `pts` (`rate` Hz) went out at `now`.
+    fn sent(&self, pts: u64, rate: u32, now: Instant) {
+        self.clock.observe_at(pts, rate, now);
+    }
+
+    /// The next frame starts a segment that begins at input time
+    /// `start_ns` (see [`Timeline::map`]).
+    fn rebase(&mut self, start_ns: u128) {
+        self.rebase = Some(start_ns);
     }
 }
 
@@ -361,11 +697,12 @@ pub struct PassthroughInput {
     families: Vec<AudioFamily>,
     realtime: bool,
     looped: bool,
+    /// Paces frames at their output decode time.
     clock: MediaClock,
-    /// Added to every pts (ns) for loop passes after the first.
-    loop_offset_ns: u128,
-    /// End of the current pass's media (ns, pass-relative).
-    pass_end_ns: u128,
+    /// Output timestamps: continuous across loops, seeks and pauses.
+    timeline: Timeline,
+    /// Frames read in the current pass (an empty file does not loop).
+    pass_frames: u64,
     last_video_pts: Option<u64>,
     pending: VecDeque<EncodedFrame>,
     /// PCM audio is re-cut into AirPlay-sized frames.
@@ -373,7 +710,40 @@ pub struct PassthroughInput {
     /// B-frame experiment (see [`reorder_experiment`]).
     reorder: Option<ReorderStamp>,
     stop: Stop,
+    /// Seeking and pausing ([`PassthroughInput::seekable`]).
+    playback: Option<PassPlayback>,
 }
+
+#[cfg(feature = "files")]
+/// Seeking and pausing a file sent unchanged (docs/playback.md): seeks
+/// land on keyframes ([`FileSource::seek`]); while paused the picture
+/// is repeated with skip frames ([`SkipFrames`]), or by sending its
+/// keyframe again where they cannot be made.
+struct PassPlayback {
+    control: PlaybackControl,
+    paused: bool,
+    /// When the next repeated picture goes out.
+    next_repeat: Instant,
+    skip: Option<SkipFrames>,
+    /// The last keyframe sent (the fallback repeat).
+    last_key: Option<Arc<[u8]>>,
+    /// Since `last_key`, other pictures went out: repeating it shows an
+    /// older one, and the frames after the pause would refer to pictures
+    /// the receivers dropped, so resuming seeks back to that keyframe.
+    after_key: bool,
+    /// The fallback repeated `last_key` while `after_key`.
+    reseek: bool,
+    /// The input time of the last video frame out, and the end of it
+    /// (ns).
+    position_ns: u128,
+    end_ns: u128,
+    /// Show the keyframe a seek landed on although paused.
+    show_key: bool,
+}
+
+#[cfg(feature = "files")]
+/// While paused, the picture goes out again this often.
+const REPEAT_INTERVAL: Duration = Duration::from_millis(200);
 
 #[cfg(feature = "files")]
 /// The timestamp B-frames carry in the reordering experiment.
@@ -491,14 +861,46 @@ impl PassthroughInput {
             realtime,
             looped,
             clock: MediaClock::new(),
-            loop_offset_ns: 0,
-            pass_end_ns: 0,
+            timeline: Timeline::default(),
+            pass_frames: 0,
             last_video_pts: None,
             pending: VecDeque::new(),
             pcm,
             reorder: reorder_experiment(),
             stop,
+            playback: None,
         })
+    }
+
+    /// Lets `control` seek and pause this input.
+    pub fn seekable(mut self, control: PlaybackControl) -> PassthroughInput {
+        let duration = self
+            .src
+            .info()
+            .duration
+            .filter(|d| d.is_finite() && *d > 0.0)
+            .map(Duration::from_secs_f64);
+        control.enable(duration, self.looped);
+        let skip = match SkipFrames::new(&self.info.video.avcc) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                debug!("passthrough: pausing repeats keyframes ({e})");
+                None
+            }
+        };
+        self.playback = Some(PassPlayback {
+            control,
+            paused: false,
+            next_repeat: Instant::now(),
+            skip,
+            last_key: None,
+            after_key: false,
+            reseek: false,
+            position_ns: 0,
+            end_ns: 0,
+            show_key: false,
+        });
+        self
     }
 
     /// Overrides [`reorder_experiment`] (tests, experiments).
@@ -544,23 +946,148 @@ impl PassthroughInput {
 
     fn next_file_frame(&mut self) -> Result<Option<passthrough::FileFrame>> {
         if let Some(f) = self.src.next_frame()? {
+            self.pass_frames += 1;
             return Ok(Some(f));
         }
-        if !self.looped || self.pass_end_ns == 0 {
+        if !self.looped || self.pass_frames == 0 {
             return Ok(None);
         }
         debug!("passthrough: looping");
         self.src.rewind()?;
-        self.loop_offset_ns += self.pass_end_ns;
-        self.pass_end_ns = 0;
-        self.src.next_frame()
+        self.pass_frames = 0;
+        self.timeline.rebase(0);
+        self.next_file_frame_once()
     }
-}
 
-#[cfg(feature = "files")]
-fn shift(pts: u64, rate: u32, offset_ns: u128) -> u64 {
-    let add = offset_ns * rate as u128 / 1_000_000_000;
-    pts.saturating_add(add.min(u64::MAX as u128) as u64)
+    fn next_file_frame_once(&mut self) -> Result<Option<passthrough::FileFrame>> {
+        let f = self.src.next_frame()?;
+        self.pass_frames += f.is_some() as u64;
+        Ok(f)
+    }
+
+    /// Takes what the control asked for: a seek, a pause, a resume.
+    fn apply(&mut self) -> Result<()> {
+        let Some(pb) = self.playback.as_mut() else {
+            return Ok(());
+        };
+        let seek = pb.control.take_seek();
+        let pause = pb.control.take_pause();
+        if let Some(paused) = pause.filter(|&p| p != pb.paused) {
+            pb.paused = paused;
+            pb.control.paused(paused);
+            if paused {
+                debug!(
+                    "passthrough: paused at {:.3} s",
+                    pb.position_ns as f64 / 1e9
+                );
+                pb.next_repeat = Instant::now() + REPEAT_INTERVAL;
+            } else if seek.is_none() && pb.reseek {
+                // The receivers showed an older keyframe: play from it.
+                let at = Duration::from_nanos(pb.position_ns as u64);
+                return self.seek(at, false);
+            } else {
+                // Continue right after the last frame out.
+                self.timeline.rebase(pb.end_ns);
+            }
+        }
+        match seek {
+            Some((at, forward)) => self.seek(at, forward),
+            None => Ok(()),
+        }
+    }
+
+    fn seek(&mut self, at: Duration, forward: bool) -> Result<()> {
+        let Some(pb) = self.playback.as_mut() else {
+            return Ok(());
+        };
+        self.pending.clear();
+        if let Some(p) = self.pcm.as_mut() {
+            p.buf.clear();
+        }
+        pb.reseek = false;
+        match self.src.seek(at.as_nanos(), forward)? {
+            Some(key_ns) => {
+                debug!(
+                    "passthrough: seek to {:.3} s landed at {:.3} s",
+                    at.as_secs_f64(),
+                    key_ns as f64 / 1e9
+                );
+                self.timeline.rebase(key_ns);
+                self.pass_frames = 1;
+                pb.position_ns = key_ns;
+                pb.end_ns = key_ns;
+                pb.show_key = pb.paused;
+                pb.control.seeked(Duration::from_nanos(key_ns as u64));
+            }
+            None => {
+                debug!("passthrough: no keyframe to seek to");
+                pb.control
+                    .seeked(Duration::from_nanos(pb.position_ns as u64));
+            }
+        }
+        Ok(())
+    }
+
+    /// Paused: the next repeat of the picture when it is due; `None` when
+    /// a request or a stop came first.
+    fn repeat(&mut self) -> Option<EncodedFrame> {
+        let pb = self.playback.as_mut()?;
+        loop {
+            if self.stop.requested() || pb.control.pending() {
+                return None;
+            }
+            let now = Instant::now();
+            if now >= pb.next_repeat {
+                break;
+            }
+            std::thread::sleep((pb.next_repeat - now).min(STOP_POLL));
+        }
+        let now = Instant::now();
+        pb.next_repeat = now + REPEAT_INTERVAL;
+        let (data, keyframe) = match pb.skip.as_ref().and_then(SkipFrames::frame) {
+            Some(au) => (Arc::from(au), false),
+            None => {
+                let key = pb.last_key.clone()?;
+                pb.reseek |= pb.after_key;
+                (key, true)
+            }
+        };
+        let pts = self.timeline.insert(
+            TrackKind::Video,
+            VIDEO_CLOCK_RATE,
+            REPEAT_INTERVAL.as_nanos(),
+            now,
+        );
+        self.timeline.sent(pts, VIDEO_CLOCK_RATE, now);
+        Some(EncodedFrame {
+            track: TrackKind::Video,
+            pts,
+            keyframe,
+            data,
+        })
+    }
+
+    /// A video frame goes out: what pausing needs to know about it.
+    fn sent_video(&mut self, frame: &EncodedFrame, start_ns: u128, dur_ns: u128) {
+        let Some(pb) = self.playback.as_mut() else {
+            return;
+        };
+        if let Some(skip) = pb.skip.as_mut() {
+            if let Err(e) = skip.observe(&frame.data) {
+                debug!("passthrough: skip frames: {e}");
+            }
+        }
+        if frame.keyframe {
+            pb.last_key = Some(frame.data.clone());
+            pb.after_key = false;
+        } else {
+            pb.after_key = true;
+        }
+        pb.position_ns = start_ns;
+        pb.end_ns = start_ns + dur_ns;
+        pb.control
+            .set_position(Duration::from_nanos(start_ns.min(u64::MAX as u128) as u64));
+    }
 }
 
 #[cfg(feature = "files")]
@@ -577,6 +1104,23 @@ impl Input for PassthroughInput {
             if self.stop.requested() {
                 return Ok(None);
             }
+            if self.playback.as_ref().is_some_and(|p| p.control.pending()) {
+                self.apply()?;
+                continue;
+            }
+            // Paused: repeat the picture, after the next reference
+            // picture if the last one was none (skip frames copy the last
+            // reference picture).
+            if self.playback.as_ref().is_some_and(|p| {
+                p.paused
+                    && !p.show_key
+                    && !p.skip.as_ref().is_some_and(SkipFrames::waits_for_reference)
+            }) {
+                if let Some(f) = self.repeat() {
+                    return Ok(Some(f));
+                }
+                continue;
+            }
             let Some(ff) = self.next_file_frame()? else {
                 if let Some((pts, data)) = self.pcm.as_mut().and_then(PcmFramer::flush) {
                     let f = EncodedFrame {
@@ -588,10 +1132,17 @@ impl Input for PassthroughInput {
                     self.queue_audio(&f);
                     continue;
                 }
+                if let Some(pb) = &self.playback {
+                    pb.control.disable();
+                }
                 return Ok(None);
             };
             let kind = ff.frame.track;
             if kind != TrackKind::Video && self.families.is_empty() {
+                continue;
+            }
+            // Paused, showing where a seek landed: the keyframe only.
+            if kind != TrackKind::Video && self.playback.as_ref().is_some_and(|p| p.show_key) {
                 continue;
             }
             let rate = self.rate(kind);
@@ -601,10 +1152,13 @@ impl Input for PassthroughInput {
                 self.fallback_duration_ns(kind)
             };
             let start_ns = ticks_to_duration(ff.frame.pts, rate).as_nanos();
-            self.pass_end_ns = self.pass_end_ns.max(start_ns + dur_ns);
-            let mut pts = shift(ff.frame.pts, rate, self.loop_offset_ns);
-            // Frames leave in decode order at their decode time.
-            let dts = shift(ff.dts, rate, self.loop_offset_ns);
+            // Frames leave in decode order at their decode time: the
+            // timeline maps that (it only goes forward), the pts keeps its
+            // distance to it (B-frames in the experiment go back).
+            let dts = self
+                .timeline
+                .map(kind, ff.dts, rate, dur_ns, Instant::now());
+            let mut pts = (dts as i128 + ff.frame.pts as i128 - ff.dts as i128).max(0) as u64;
             if kind == TrackKind::Video {
                 match self.reorder {
                     None if self.last_video_pts.is_some_and(|l| pts <= l) => {
@@ -630,8 +1184,13 @@ impl Input for PassthroughInput {
                     return Ok(None);
                 }
             }
+            self.timeline.sent(dts, rate, Instant::now());
             let frame = EncodedFrame { pts, ..ff.frame };
             if kind == TrackKind::Video {
+                if let Some(pb) = self.playback.as_mut() {
+                    pb.show_key = false;
+                }
+                self.sent_video(&frame, start_ns, dur_ns);
                 return Ok(Some(frame));
             }
             match self.pcm.as_mut() {
@@ -655,6 +1214,9 @@ impl Input for PassthroughInput {
     }
 
     fn finish(self: Box<Self>, _clean_eof: bool) -> Result<()> {
+        if let Some(pb) = &self.playback {
+            pb.control.disable();
+        }
         if self.src.dropped_negative() > 0 {
             debug!(
                 "passthrough: dropped {} frames before the stream start",
@@ -1641,6 +2203,7 @@ pub(crate) mod tests {
             raw_audio: None,
             ffmpeg: None,
             input: crate::opts::InputSpec::Path(fixture("bf0.mp4").into()),
+            playback: None,
         }
     }
 
@@ -2007,6 +2570,8 @@ pub(crate) mod tests {
             url: fixture("live.mkv").into(),
             realtime: false,
             looped: false,
+            start: None,
+            freeze: false,
         };
         let input = FfmpegInput::start(&bin, &probe, &src, &plan, None, never()).unwrap();
         let mut input: Box<dyn Input> = Box::new(input);
@@ -2021,6 +2586,269 @@ pub(crate) mod tests {
         );
         assert!(!input.request_keyframe());
         input.finish(true).unwrap();
+    }
+
+    /// Frames until `n` more video frames came; asserts the output
+    /// timeline only goes forward on every track, without video gaps of
+    /// more than 250 ms (at a seek the new part starts after the end of
+    /// every track, and the audio runs a little ahead).
+    fn video_frames(input: &mut dyn Input, n: usize, last: &mut Vec<(TrackKind, u64)>) -> usize {
+        let mut seen = 0;
+        while seen < n {
+            let Some(f) = input.next_frame().unwrap() else {
+                break;
+            };
+            match last.iter_mut().find(|(t, _)| *t == f.track) {
+                Some((_, l)) => {
+                    assert!(f.pts >= *l, "{:?} went back: {} after {l}", f.track, f.pts);
+                    if f.track == TrackKind::Video {
+                        assert!(f.pts - *l <= 22_500, "video gap {l} -> {}", f.pts);
+                    }
+                    *l = f.pts;
+                }
+                None => last.push((f.track, f.pts)),
+            }
+            seen += (f.track == TrackKind::Video) as usize;
+        }
+        seen
+    }
+
+    /// A clip made by ffmpeg (`secs` long, 30 fps, keyframes every
+    /// second, AAC), in a directory of its own.
+    #[cfg(feature = "ffmpeg")]
+    fn clip(bin: &Path, name: &str, secs: u32, profile: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("tvpipe-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(format!("{name}.mp4"));
+        let ok = std::process::Command::new(bin)
+            .args(["-hide_banner", "-loglevel", "error", "-y"])
+            .args(["-f", "lavfi", "-i", "testsrc2=size=160x120:rate=30"])
+            .args(["-f", "lavfi", "-i", "sine=sample_rate=48000"])
+            .args(["-t", &secs.to_string(), "-c:v", "libx264", "-bf", "0"])
+            .args(["-profile:v", profile, "-g", "30", "-c:a", "aac"])
+            .arg(&file)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
+        file
+    }
+
+    /// The decoded pictures' MD5s (ffmpeg as a black box): of a file, or
+    /// of `aus` (AVCC access units) with `avcc`'s parameter sets.
+    #[cfg(feature = "ffmpeg")]
+    fn picture_md5s(bin: &Path, input: &Path) -> Vec<String> {
+        let out = std::process::Command::new(bin)
+            .args(["-hide_banner", "-loglevel", "error", "-i"])
+            .arg(input)
+            .args(["-map", "0:v", "-f", "framemd5", "-"])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .filter_map(|l| l.rsplit(',').next().map(|m| m.trim().to_owned()))
+            .collect()
+    }
+
+    #[cfg(feature = "ffmpeg")]
+    fn annexb(avcc: &[u8], aus: &[EncodedFrame]) -> Vec<u8> {
+        let cfg = AvcConfig::parse(avcc).unwrap();
+        let mut out = Vec::new();
+        for ps in cfg.sps.iter().chain(&cfg.pps) {
+            out.extend_from_slice(&[0, 0, 0, 1]);
+            out.extend_from_slice(ps);
+        }
+        for au in aus {
+            for nal in h264::avcc_nals(&au.data, 4) {
+                out.extend_from_slice(&[0, 0, 0, 1]);
+                out.extend_from_slice(nal.unwrap());
+            }
+        }
+        out
+    }
+
+    /// Pausing and seeking a file sent unchanged, checked by decoding
+    /// what went out: before the pause the file's pictures, while paused
+    /// the paused one again (skip frames), then the file's next ones, and
+    /// after a seek the pictures from the keyframe it landed on.
+    #[cfg(feature = "ffmpeg")]
+    #[test]
+    fn passthrough_seeks_and_pauses() {
+        let Some((bin, _)) = crate::media::ffmpeg::tests::real_ffmpeg() else {
+            return;
+        };
+        for profile in ["baseline", "high"] {
+            let file = clip(&bin, &format!("pause-{profile}"), 8, profile);
+            let original = picture_md5s(&bin, &file);
+            assert_eq!(original.len(), 240);
+            let plan = PassPlan {
+                audio_families: vec![AudioFamily::Cast],
+            };
+            let control = PlaybackControl::new();
+            let mut input = PassthroughInput::open(&file, &plan, false, false, never())
+                .unwrap()
+                .seekable(control.clone());
+            assert!(input.playback.as_ref().unwrap().skip.is_some(), "{profile}");
+            let avcc = input.info().video.avcc.clone();
+            let mut last = Vec::new();
+            let mut video = Vec::new();
+            let mut take =
+                |input: &mut PassthroughInput, n: usize, video: &mut Vec<EncodedFrame>| {
+                    let mut seen = 0;
+                    while seen < n {
+                        let f = input.next_frame().unwrap().unwrap();
+                        match last.iter_mut().find(|(t, _)| *t == f.track) {
+                            Some((_, l)) => {
+                                assert!(f.pts > *l, "{:?} {} after {l}", f.track, f.pts);
+                                *l = f.pts;
+                            }
+                            None => last.push((f.track, f.pts)),
+                        }
+                        if f.track == TrackKind::Video {
+                            video.push(f);
+                            seen += 1;
+                        }
+                    }
+                };
+            // Frames 0..=44, then paused mid-GOP: 3 repeats.
+            take(&mut input, 45, &mut video);
+            assert!(control.set_paused(true));
+            let t0 = Instant::now();
+            take(&mut input, 3, &mut video);
+            assert!(t0.elapsed() >= REPEAT_INTERVAL * 2);
+            assert!(video[45..].iter().all(|f| !f.keyframe && f.data.len() < 64));
+            assert!(control.status().paused);
+            // Frame 44 (after the audio's priming: the video starts at
+            // 21 ms).
+            let at = control.status().position.as_millis();
+            assert!((1466..1490).contains(&at), "{at}");
+            // Resumed: frames 45..60.
+            assert!(control.set_paused(false));
+            take(&mut input, 15, &mut video);
+            // Forward to 4.5 s: the keyframe at 5 s, frames 150..170.
+            assert!(control.seek_to(Duration::from_millis(4500)));
+            take(&mut input, 20, &mut video);
+            let at = control.status().position.as_millis();
+            assert!((5632..5656).contains(&at), "{at}");
+            // Back to 3.2 s while paused: the keyframe at 3 s is shown,
+            // then repeated; resumed: 91...
+            assert!(control.set_paused(true));
+            take(&mut input, 1, &mut video);
+            assert!(control.seek_to(Duration::from_millis(3200)));
+            take(&mut input, 3, &mut video);
+            assert!(control.set_paused(false));
+            take(&mut input, 5, &mut video);
+            Box::new(input).finish(true).unwrap();
+
+            let sent = file.with_extension("h264");
+            std::fs::write(&sent, annexb(&avcc, &video)).unwrap();
+            let got = picture_md5s(&bin, &sent);
+            let mut want: Vec<&String> = original[..45].iter().collect();
+            want.extend([&original[44]; 3]);
+            want.extend(&original[45..60]);
+            want.extend(&original[150..170]);
+            // Paused at 169: one repeat, then the keyframe at 3 s, two
+            // repeats of it, then 91..96.
+            want.push(&original[169]);
+            want.push(&original[90]);
+            want.extend([&original[90]; 2]);
+            want.extend(&original[91..96]);
+            assert_eq!(got.len(), want.len(), "{profile}");
+            for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+                assert_eq!(g, *w, "{profile}: picture {i}");
+            }
+            let _ = std::fs::remove_dir_all(file.parent().unwrap());
+        }
+    }
+
+    #[test]
+    fn ffmpeg_input_seeks_and_pauses() {
+        let Some((bin, probe)) = crate::media::ffmpeg::tests::real_ffmpeg() else {
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("tvpipe-seek-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("twelve.mp4");
+        let ok = std::process::Command::new(&bin)
+            .args(["-hide_banner", "-loglevel", "error", "-y"])
+            .args(["-f", "lavfi", "-i", "testsrc2=size=160x120:rate=30"])
+            .args(["-f", "lavfi", "-i", "sine=sample_rate=48000"])
+            .args(["-t", "12", "-c:v", "libx264", "-bf", "0", "-c:a", "aac"])
+            .arg(&file)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
+        let mut plan = crate::media::ffmpeg::tests::plan();
+        plan.video.width = 160;
+        plan.video.height = 120;
+        plan.video.fps = crate::util::ratio::Ratio::integer(30);
+        plan.video.bitrate_kbps = 200;
+        let src = Source::Url {
+            url: file.clone().into_os_string(),
+            realtime: false,
+            looped: false,
+            start: None,
+            freeze: false,
+        };
+        let control = PlaybackControl::new();
+        let input = FfmpegInput::start(&bin, &probe, &src, &plan, None, never())
+            .unwrap()
+            .seekable(
+                control.clone(),
+                Some(Duration::from_secs(12)),
+                &bin,
+                &probe,
+                &src,
+                &plan,
+            );
+        let mut input: Box<dyn Input> = Box::new(input);
+        let mut last = Vec::new();
+        assert_eq!(video_frames(&mut *input, 10, &mut last), 10);
+        assert!(control.status().position < Duration::from_millis(400));
+
+        assert!(control.seek_to(Duration::from_secs(8)));
+        assert_eq!(video_frames(&mut *input, 5, &mut last), 5);
+        let st = control.status();
+        assert!(
+            st.position >= Duration::from_secs(8) && st.position < Duration::from_millis(8300),
+            "{st:?}"
+        );
+        assert_eq!(st.changes, 1);
+
+        assert!(control.set_paused(true));
+        assert_eq!(video_frames(&mut *input, 20, &mut last), 20);
+        let paused = control.status();
+        assert!(paused.paused);
+        assert_eq!(paused.changes, 2);
+        assert_eq!(video_frames(&mut *input, 5, &mut last), 5);
+        assert_eq!(control.status().position, paused.position);
+
+        assert!(control.toggle_pause());
+        assert_eq!(video_frames(&mut *input, 30, &mut last), 30);
+        let st = control.status();
+        assert!(!st.paused);
+        assert!(
+            st.position >= paused.position + Duration::from_millis(900),
+            "{st:?}"
+        );
+        // Back before the end of the input: plays to the end from there.
+        assert!(control.seek_by(-6_000));
+        let rest = video_frames(&mut *input, 1000, &mut last);
+        // From about 9.2 s back to 3.2 s: 8.8 s to the end.
+        assert!(
+            (240..290).contains(&rest),
+            "{rest} frames after seeking back"
+        );
+        assert!(!control.status().seekable);
+        input.finish(true).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

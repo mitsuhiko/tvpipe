@@ -36,7 +36,7 @@ export type { CanvasLike, Context2DLike, ImageDataLike } from "./canvas.ts";
 export { TvpipeError, type TvpipeErrorCode, type TvpipeErrorOptions } from "./errors.ts";
 export type * from "./events.ts";
 export { PROTOCOL, type ProcessOptions } from "./process.ts";
-export { Session, PageSession, type EndInfo, type ReceiverInfo, type SessionEvents, type SessionOptions, type StartedInfo } from "./session.ts";
+export { Session, PageSession, PlaySession, type EndInfo, type ReceiverInfo, type SessionEvents, type SessionOptions, type StartedInfo } from "./session.ts";
 export {
   StreamSession,
   type AudioSpec,

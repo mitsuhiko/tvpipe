@@ -60,6 +60,7 @@ await session.stop();
 ```
 
 - **Stopping.** `stop()`, an `AbortSignal` or `await using` stops the session. Every receiver gets the same clean teardown as with Ctrl-C.
+- **Seeking and pausing.** `play()` of a file, or of a URL with a length, returns a `PlaySession`: `seek(ms)`, `seekBy(ms)`, `pause()` and `resume()`. `session.playback` and the `playback` event say where it is.
 - **When your program dies.** If it exits or crashes, tvpipe notices and stops by itself.
 - **Errors.** Every error is a `TvpipeError` with a readable message and a stable `code`, such as `pairing-required` or `ffmpeg-missing`.
 

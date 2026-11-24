@@ -19,6 +19,13 @@
 //! - Fragments: `tfhd` defaults (and `trex`), `tfdt`, every `trun` field,
 //!   `default-base-is-moof` and implicit base offsets.
 //!
+//! [`Demuxer::seek`] positions every track at a sync sample of one track
+//! (the video) near a time: it walks the in-memory sample tables (for
+//! fragmented files the `moof`s, with unbuffered reads of box headers and
+//! `moof`s only, never `mdat` contents), reads only the candidate samples
+//! a caller-given test accepts (an IDR picture), and drops other tracks'
+//! samples presented before the one it lands on.
+//!
 //! PCM tracks store one sample per audio frame; like ffmpeg, consecutive
 //! samples of one chunk are returned as packets of up to
 //! [`PCM_PACKET_SAMPLES`] frames.
@@ -39,6 +46,7 @@
 //! 0-2, `wave`, `sowt`/`twos`/`lpcm`); Apple ALAC `ALACMagicCookieDescription.txt`
 //! (Apache-2.0); black-box behaviour of ffprobe 8.1 for the fixtures.
 
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 
@@ -1140,7 +1148,55 @@ pub struct Demuxer<R> {
     frag_dts: Vec<i64>,
     pending: VecDeque<SampleRef>,
     major_brand: Option<FourCc>,
+    /// Per track: what to drop after a [`Demuxer::seek`] (cleared at the
+    /// first sample kept).
+    skip: Vec<Option<Skip>>,
 }
+
+/// Where [`Demuxer::seek`] landed: a sync sample of the chosen track, in
+/// its timescale with the edit offset applied (like [`Sample`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SeekPoint {
+    pub dts: i64,
+    pub pts: i64,
+}
+
+/// Samples dropped after a seek.
+#[derive(Debug, Clone, Copy)]
+enum Skip {
+    /// The seek's track: samples decoded before the keyframe.
+    Dts(i64),
+    /// Other tracks: samples presented before `pts / timescale` seconds.
+    Pts { pts: i64, timescale: u32 },
+}
+
+/// A sync sample [`Demuxer::seek`] may land on.
+struct Candidate {
+    place: Place,
+    r: SampleRef,
+    /// Whether `accept` took its data (read lazily).
+    accepted: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Place {
+    /// Index in the `moov` sample table.
+    Table(u32),
+    /// Index in the seek's [`FragMark`]s.
+    Frag(usize),
+}
+
+/// A `moof` seen by [`Demuxer::seek`]: where to resume reading there.
+struct FragMark {
+    start: u64,
+    /// Every track's next decode time before the `moof`.
+    dts: Vec<i64>,
+    /// Every track's latest pts in the `moof`.
+    max_pts: Vec<Option<i64>>,
+}
+
+/// `Demuxer::pos` after reading around the buffer: unknown.
+const RAW_POS: u64 = u64::MAX;
 
 impl<R: Read + Seek> Demuxer<R> {
     /// Finds and parses the `moov`. Nothing else is read until
@@ -1165,11 +1221,12 @@ impl<R: Read + Seek> Demuxer<R> {
             frag_dts: Vec::new(),
             pending: VecDeque::new(),
             major_brand: None,
+            skip: Vec::new(),
         };
         let mut at = 0;
         let mut first = true;
         loop {
-            let Some(h) = d.header_at(at)? else {
+            let Some(h) = d.header_at(at, false)? else {
                 return Err(Error::malformed("mp4: no moov box"));
             };
             if first {
@@ -1188,13 +1245,13 @@ impl<R: Read + Seek> Demuxer<R> {
             }
             match &h.typ {
                 b"ftyp" => {
-                    let body = d.read_body(&h, 4096)?;
+                    let body = d.read_body(&h, 4096, false)?;
                     if body.len() >= 4 {
                         d.major_brand = Some([body[0], body[1], body[2], body[3]]);
                     }
                 }
                 b"moov" => {
-                    let body = d.read_body(&h, MAX_MOOV_SIZE)?;
+                    let body = d.read_body(&h, MAX_MOOV_SIZE, false)?;
                     let moov = parse_moov(&body)?;
                     d.tracks = moov.tracks;
                     d.fragmented = moov.fragmented;
@@ -1236,6 +1293,210 @@ impl<R: Read + Seek> Demuxer<R> {
         self.frag_dts = vec![0; self.tracks.len()];
         self.frag_scan = self.frag_start;
         self.pending.clear();
+        self.skip = vec![None; self.tracks.len()];
+    }
+
+    /// Positions every track near a target time at a sync sample of track
+    /// `track_id` (the video), reading no media data on the way.
+    ///
+    /// - `cmp(pts)` places a pts of that track (its timescale, edit offset
+    ///   applied) relative to the target: `Less` is before it.
+    /// - `accept(data)` decides whether a sync sample may be landed on
+    ///   (H.264: an IDR picture, as `stss` also lists recovery points).
+    ///   Only candidates are read, usually one or two samples.
+    ///
+    /// `forward` lands on the first accepted sync sample at or after the
+    /// target, or if there is none on the last one before it; otherwise on
+    /// the last one at or before the target, or the first one after it.
+    /// Then that track continues at the chosen sample and every other
+    /// track at its first sample presented at or after it. `None`: no sync
+    /// sample is accepted; the position is unchanged.
+    ///
+    /// Sample tables are walked in memory. Fragmented files are scanned
+    /// `moof` by `moof` from the first one (box headers and `moof`s only,
+    /// never `mdat` contents) up to the first accepted sync sample after
+    /// the target. Assumes sync samples are presented in decode order.
+    pub fn seek(
+        &mut self,
+        track_id: u32,
+        forward: bool,
+        cmp: impl Fn(i64) -> Ordering,
+        mut accept: impl FnMut(&[u8]) -> bool,
+    ) -> Result<Option<SeekPoint>> {
+        let Some(vi) = self.tracks.iter().position(|t| t.id == track_id) else {
+            return Ok(None);
+        };
+        let n = self.tracks.len();
+        let mut cands: Vec<Candidate> = Vec::new();
+        let mut marks: Vec<FragMark> = Vec::new();
+        // Collect sync samples in decode order until one after the target
+        // is accepted: then both directions have their answer.
+        let mut found = false;
+        let off = self.tracks[vi].time_offset;
+        let mut c = Cursor::default();
+        loop {
+            let index = c.sample;
+            let Some(r) = c.next(&self.tracks[vi].table, vi) else {
+                break;
+            };
+            if !r.keyframe {
+                continue;
+            }
+            let mut cand = Candidate {
+                place: Place::Table(index),
+                r: shifted(r, off),
+                accepted: None,
+            };
+            found = cmp(cand.r.pts) == Ordering::Greater && self.accepts(&mut cand, &mut accept)?;
+            cands.push(cand);
+            if found {
+                break;
+            }
+        }
+        if self.fragmented && !found {
+            let mut dts = vec![0i64; n];
+            let mut at = self.frag_start;
+            'frags: while let Some(h) = self.header_at(at, true)? {
+                at = h.start + h.size;
+                if &h.typ != b"moof" {
+                    continue;
+                }
+                let body = self.read_body(&h, MAX_MOOF_SIZE, true)?;
+                let before = dts.clone();
+                let mut refs = parse_moof(&body, h.start, &self.tracks, &mut dts)?;
+                let mut max_pts: Vec<Option<i64>> = vec![None; n];
+                for r in &refs {
+                    let m = &mut max_pts[r.track];
+                    *m = Some(m.map_or(r.pts, |p| p.max(r.pts)));
+                }
+                let mark = marks.len();
+                marks.push(FragMark {
+                    start: h.start,
+                    dts: before,
+                    max_pts,
+                });
+                refs.retain(|r| r.track == vi && r.keyframe);
+                refs.sort_by_key(|r| r.dts);
+                for r in refs {
+                    let mut cand = Candidate {
+                        place: Place::Frag(mark),
+                        r,
+                        accepted: None,
+                    };
+                    let done =
+                        cmp(r.pts) == Ordering::Greater && self.accepts(&mut cand, &mut accept)?;
+                    cands.push(cand);
+                    if done {
+                        break 'frags;
+                    }
+                }
+            }
+        }
+        let rel: Vec<Ordering> = cands.iter().map(|c| cmp(c.r.pts)).collect();
+        let idx = |keep: &dyn Fn(Ordering) -> bool| -> Vec<usize> {
+            (0..cands.len()).filter(|&i| keep(rel[i])).collect()
+        };
+        let mut order = Vec::with_capacity(cands.len());
+        if forward {
+            order.extend(idx(&|o| o != Ordering::Less));
+            order.extend(idx(&|o| o == Ordering::Less).into_iter().rev());
+        } else {
+            order.extend(idx(&|o| o != Ordering::Greater).into_iter().rev());
+            order.extend(idx(&|o| o == Ordering::Greater));
+        }
+        let mut chosen = None;
+        for i in order {
+            if self.accepts(&mut cands[i], &mut accept)? {
+                chosen = Some(i);
+                break;
+            }
+        }
+        let Some(chosen) = chosen else {
+            return Ok(None);
+        };
+        let (key, place) = (cands[chosen].r, cands[chosen].place);
+        let vscale = self.tracks[vi].timescale;
+        // Whether `pts` of track `ti` is presented at or after the key.
+        let not_before =
+            |pts: i64, scale: u32| pts as i128 * vscale as i128 >= key.pts as i128 * scale as i128;
+        let mut cursors = Vec::with_capacity(n);
+        for (ti, t) in self.tracks.iter().enumerate() {
+            let mut c = Cursor::default();
+            match place {
+                Place::Table(index) if ti == vi => {
+                    while c.sample < index && c.next(&t.table, ti).is_some() {}
+                }
+                Place::Frag(_) if ti == vi => c.done = true,
+                _ => loop {
+                    let before = c.clone();
+                    match c.next(&t.table, ti) {
+                        None => break,
+                        Some(r) if not_before(r.pts.saturating_add(t.time_offset), t.timescale) => {
+                            c = before;
+                            break;
+                        }
+                        Some(_) => {}
+                    }
+                },
+            }
+            cursors.push(c);
+        }
+        match place {
+            Place::Table(_) => {
+                self.frag_scan = self.frag_start;
+                self.frag_dts = vec![0; n];
+            }
+            Place::Frag(m) => {
+                // Resume at the first `moof` with samples to keep: the key's,
+                // or an earlier one holding other tracks' later samples.
+                let tracks = &self.tracks;
+                let restart = (0..m)
+                    .find(|&i| {
+                        marks[i].max_pts.iter().enumerate().any(|(ti, p)| {
+                            ti != vi && p.is_some_and(|p| not_before(p, tracks[ti].timescale))
+                        })
+                    })
+                    .unwrap_or(m);
+                self.frag_scan = marks[restart].start;
+                self.frag_dts = std::mem::take(&mut marks[restart].dts);
+            }
+        }
+        self.cursors = cursors;
+        self.pending.clear();
+        self.skip = (0..n)
+            .map(|ti| {
+                Some(if ti == vi {
+                    Skip::Dts(key.dts)
+                } else {
+                    Skip::Pts {
+                        pts: key.pts,
+                        timescale: vscale,
+                    }
+                })
+            })
+            .collect();
+        Ok(Some(SeekPoint {
+            dts: key.dts,
+            pts: key.pts,
+        }))
+    }
+
+    /// Whether `accept` takes a candidate's data (read once).
+    fn accepts(
+        &mut self,
+        c: &mut Candidate,
+        accept: &mut impl FnMut(&[u8]) -> bool,
+    ) -> Result<bool> {
+        if let Some(ok) = c.accepted {
+            return Ok(ok);
+        }
+        let r = c.r;
+        // A sample past the end (a truncated file) is no place to land.
+        let ok = r.size <= MAX_SAMPLE_SIZE
+            && r.pos.saturating_add(r.size as u64) <= self.len
+            && accept(&self.read_raw(r.pos, r.size as usize)?);
+        c.accepted = Some(ok);
+        Ok(ok)
     }
 
     /// The next sample in decode-time order across tracks, or `None` at
@@ -1262,7 +1523,30 @@ impl<R: Read + Seek> Demuxer<R> {
         }))
     }
 
+    /// The next sample reference, without what a seek skips.
     fn next_ref(&mut self) -> Result<Option<SampleRef>> {
+        loop {
+            let Some(r) = self.next_ref_unfiltered()? else {
+                return Ok(None);
+            };
+            let keep = match self.skip.get(r.track).copied().flatten() {
+                None => true,
+                Some(Skip::Dts(dts)) => r.dts >= dts,
+                Some(Skip::Pts { pts, timescale }) => {
+                    r.pts as i128 * timescale as i128
+                        >= pts as i128 * self.tracks[r.track].timescale as i128
+                }
+            };
+            if keep {
+                if let Some(s) = self.skip.get_mut(r.track) {
+                    *s = None;
+                }
+                return Ok(Some(r));
+            }
+        }
+    }
+
+    fn next_ref_unfiltered(&mut self) -> Result<Option<SampleRef>> {
         // Samples of the moov table first: the track whose next sample
         // decodes earliest (in seconds).
         let mut best: Option<(usize, SampleRef)> = None;
@@ -1325,14 +1609,14 @@ impl<R: Read + Seek> Demuxer<R> {
     /// Reads the next `moof` into `pending`; `false` at the end.
     fn next_fragment(&mut self) -> Result<bool> {
         loop {
-            let Some(h) = self.header_at(self.frag_scan)? else {
+            let Some(h) = self.header_at(self.frag_scan, false)? else {
                 return Ok(false);
             };
             self.frag_scan = h.start + h.size;
             if &h.typ != b"moof" {
                 continue;
             }
-            let body = self.read_body(&h, MAX_MOOF_SIZE)?;
+            let body = self.read_body(&h, MAX_MOOF_SIZE, false)?;
             let mut refs = parse_moof(&body, h.start, &self.tracks, &mut self.frag_dts)?;
             let tracks = &self.tracks;
             refs.sort_by(|a, b| {
@@ -1349,7 +1633,13 @@ impl<R: Read + Seek> Demuxer<R> {
     }
 
     fn seek_to(&mut self, pos: u64) -> Result<()> {
-        if pos != self.pos {
+        if self.pos == RAW_POS {
+            // Seeking a BufReader discards its (stale) buffer.
+            self.input
+                .seek(SeekFrom::Start(pos))
+                .map_err(|e| Error::io("mp4: seek", e))?;
+            self.pos = pos;
+        } else if pos != self.pos {
             let delta = pos as i128 - self.pos as i128;
             match i64::try_from(delta) {
                 Ok(d) => self.input.seek_relative(d),
@@ -1359,6 +1649,40 @@ impl<R: Read + Seek> Demuxer<R> {
             self.pos = pos;
         }
         Ok(())
+    }
+
+    /// Reads `len` bytes at `pos`, bypassing the buffer when `raw` (a seek's
+    /// scattered small reads must not each fill 64 KiB of it).
+    fn read_any(&mut self, pos: u64, len: usize, raw: bool) -> Result<Vec<u8>> {
+        if raw {
+            self.read_raw(pos, len)
+        } else {
+            self.read_at(pos, len)
+        }
+    }
+
+    fn read_raw(&mut self, pos: u64, len: usize) -> Result<Vec<u8>> {
+        if pos.saturating_add(len as u64) > self.len {
+            return Err(Error::malformed(format!(
+                "mp4: data at {pos}+{len} past the end of the file ({})",
+                self.len
+            )));
+        }
+        // The buffer no longer matches the inner position.
+        self.pos = RAW_POS;
+        let inner = self.input.get_mut();
+        inner
+            .seek(SeekFrom::Start(pos))
+            .map_err(|e| Error::io("mp4: seek", e))?;
+        let mut buf = vec![0u8; len];
+        inner.read_exact(&mut buf).map_err(|e| {
+            if e.kind() == io::ErrorKind::UnexpectedEof {
+                Error::malformed("mp4: truncated file")
+            } else {
+                Error::io("mp4: read", e)
+            }
+        })?;
+        Ok(buf)
     }
 
     fn read_at(&mut self, pos: u64, len: usize) -> Result<Vec<u8>> {
@@ -1382,11 +1706,11 @@ impl<R: Read + Seek> Demuxer<R> {
     }
 
     /// The box header at `pos`; `None` at (or within 8 bytes of) the end.
-    fn header_at(&mut self, pos: u64) -> Result<Option<BoxHeader>> {
+    fn header_at(&mut self, pos: u64, raw: bool) -> Result<Option<BoxHeader>> {
         if pos.saturating_add(8) > self.len {
             return Ok(None);
         }
-        let head = self.read_at(pos, 8)?;
+        let head = self.read_any(pos, 8, raw)?;
         let size32 = u32::from_be_bytes([head[0], head[1], head[2], head[3]]);
         let typ = [head[4], head[5], head[6], head[7]];
         let (size, header) = match size32 {
@@ -1395,7 +1719,7 @@ impl<R: Read + Seek> Demuxer<R> {
                 if pos + 16 > self.len {
                     return Err(Error::malformed("mp4: truncated box header"));
                 }
-                let b = self.read_at(pos + 8, 8)?;
+                let b = self.read_any(pos + 8, 8, raw)?;
                 let mut a = [0u8; 8];
                 a.copy_from_slice(&b);
                 (u64::from_be_bytes(a), 16)
@@ -1432,7 +1756,7 @@ impl<R: Read + Seek> Demuxer<R> {
         }))
     }
 
-    fn read_body(&mut self, h: &BoxHeader, limit: u64) -> Result<Vec<u8>> {
+    fn read_body(&mut self, h: &BoxHeader, limit: u64, raw: bool) -> Result<Vec<u8>> {
         let n = h.size - h.header;
         if n > limit {
             return Err(Error::unsupported(format!(
@@ -1440,7 +1764,7 @@ impl<R: Read + Seek> Demuxer<R> {
                 fourcc_str(h.typ)
             )));
         }
-        self.read_at(h.start + h.header, n as usize)
+        self.read_any(h.start + h.header, n as usize, raw)
     }
 }
 
@@ -1659,6 +1983,234 @@ mod tests {
         assert!(dops_to_opus_head(&[0, 2, 0, 0, 0, 0, 0xbb, 0x80, 0, 0, 1, 1]).is_err());
     }
 
+    /// `size | type | body`.
+    fn bx(typ: &[u8; 4], parts: &[&[u8]]) -> Vec<u8> {
+        let len: usize = parts.iter().map(|p| p.len()).sum();
+        let mut out = ((len + 8) as u32).to_be_bytes().to_vec();
+        out.extend_from_slice(typ);
+        for p in parts {
+            out.extend_from_slice(p);
+        }
+        out
+    }
+
+    fn be(vals: &[u32]) -> Vec<u8> {
+        vals.iter().flat_map(|v| v.to_be_bytes()).collect()
+    }
+
+    /// A sample of the long file: an AVCC NAL of type 5 (IDR) or 1.
+    fn long_sample(i: u32) -> [u8; 6] {
+        [0, 0, 0, 2, if i % 60 == 0 { 0x65 } else { 0x41 }, 0x88]
+    }
+
+    /// A long progressive MP4: `n` video samples (track 1, 90 kHz, 3000
+    /// per frame, 6 bytes each) in one chunk, a sync sample every 30, of
+    /// which only every other is an IDR picture ([`long_sample`]), and an
+    /// audio track (2, 48 kHz, 1024 per packet, 4 bytes) in a second chunk.
+    fn long_mp4(n: u32) -> Vec<u8> {
+        let audio_n = (n as u64 * 3000 * 48_000 / 90_000 / 1024) as u32;
+        let ftyp = bx(b"ftyp", &[b"isom", &be(&[0x200]), b"isom"]);
+        #[allow(clippy::too_many_arguments)]
+        fn trak(
+            id: u32,
+            handler: &[u8; 4],
+            scale: u32,
+            count: u32,
+            delta: u32,
+            size: u32,
+            entry: &[u8],
+            stss: &[u8],
+            offset: u32,
+        ) -> Vec<u8> {
+            let mut tkhd = be(&[0, 0, 0, id, 0, 0]);
+            tkhd.extend([0; 16]);
+            tkhd.extend(be(&[0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000]));
+            let mdhd = be(&[0, 0, 0, scale, count * delta]);
+            let mut hdlr = be(&[0, 0]);
+            hdlr.extend_from_slice(handler);
+            let stbl = bx(
+                b"stbl",
+                &[
+                    &bx(b"stsd", &[&be(&[0, 1]), entry]),
+                    &bx(b"stts", &[&be(&[0, 1, count, delta])]),
+                    stss,
+                    &bx(b"stsz", &[&be(&[0, size, count])]),
+                    &bx(b"stsc", &[&be(&[0, 1, 1, count, 1])]),
+                    &bx(b"stco", &[&be(&[0, 1, offset])]),
+                ],
+            );
+            let mdia = bx(
+                b"mdia",
+                &[
+                    &bx(b"mdhd", &[&mdhd]),
+                    &bx(b"hdlr", &[&hdlr]),
+                    &bx(b"minf", &[&stbl]),
+                ],
+            );
+            bx(b"trak", &[&bx(b"tkhd", &[&tkhd]), &mdia])
+        }
+        let avc1 = bx(b"avc1", &[&[0; 24], &[0, 160, 0, 120], &[0; 50]]);
+        let mp4a = bx(
+            b"mp4a",
+            &[
+                &[0; 16],
+                &[0, 2, 0, 16],
+                &[0; 4],
+                &(48_000u32 << 16).to_be_bytes(),
+            ],
+        );
+        let syncs: Vec<u32> = (0..n).step_by(30).map(|i| i + 1).collect();
+        let mut stss = be(&[0, syncs.len() as u32]);
+        stss.extend(be(&syncs));
+        let stss = bx(b"stss", &[&stss]);
+        let moov = |video_at: u32| {
+            let audio_at = video_at + 6 * n;
+            let mvhd = be(&[0, 0, 0, 1000, n / 30 * 1000]);
+            bx(
+                b"moov",
+                &[
+                    &bx(b"mvhd", &[&mvhd]),
+                    &trak(1, b"vide", 90_000, n, 3000, 6, &avc1, &stss, video_at),
+                    &trak(2, b"soun", 48_000, audio_n, 1024, 4, &mp4a, &[], audio_at),
+                ],
+            )
+        };
+        let video_at = (ftyp.len() + moov(0).len() + 8) as u32;
+        let mut data: Vec<u8> = (0..n).flat_map(long_sample).collect();
+        data.extend((0..audio_n).flat_map(|_| [1, 2, 3, 4]));
+        [ftyp, moov(video_at), bx(b"mdat", &[&data])].concat()
+    }
+
+    /// Counts the bytes read from the file.
+    struct Counting {
+        inner: IoCursor<Vec<u8>>,
+        read: std::rc::Rc<std::cell::Cell<u64>>,
+    }
+
+    impl Read for Counting {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let n = self.inner.read(buf)?;
+            self.read.set(self.read.get() + n as u64);
+            Ok(n)
+        }
+    }
+
+    impl Seek for Counting {
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            self.inner.seek(pos)
+        }
+    }
+
+    /// Seeking an hour of samples walks the tables and reads only the
+    /// candidates; sync samples that are no IDR pictures are passed over.
+    #[test]
+    fn seek_long_table_reads_only_candidates() {
+        let n = 108_000;
+        let read = std::rc::Rc::new(std::cell::Cell::new(0));
+        let file = Counting {
+            inner: IoCursor::new(long_mp4(n)),
+            read: read.clone(),
+        };
+        let mut d = Demuxer::new(file).unwrap();
+        assert_eq!(d.tracks()[0].sample_count, n as u64);
+        let idr = |data: &[u8]| data.get(4).is_some_and(|b| b & 0x1f == 5);
+        let at = |i: i64| move |pts: i64| pts.cmp(&(i * 3000));
+        let seek = |d: &mut Demuxer<Counting>, i: i64, forward: bool| {
+            let before = read.get();
+            let p = d.seek(1, forward, at(i), idr).unwrap();
+            // A few 6-byte samples, nothing in between.
+            assert!(
+                read.get() - before <= 4 * 6,
+                "{} bytes",
+                read.get() - before
+            );
+            p.map(|p| {
+                assert_eq!(p.dts, p.pts);
+                p.pts / 3000
+            })
+        };
+        // 50_010 is a sync sample but no IDR.
+        assert_eq!(seek(&mut d, 50_005, true), Some(50_040));
+        let mut video = Vec::new();
+        let mut audio = Vec::new();
+        for _ in 0..40 {
+            let s = d.next_sample().unwrap().unwrap();
+            if s.track_id == 1 {
+                video.push(s);
+            } else {
+                audio.push(s);
+            }
+        }
+        assert_eq!(video[0].pts, 50_040 * 3000);
+        assert_eq!(video[0].data, long_sample(0));
+        assert!(video.windows(2).all(|w| w[1].pts == w[0].pts + 3000));
+        // Audio from the first packet presented at or after the keyframe.
+        let key = 50_040 * 3000 * 48_000i64;
+        assert!(audio[0].pts * 90_000 >= key);
+        assert!((audio[0].pts - 1024) * 90_000 < key);
+        assert!(audio.windows(2).all(|w| w[1].pts == w[0].pts + 1024));
+        // Backwards past the non-IDR sync sample at 50_010.
+        assert_eq!(seek(&mut d, 50_035, false), Some(49_980));
+        assert_eq!(seek(&mut d, 50_040, false), Some(50_040));
+        assert_eq!(seek(&mut d, 50_040, true), Some(50_040));
+        assert_eq!(seek(&mut d, -5, false), Some(0));
+        assert_eq!(seek(&mut d, 0, false), Some(0));
+        // Past the end: the last IDR either way.
+        assert_eq!(seek(&mut d, 1 << 40, true), Some(107_940));
+        assert_eq!(seek(&mut d, 1 << 40, false), Some(107_940));
+        // After the end.
+        while d.next_sample().unwrap().is_some() {}
+        assert_eq!(seek(&mut d, 30, false), Some(0));
+        assert_eq!(d.next_sample().unwrap().unwrap().pts, 0);
+        // Nothing to land on: the position is unchanged.
+        let next = d.next_sample().unwrap().unwrap();
+        assert!(d.seek(1, true, at(1000), |_| false).unwrap().is_none());
+        let after = d.next_sample().unwrap().unwrap();
+        assert!(after.dts >= next.dts && after.pos != next.pos);
+        assert!(d.seek(7, true, at(1000), idr).unwrap().is_none());
+    }
+
+    /// Fragments: the moofs are scanned, never the mdat; the samples after
+    /// the seek are those of a full pass from the keyframe on.
+    #[test]
+    fn seek_fragments() {
+        let data = vectors::fixture("media/frag.mp4");
+        let mut d = Demuxer::new(IoCursor::new(data)).unwrap();
+        let mut all = Vec::new();
+        while let Some(s) = d.next_sample().unwrap() {
+            all.push(s);
+        }
+        let keys: Vec<i64> = all
+            .iter()
+            .filter(|s| s.track_id == 1 && s.keyframe)
+            .map(|s| s.pts)
+            .collect();
+        assert_eq!(keys, [0, 7780]);
+        for (target, forward, want) in [(4000, true, 7780), (4000, false, 0), (7780, false, 7780)] {
+            let p = d
+                .seek(1, forward, |pts| pts.cmp(&target), |_| true)
+                .unwrap()
+                .unwrap();
+            assert_eq!(p.pts, want);
+            let mut rest = Vec::new();
+            while let Some(s) = d.next_sample().unwrap() {
+                rest.push(s);
+            }
+            let audio_scale = d.tracks()[1].timescale as i64;
+            let kept: Vec<&Sample> = all
+                .iter()
+                .filter(|s| {
+                    if s.track_id == 1 {
+                        s.dts >= p.dts
+                    } else {
+                        s.pts * 15_360 >= want * audio_scale
+                    }
+                })
+                .collect();
+            assert_eq!(rest.iter().collect::<Vec<_>>(), kept);
+        }
+    }
+
     /// Every truncation and many byte flips: errors or samples, no panics.
     #[test]
     fn hostile_input_never_panics() {
@@ -1669,6 +2221,12 @@ mod tests {
                     for _ in 0..4000 {
                         if !matches!(d.next_sample(), Ok(Some(_))) {
                             break;
+                        }
+                    }
+                    let id = d.tracks()[0].id;
+                    for (target, forward) in [(0, false), (1000, true), (i64::MAX, true)] {
+                        if let Ok(Some(_)) = d.seek(id, forward, |p| p.cmp(&target), |_| true) {
+                            let _ = d.next_sample();
                         }
                     }
                 }

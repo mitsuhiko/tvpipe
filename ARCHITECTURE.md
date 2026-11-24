@@ -32,6 +32,9 @@ detail lives in `docs/`:
   native APIs assessed.
 - [`airplay-mirroring.md`](docs/airplay-mirroring.md): the clean-room
   AirPlay mirroring spec.
+- [`playback.md`](docs/playback.md): seeking and pausing `play` (the
+  keys, the continuous timeline, skip frames and frozen ffmpeg while
+  paused).
 
 ## Scope
 
@@ -132,6 +135,17 @@ single drop costs a whole GOP. `-v` logs why a file did not pass.
 - Arguments after `--` go straight to ffmpeg, which is how capture works
   without platform code in `tvpipe`. The commands for each OS are in
   [Playing media](https://tvpipe.party/manual/play/).
+
+**Seeking and pausing** a file, or a URL with a length (the arrow keys
+and space, `Session::seek`/`pause`, the machine interface): the input
+keeps one continuous output timeline, so receivers never see time jump.
+Passthrough lands on keyframes (MP4's sample tables, an index of the
+Matroska Clusters) and, since receivers need pictures while paused,
+repeats the paused picture with **skip frames** (`media/h264skip.rs`: P
+pictures whose every macroblock is P_Skip, CAVLC or CABAC as the file's
+PPS says, non-reference so the file's next frame decodes as if nothing
+came between). ffmpeg is started again at the position, or frozen on its
+picture while paused. Details: [`docs/playback.md`](docs/playback.md).
 
 **Built-in encoders.** The test pattern always uses them (unless an ffmpeg
 encoder is named: then ffmpeg's `testsrc2` is streamed instead). Raw game
@@ -541,12 +555,17 @@ Everything is platform-neutral except these, each with no crate and every
   watched the first `q` asks). On a stop the session does not drain:
   every sink's `stop()` runs and ffmpeg is killed and reaped.
   Ctrl-C/SIGTERM exits with 130, `q` with 0.
-- **`q` without Enter** (`crates/tvpipe-cli/src/tty.rs`): the CLI runs
-  `stty -icanon -echo min 1 time 0` on its terminal and `stty` with what
-  `stty -g` printed when it ends (also on errors, panics, a second Ctrl-C,
-  and around prompts that read a line). A command, not an OS API: where
-  there is none, or it changes nothing (Windows consoles), `q` needs
-  Enter.
+- **Single keys** (`q` without Enter, the arrows; `crates/tvpipe-cli/src/tty/`):
+  on Unix the CLI runs `stty -icanon -echo min 1 time 0` on its terminal
+  and `stty` with what `stty -g` printed when it ends (also on errors,
+  panics, a second Ctrl-C, and around prompts that read a line): a
+  command, not an OS API. Windows consoles have no stty: `tty/windows.rs`
+  sets the console mode (`GetConsoleMode`/`SetConsoleMode` from
+  kernel32: line input and echo off, virtual terminal input on, so arrows
+  come as the same escape sequences), restored the same way; it also turns
+  on virtual terminal processing on stderr (ANSI in the classic console
+  host) and reads the console's width. An MSYS terminal (stdin a pipe)
+  gets stty. Where neither works, `q` needs Enter.
 - **Windows timer resolution** (`crates/tvpipe/src/util/timer.rs`). Windows ends timed
   waits on the 15.6 ms system tick, which made Cast pacing bursty.
   `timeBeginPeriod(1)` (winmm, once per process, no `timeEndPeriod`: since

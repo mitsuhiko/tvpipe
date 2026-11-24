@@ -21,7 +21,17 @@ use tvpipe::__cli::opts::{Command, InputSpec, Provider, QrFormat};
 use tvpipe::{Device, Storage};
 
 fn main() -> ExitCode {
-    let (global, command) = cli::parse_env();
+    let (global, mut command) = cli::parse_env();
+    // `play` of a file or URL seeks and pauses: the keys, the machine
+    // interface's commands.
+    if let Command::Play(o) = &mut command {
+        if matches!(o.input, InputSpec::Path(_)) {
+            let control = tvpipe::__cli::PlaybackControl::new();
+            o.playback = Some(control.clone());
+            interrupt::set_playback(control.clone());
+            machine::set_playback(control);
+        }
+    }
     let mode = match ui::Mode::pick(
         global.machine,
         global.verbose,

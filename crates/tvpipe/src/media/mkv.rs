@@ -5,6 +5,13 @@
 //! pipe: no seeking, unknown-size Segment and Cluster elements, SimpleBlock
 //! and BlockGroup, all three lacing modes.
 //!
+//! Files can be seeked by Cluster: [`index_clusters`] lists the Clusters
+//! (position and Timestamp) by skipping each one by its size, reading a
+//! few bytes per Cluster on its own handle; [`Demuxer::seek_cluster`]
+//! continues there (`R: Seek`). An unknown-size Cluster ends the index (its
+//! end is only found by reading it), so later times are reached by reading
+//! on from the last indexed Cluster. Cues are not used.
+//!
 //! Master elements we descend into (Segment, Cluster, BlockGroup content
 //! is read whole) are parsed *flat*: their header is consumed and their
 //! children are read as if they were siblings. That makes known and unknown
@@ -16,7 +23,7 @@
 //! Matroska spec (RFC 9559: §5.1 element IDs, §10 block structure, §10.4
 //! lacing, §11 timestamps, track timestamp scale).
 
-use std::io::{self, BufReader, Read};
+use std::io::{self, BufReader, Read, Seek, SeekFrom};
 
 use crate::error::{Error, Result};
 use crate::util::bytes::Reader;
@@ -488,6 +495,10 @@ pub struct Demuxer<R> {
     pending: std::collections::VecDeque<Frame>,
     /// A Cluster header read while scanning for Tracks.
     in_cluster: bool,
+    /// Where the first Cluster's header starts.
+    first_cluster: u64,
+    /// Where the header of the Cluster being read starts.
+    cluster_pos: u64,
 }
 
 impl<R: Read> Demuxer<R> {
@@ -505,6 +516,8 @@ impl<R: Read> Demuxer<R> {
             cluster_timestamp: None,
             pending: Default::default(),
             in_cluster: false,
+            first_cluster: 0,
+            cluster_pos: 0,
         };
         let h = d
             .input
@@ -516,6 +529,7 @@ impl<R: Read> Demuxer<R> {
         let body = d.input.take(h.known(MAX_HEADER_SIZE)?)?;
         parse_ebml_header(&body)?;
         loop {
+            let start = d.input.pos;
             let h = d
                 .input
                 .header()?
@@ -535,6 +549,8 @@ impl<R: Read> Demuxer<R> {
                         return Err(Error::malformed("mkv: Cluster before Tracks"));
                     }
                     d.in_cluster = true;
+                    d.first_cluster = start;
+                    d.cluster_pos = start;
                     return Ok(d);
                 }
                 _ => d.skip(h)?,
@@ -558,6 +574,16 @@ impl<R: Read> Demuxer<R> {
     /// Bytes consumed so far.
     pub fn position(&self) -> u64 {
         self.input.pos
+    }
+
+    /// Where the first Cluster's header starts (for [`index_clusters`]).
+    pub fn first_cluster(&self) -> u64 {
+        self.first_cluster
+    }
+
+    /// Where the header of the Cluster holding the last frame starts.
+    pub fn cluster_position(&self) -> u64 {
+        self.cluster_pos
     }
 
     fn parse_info(&mut self, body: &[u8]) -> Result<()> {
@@ -606,12 +632,16 @@ impl<R: Read> Demuxer<R> {
                 self.in_cluster = false;
                 self.cluster_timestamp = None;
             }
+            let start = self.input.pos;
             let Some(h) = self.input.header()? else {
                 return Ok(None);
             };
             match h.id {
                 id::SEGMENT => {}
-                id::CLUSTER => self.cluster_timestamp = None,
+                id::CLUSTER => {
+                    self.cluster_timestamp = None;
+                    self.cluster_pos = start;
+                }
                 id::CLUSTER_TIMESTAMP => {
                     let body = self.input.take(h.known(8)?)?;
                     self.cluster_timestamp = Some(uint(&body)?);
@@ -717,6 +747,156 @@ impl<R: Read> Demuxer<R> {
         };
         i64::try_from(ns).map_err(|_| Error::malformed("mkv: timestamp out of range"))
     }
+}
+
+impl<R: Read + Seek> Demuxer<R> {
+    /// Continues with the element at byte `pos`, a Cluster header from
+    /// [`index_clusters`] or [`Demuxer::cluster_position`]. Frames read
+    /// but not yet returned are dropped.
+    pub fn seek_cluster(&mut self, pos: u64) -> Result<()> {
+        self.input
+            .inner
+            .seek(SeekFrom::Start(pos))
+            .map_err(|e| Error::io("mkv: seek", e))?;
+        self.input.pos = pos;
+        self.pending.clear();
+        self.cluster_timestamp = None;
+        self.in_cluster = false;
+        self.cluster_pos = pos;
+        Ok(())
+    }
+}
+
+/// A Cluster found by [`index_clusters`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClusterEntry {
+    /// Where its header starts.
+    pub pos: u64,
+    /// Its Timestamp, in Segment ticks (TimestampScale).
+    pub timestamp: u64,
+}
+
+/// The Clusters of a file, see [`index_clusters`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClusterIndex {
+    pub clusters: Vec<ClusterEntry>,
+    /// The index reached the end of the Segment. Otherwise it stopped at an
+    /// unknown-size element or one it could not parse: what follows the
+    /// last Cluster is only found by reading it.
+    pub complete: bool,
+}
+
+/// Cluster headers read at once (header, CRC-32 and Timestamp fit).
+const INDEX_PEEK: usize = 64;
+/// Children looked at for the Timestamp (CRC-32, Void come first).
+const INDEX_CHILDREN: usize = 8;
+
+/// Lists the Clusters from the one at `first` (a Cluster header, see
+/// [`Demuxer::first_cluster`]) on: each Cluster's header and Timestamp
+/// are read (one small read, more if CRC-32 or Void elements come
+/// first) and the rest skipped by its size, as are the elements between
+/// Clusters (Cues, Tags). Reads `r` unbuffered; give it its own handle.
+/// Stops without error on anything unexpected (see
+/// [`ClusterIndex::complete`]); fails only on I/O errors.
+pub fn index_clusters<R: Read + Seek>(r: &mut R, first: u64) -> Result<ClusterIndex> {
+    let mut index = ClusterIndex::default();
+    let mut at = first;
+    let mut buf = [0u8; INDEX_PEEK];
+    loop {
+        let n = read_upto(r, at, &mut buf)?;
+        if n == 0 {
+            index.complete = true;
+            return Ok(index);
+        }
+        let Some((id, size, hlen)) = peek_header(&buf[..n]) else {
+            return Ok(index);
+        };
+        let body = at.saturating_add(hlen as u64);
+        if id == id::CLUSTER {
+            let end = size.map(|s| body.saturating_add(s));
+            let Some(timestamp) = cluster_timestamp(r, body, end, &mut buf)? else {
+                return Ok(index);
+            };
+            if index.clusters.len() as u64 >= MAX_INDEX_CLUSTERS {
+                return Ok(index);
+            }
+            index.clusters.push(ClusterEntry { pos: at, timestamp });
+        } else if id == id::EBML {
+            // A chained Segment: the demuxer stops there too.
+            index.complete = true;
+            return Ok(index);
+        }
+        match size {
+            Some(s) => at = body.saturating_add(s),
+            None => return Ok(index),
+        }
+    }
+}
+
+/// Most Clusters indexed (a day of one-second Clusters).
+const MAX_INDEX_CLUSTERS: u64 = 1 << 17;
+
+/// The Timestamp among the first children of a Cluster whose body starts
+/// at `at` (and ends at `end`, if known).
+fn cluster_timestamp<R: Read + Seek>(
+    r: &mut R,
+    mut at: u64,
+    end: Option<u64>,
+    buf: &mut [u8; INDEX_PEEK],
+) -> Result<Option<u64>> {
+    for _ in 0..INDEX_CHILDREN {
+        if end.is_some_and(|e| at >= e) {
+            return Ok(None);
+        }
+        let n = read_upto(r, at, buf)?;
+        let Some((id, Some(size), hlen)) = peek_header(&buf[..n]) else {
+            return Ok(None);
+        };
+        match id {
+            id::CLUSTER_TIMESTAMP => {
+                let Some(data) = usize::try_from(size)
+                    .ok()
+                    .and_then(|s| buf[..n].get(hlen..hlen.checked_add(s)?))
+                else {
+                    return Ok(None);
+                };
+                return Ok(uint(data).ok());
+            }
+            id::CRC32 | id::VOID => at = at.saturating_add(hlen as u64).saturating_add(size),
+            _ => return Ok(None),
+        }
+    }
+    Ok(None)
+}
+
+/// Reads up to `buf.len()` bytes at `pos`; fewer only at the end.
+fn read_upto<R: Read + Seek>(r: &mut R, pos: u64, buf: &mut [u8]) -> Result<usize> {
+    r.seek(SeekFrom::Start(pos))
+        .map_err(|e| Error::io("mkv: seek", e))?;
+    let mut got = 0;
+    while got < buf.len() {
+        match r.read(&mut buf[got..]) {
+            Ok(0) => break,
+            Ok(k) => got += k,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(Error::io("mkv: read", e)),
+        }
+    }
+    Ok(got)
+}
+
+/// An element header at the start of `buf`: (ID, size or `None` if
+/// unknown, header length). `None` if it is invalid or cut off.
+fn peek_header(buf: &[u8]) -> Option<(u32, Option<u64>, usize)> {
+    let mut r = Reader::new(buf, "mkv");
+    let (len, raw) = buf_vint(&mut r).ok()?;
+    if len > 4 {
+        return None;
+    }
+    let id = (raw | (1u64 << (7 * len))) as u32;
+    let (slen, size) = buf_vint(&mut r).ok()?;
+    let unknown = size == (1u64 << (7 * slen)) - 1;
+    Some((id, (!unknown).then_some(size), r.position()))
 }
 
 #[cfg(test)]
@@ -906,6 +1086,86 @@ mod tests {
     #[test]
     fn ffmpeg_file_fixture() {
         check_fixture("file");
+    }
+
+    #[test]
+    fn cluster_index_and_seek() {
+        use std::io::Cursor;
+        let data = crate::util::vectors::fixture("media/file.mkv");
+        let mut d = Demuxer::new(Cursor::new(data.clone())).unwrap();
+        assert_eq!(d.first_cluster(), 962);
+        let index = index_clusters(&mut Cursor::new(data.clone()), 962).unwrap();
+        // Positions from the file, Timestamps as ffprobe shows the blocks.
+        let at = |pos, timestamp| ClusterEntry { pos, timestamp };
+        assert_eq!(
+            index,
+            ClusterIndex {
+                clusters: vec![at(962, 0), at(22251, 501)],
+                complete: true
+            }
+        );
+        d.seek_cluster(22251).unwrap();
+        // Opus at the Cluster's 501 ms, then the keyframe at 500 ms (a
+        // block before its Cluster's Timestamp).
+        let f = d.next_frame().unwrap().unwrap();
+        assert_eq!(d.cluster_position(), 22251);
+        assert_eq!((f.track, f.timestamp), (3, 501));
+        let f = d.next_frame().unwrap().unwrap();
+        assert_eq!((f.track, f.timestamp, f.keyframe), (1, 500, true));
+        let mut n = 2;
+        while d.next_frame().unwrap().is_some() {
+            n += 1;
+        }
+        // Back to the start: everything again.
+        d.seek_cluster(962).unwrap();
+        let mut all = 0;
+        while d.next_frame().unwrap().is_some() {
+            all += 1;
+        }
+        assert!(all > n && n > 10, "{all} {n}");
+        // ffmpeg's live output has known-size Clusters too.
+        let data = crate::util::vectors::fixture("media/live.mkv");
+        let index = index_clusters(&mut Cursor::new(data), 820).unwrap();
+        assert!(index.complete);
+        assert_eq!(index.clusters.len(), 111);
+        assert_eq!(index.clusters[2], at(5172, 11));
+        let back: Vec<usize> = (1..index.clusters.len())
+            .filter(|&i| index.clusters[i].timestamp < index.clusters[i - 1].timestamp)
+            .collect();
+        // ALAC's 4096-sample packets get Clusters of their own, which start
+        // up to 2 ms before the previous one.
+        assert_eq!(back, [32, 73, 104]);
+        assert_eq!(index.clusters[32], at(13825, 279));
+    }
+
+    #[test]
+    fn cluster_index_never_panics() {
+        use std::io::Cursor;
+        let data = crate::util::vectors::fixture("media/file.mkv");
+        for n in (0..data.len()).step_by(7) {
+            let _ = index_clusters(&mut Cursor::new(data[..n].to_vec()), 962);
+        }
+        for i in (900..1100).chain(22200..22300) {
+            let mut bad = data.clone();
+            bad[i] ^= 0xa5;
+            let _ = index_clusters(&mut Cursor::new(bad.clone()), 962);
+            bad[i] = 0xff;
+            let _ = index_clusters(&mut Cursor::new(bad), 962);
+        }
+        // Past the end, and an unknown size.
+        let index = index_clusters(&mut Cursor::new(data.clone()), data.len() as u64 + 5).unwrap();
+        assert!(index.complete && index.clusters.is_empty());
+        let mut w = Writer::new();
+        cluster(&mut w, 7);
+        let index = index_clusters(&mut Cursor::new(w.into_vec()), 0).unwrap();
+        assert_eq!(
+            index.clusters,
+            [ClusterEntry {
+                pos: 0,
+                timestamp: 7
+            }]
+        );
+        assert!(!index.complete);
     }
 
     #[test]

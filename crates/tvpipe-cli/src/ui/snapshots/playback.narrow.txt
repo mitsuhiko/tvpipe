@@ -1,0 +1,29 @@
+tvpipe · Playing movie.mkv
+
+✓ Connected to Living Room TV · Google Cast (1.8 s)
+• Space pauses, ←/→ jump 10 s, ↑/↓ a minute
+● Playing · 1920×1080 · 24 fps · 00:00:00 / 01:45:12
+---
+tvpipe · Playing movie.mkv
+
+✓ Connected to Living Room TV · Google Cast (1.8 s)
+• Space pauses, ←/→ jump 10 s, ↑/↓ a minute
+● Playing · 1920×1080 · 24 fps · 00:01:02 / 01:45:12
+---
+tvpipe · Playing movie.mkv
+
+✓ Connected to Living Room TV · Google Cast (1.8 s)
+• Space pauses, ←/→ jump 10 s, ↑/↓ a minute
+● Paused · 1920×1080 · 24 fps · 00:01:02 / 01:45:12
+---
+tvpipe · Playing movie.mkv
+
+✓ Connected to Living Room TV · Google Cast (1.8 s)
+• Space pauses, ←/→ jump 10 s, ↑/↓ a minute
+? Stop playing? Press q again to stop
+---
+tvpipe · Playing movie.mkv
+
+✓ Connected to Living Room TV · Google Cast (1.8 s)
+• Space pauses, ←/→ jump 10 s, ↑/↓ a minute
+● Playing · 1920×1080 · 24 fps · Living Room TV · 01:06:40

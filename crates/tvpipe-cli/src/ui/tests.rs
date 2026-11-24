@@ -32,6 +32,9 @@ enum In {
     Tick,
     /// A key on the terminal, and whether it must stop the session.
     Key(K, bool),
+    /// Where a `play` that seeks is: position and length in seconds,
+    /// paused.
+    Playback(u64, Option<u64>, bool),
     /// Marks the output here, for [`shots`].
     Shot,
 }
@@ -90,6 +93,15 @@ fn run(caps: Caps, kind: Kind, title: Option<&str>, script: &[(u64, In)]) -> Str
             }
             Finish(stopped) => r.finish(*stopped, now),
             Tick => r.redraw(now),
+            Playback(at, length, paused) => {
+                let mut st = tvpipe::PlaybackStatus::default();
+                st.seekable = true;
+                st.position = Duration::from_secs(*at);
+                st.duration = length.map(Duration::from_secs);
+                st.paused = *paused;
+                r.set_playback(st);
+                r.redraw(now);
+            }
             Key(k, stop) => assert_eq!(r.key(*k, now), *stop, "{k:?} at {ms} ms"),
             Shot => {
                 out.push_str(&r.take());
@@ -463,6 +475,44 @@ fn a_file_to_a_tv() {
         &script,
     );
     snapshot("play.plain", &raw);
+}
+
+#[test]
+fn a_file_that_seeks_and_pauses() {
+    let mut script = play_file();
+    script.truncate(7);
+    script.extend([
+        (2000, Playback(0, Some(6312), false)),
+        (2100, Shot),
+        (5000, Key(K::Seek(60_000), false)),
+        (5300, Playback(62, Some(6312), false)),
+        (5400, Shot),
+        (6000, Key(K::Pause, false)),
+        (6100, Playback(62, Some(6312), true)),
+        (6200, Shot),
+        // The question stays while seeking.
+        (7000, Key(K::Quit, false)),
+        (7100, Key(K::Seek(-10_000), false)),
+        (7200, Playback(52, Some(6312), true)),
+        (7300, Shot),
+        (7400, Key(K::Other, false)),
+        // A URL without a length.
+        (8000, Playback(4000, None, false)),
+    ]);
+    let raw = run(
+        live(100, false),
+        Kind::Stream("Playing"),
+        Some("Playing movie.mkv"),
+        &script,
+    );
+    snapshot("playback.live", &shots(&raw, 100));
+    let raw = run(
+        live(64, false),
+        Kind::Stream("Playing"),
+        Some("Playing movie.mkv"),
+        &script,
+    );
+    snapshot("playback.narrow", &shots(&raw, 64));
 }
 
 #[test]

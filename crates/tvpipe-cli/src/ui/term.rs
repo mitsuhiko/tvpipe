@@ -1,10 +1,12 @@
 //! What the terminal can do: colours, in-place updates, its width.
 //!
-//! Detected from the environment only (std, no OS calls): a terminal on
-//! stderr, `TERM`, `NO_COLOR`, `CLICOLOR`/`CLICOLOR_FORCE`, `FORCE_COLOR`
-//! and, for Windows terminals that understand ANSI without saying so in
-//! `TERM`, `WT_SESSION` (Windows Terminal), `ConEmuANSI=ON` and
-//! `ANSICON`. The width comes from `COLUMNS`, else `tput cols`, else 80.
+//! Detected from the environment (std): a terminal on stderr, `TERM`,
+//! `NO_COLOR`, `CLICOLOR`/`CLICOLOR_FORCE`, `FORCE_COLOR` and, for Windows
+//! terminals that understand ANSI without saying so in `TERM`,
+//! `WT_SESSION` (Windows Terminal), `ConEmuANSI=ON` and `ANSICON`; and a
+//! Windows console that took virtual terminal processing
+//! (`crate::tty::windows`). The width comes from `COLUMNS`, else the
+//! Windows console's window, else `tput cols`, else 80.
 
 /// How a person stops the command, for the hint on the status line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +58,8 @@ pub struct Facts<'a> {
     pub env: &'a dyn Fn(&str) -> Option<String>,
     /// stderr is a terminal.
     pub stderr_tty: bool,
+    /// stderr is a Windows console that now takes ANSI sequences.
+    pub console_ansi: bool,
     /// The person can stop with `q` (see [`StopHint`]).
     pub stop: StopHint,
     /// `--no-qr`.
@@ -79,7 +83,8 @@ pub fn detect(f: &Facts<'_>, width: &dyn Fn() -> Option<usize>) -> Caps {
         && (term.as_deref().is_some_and(|t| !t.is_empty())
             || env("WT_SESSION").is_some()
             || env("ConEmuANSI").as_deref() == Some("ON")
-            || env("ANSICON").is_some());
+            || env("ANSICON").is_some()
+            || f.console_ansi);
     let forced = set(env("CLICOLOR_FORCE")) || set(env("FORCE_COLOR"));
     let no_color = env("NO_COLOR").is_some_and(|v| !v.is_empty());
     let clicolor_off = env("CLICOLOR").as_deref() == Some("0");
@@ -101,6 +106,16 @@ pub fn detect(f: &Facts<'_>, width: &dyn Fn() -> Option<usize>) -> Caps {
         qr,
         stop: f.stop,
     }
+}
+
+/// The terminal's columns: the Windows console's window, else `tput
+/// cols`.
+pub fn columns() -> Option<usize> {
+    #[cfg(windows)]
+    if let Some(w) = crate::tty::windows::columns() {
+        return Some(w);
+    }
+    tput_cols()
 }
 
 /// `tput cols`, which asks the terminal (std::process only; on systems
@@ -137,6 +152,7 @@ mod tests {
             &Facts {
                 env: &env,
                 stderr_tty: tty,
+                console_ansi: false,
                 stop: StopHint::Key,
                 no_qr: false,
             },
@@ -168,6 +184,15 @@ mod tests {
         assert!(caps(&[("ConEmuANSI", "ON")], true).live);
         assert!(caps(&[("ANSICON", "1")], true).live);
         assert!(!caps(&[], true).live);
+        let env = |_: &str| None;
+        let console = Facts {
+            env: &env,
+            stderr_tty: true,
+            console_ansi: true,
+            stop: StopHint::Key,
+            no_qr: false,
+        };
+        assert!(detect(&console, &|| None).live);
         // COLUMNS wins over tput.
         assert_eq!(
             caps(&[("TERM", "xterm"), ("COLUMNS", "50")], true).width,

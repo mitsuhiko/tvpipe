@@ -13,6 +13,7 @@ use tvpipe::__cli::events::{
     ReceiverState, Started, Stats, Step, TunnelEvent, TunnelPage, ViewerEvent, ViewerState,
 };
 use tvpipe::log::{Level, Record};
+use tvpipe::PlaybackStatus;
 
 use super::confirm::{Confirm, Key};
 use super::term::{Caps, StopHint};
@@ -115,6 +116,10 @@ pub struct Renderer {
     casting: Vec<String>,
     /// A download's bytes so far and its length.
     download: Option<(u64, Option<u64>)>,
+    /// `play` of a file: where it is (polled from its control).
+    playback: Option<PlaybackStatus>,
+    /// The note about the playback keys was shown.
+    keys_told: bool,
     /// Messages already printed (the command's error is not repeated).
     shown: Vec<String>,
 }
@@ -154,7 +159,23 @@ impl Renderer {
             phones: 0,
             casting: Vec::new(),
             download: None,
+            playback: None,
+            keys_told: false,
             shown: Vec::new(),
+        }
+    }
+
+    /// Where a `play` that seeks and pauses is (the ticker polls it).
+    /// Once it streams, a note says which keys do it.
+    pub fn set_playback(&mut self, status: PlaybackStatus) {
+        self.playback = status.seekable.then_some(status);
+        if !self.keys_told
+            && status.seekable
+            && self.started.is_some()
+            && self.caps.stop == StopHint::Key
+        {
+            self.keys_told = true;
+            self.note("Space pauses, ←/→ jump 10 s, ↑/↓ a minute");
         }
     }
 
@@ -899,7 +920,7 @@ impl Renderer {
         if self.stopping {
             return Some(fit(
                 &[format!("{} Stopping…", p.accent(&spin.to_string()))],
-                None,
+                &[],
                 width,
                 p,
             ));
@@ -916,20 +937,30 @@ impl Renderer {
             if self.steps.len() > 1 {
                 s.push_str(&p.dim(&format!(" (+{} more)", self.steps.len() - 1)));
             }
-            return Some(fit(&[s], None, width, p));
+            return Some(fit(&[s], &[], width, p));
         }
-        let hint = match self.caps.stop {
-            StopHint::Key => Some("q to stop"),
-            StopHint::Line => Some("q + Enter to stop"),
-            StopHint::CtrlC => Some("Ctrl-C to stop"),
-            StopHint::None => None,
+        let playback = self.playback.filter(|_| self.started.is_some());
+        let hints: &[&str] = match self.caps.stop {
+            StopHint::Key => &["q to stop"],
+            StopHint::Line => &["q + Enter to stop"],
+            StopHint::CtrlC => &["Ctrl-C to stop"],
+            StopHint::None => &[],
         };
         let dot = p.accent("●");
         let parts = match self.kind {
             Kind::Stream(word) => {
                 let (s, _) = self.started.as_ref()?;
-                let mut parts = vec![format!("{dot} {word}")];
-                let elapsed = self.streamed(now);
+                let mut parts = vec![match playback {
+                    Some(b) if b.paused => format!("{} Paused", p.yellow("●")),
+                    _ => format!("{dot} {word}"),
+                }];
+                let elapsed = match playback {
+                    Some(b) => match b.duration {
+                        Some(d) => format!("{} / {}", clock(b.position), clock(d)),
+                        None => clock(b.position),
+                    },
+                    None => self.streamed(now),
+                };
                 parts.push(format!("{}×{}", s.video.width, s.video.height));
                 let fps_now = self.rate.map(|r| r.0).unwrap_or(s.video.fps);
                 parts.push(format!("{} fps", fps(fps_now)));
@@ -965,7 +996,7 @@ impl Renderer {
             }
             Kind::Once => return None,
         };
-        Some(fit(&parts, hint, width, p))
+        Some(fit(&parts, hints, width, p))
     }
 
     /// Who watches, for the status line.
@@ -1079,10 +1110,11 @@ fn cut(s: &str, width: usize) -> String {
     out
 }
 
-/// The status line: `parts` joined by " · ", the hint at the right; when
-/// it does not fit, the hint goes first, then parts from the second to
-/// last backwards (the first and the clock stay), then it is cut.
-fn fit(parts: &[String], hint: Option<&str>, width: usize, p: Paint) -> String {
+/// The status line: `parts` joined by " · ", the first hint that fits at
+/// the right; when none does, the hint goes first, then parts from the
+/// second to last backwards (the first and the clock stay), then it is
+/// cut.
+fn fit(parts: &[String], hints: &[&str], width: usize, p: Paint) -> String {
     let sep = p.dim(" · ");
     let mut keep: Vec<&String> = parts.iter().collect();
     let join = |keep: &[&String]| {
@@ -1092,8 +1124,8 @@ fn fit(parts: &[String], hint: Option<&str>, width: usize, p: Paint) -> String {
             .join(&sep)
     };
     let mut line = join(&keep);
-    if let Some(h) = hint {
-        if visible(&line) + 4 + h.len() <= width {
+    for h in hints {
+        if visible(&line) + 4 + visible(h) <= width {
             return format!("{line}    {}", p.dim(h));
         }
     }

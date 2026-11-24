@@ -20,6 +20,8 @@ pub mod formats;
 pub mod h264;
 #[cfg(feature = "h264")]
 pub mod h264enc;
+#[cfg(feature = "files")]
+pub mod h264skip;
 pub mod input;
 #[cfg(feature = "files")]
 pub mod mkv;

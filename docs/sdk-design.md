@@ -74,7 +74,7 @@ await play("x.mp4", { to: "Living Room", onPin: askUser }); // pairs on demand, 
 | `discover(opts?)` | `discover --json` | `Device[]` |
 | `pair(target, { onPin?, pin? })` | `pair` | `{ name, id }` |
 | `unpair(target)` | `unpair` | `void` |
-| `play(input, opts)` | `play` | `Session` once streaming started |
+| `play(input, opts)` | `play` | `PlaySession` once streaming started: `seek`, `seekBy`, `pause`, `resume` send the machine interface's commands (docs/playback.md) |
 | `testPattern(opts)` | `debug pattern` | `Session` |
 | `preview(input?, opts?)` | `preview` | `Session` (`playerUrl` set) |
 | `share(url?, opts)` | `share [URL]` | `Session` (`shareUrl` without URL); with URL a `PageSession`, whose `navigate(url)` sends the machine interface's `navigate` |

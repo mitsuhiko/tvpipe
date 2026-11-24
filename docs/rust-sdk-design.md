@@ -321,7 +321,7 @@ writers for other threads.
 | `pair(target, on_pin)` / `Pairing::start(target)` | `pair` | `Paired` / a handle: `state()`, `submit_pin(&str)` |
 | `unpair(target)` | `unpair` | `()` |
 | `stream(options)` / `Stream::start(options)` | `play … -` (SLRW) | `Stream` once connected / at once (state `Connecting`) |
-| `play(input, options)` | `play` (`files`/`ffmpeg`) | `Session` |
+| `play(input, options)` | `play` (`files`/`ffmpeg`) | `Session`; a file or a URL with a length seeks and pauses (`seek`, `seek_by`, `pause`, `resume`, `playback()`; docs/playback.md) |
 | `test_pattern(options)` | `debug pattern` (`h264`) | `Session` |
 | `preview(input, options)` | `preview` (`player`) | `Session` with `player_url()` |
 | `share(url, options)` | `share` (`share`/`headless`) | `Session` with `share_url()`; with a URL, `navigate(url)` shows another page in the same tab (the receivers keep their sessions) |

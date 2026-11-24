@@ -1261,7 +1261,10 @@ fn play_rejoin(
         #[cfg(feature = "files")]
         Route::Passthrough(path, plan) => {
             let realtime = opts.realtime.unwrap_or(true);
-            let i = PassthroughInput::open(&path, &plan, realtime, opts.looped, stop.clone())?;
+            let mut i = PassthroughInput::open(&path, &plan, realtime, opts.looped, stop.clone())?;
+            if let Some(c) = &opts.playback {
+                i = i.seekable(c.clone());
+            }
             Ok((Box::new(i) as Box<dyn Input>, latency(&d, &caps)))
         }
         Route::Encoded => {
@@ -1366,7 +1369,17 @@ fn play_rejoin(
             );
             let (bin, probe) = tools.get()?;
             let (source, raw) = ffmpeg_source(&opts, &input, io.stdin)?;
-            let i = FfmpegInput::start(bin, probe, &source, &plan, raw, stop.clone())?;
+            let mut i = FfmpegInput::start(bin, probe, &source, &plan, raw, stop.clone())?;
+            // A file, or a URL with a length, seeks and pauses.
+            if let (Some(c), InputSpec::Path(p)) = (&opts.playback, &opts.input) {
+                if input.duration.is_some() || Path::new(p).is_file() {
+                    let length = input
+                        .duration
+                        .filter(|d| d.is_finite() && *d > 0.0)
+                        .map(Duration::from_secs_f64);
+                    i = i.seekable(c.clone(), length, bin, probe, &source, &plan);
+                }
+            }
             Ok((Box::new(i) as Box<dyn Input>, plan.latency_ms))
         }
     })();
@@ -1383,7 +1396,14 @@ fn play_rejoin(
             return Err(e);
         }
     };
-    match stream(input, route_name, latency_ms, sinks, ctx) {
+    match stream(
+        input,
+        route_name,
+        latency_ms,
+        sinks,
+        opts.playback.as_ref(),
+        ctx,
+    ) {
         Ok(EndReason::Interrupted) => {
             info!("stopped");
             Ok(())
@@ -1853,6 +1873,7 @@ fn share_rejoin(
         events::Route::Browser,
         plan.latency_ms,
         sinks,
+        None,
         ctx,
     ) {
         Ok(EndReason::Interrupted) => {
@@ -2104,6 +2125,8 @@ fn ffmpeg_source(
                     .realtime
                     .unwrap_or(input.duration.is_some() || Path::new(p).is_file()),
                 looped: opts.looped,
+                start: None,
+                freeze: false,
             },
             None,
         ),
@@ -2141,6 +2164,7 @@ fn stream(
     route: events::Route,
     latency_ms: u32,
     sinks: Vec<Box<dyn Sink>>,
+    playback: Option<&crate::playback::PlaybackControl>,
     ctx: &Ctx,
 ) -> Result<EndReason> {
     let stop = &ctx.stop;
@@ -2184,6 +2208,10 @@ fn stream(
     debug!("sinks started in {} ms", ready.elapsed().as_millis());
     ctx.events
         .emit(Event::Started(started_event(route, &info, latency_ms)));
+    // Seeks and pauses are told from now on.
+    if let Some(c) = playback {
+        c.attach(ctx.events.clone());
+    }
     let t0 = Instant::now();
     // An input that can change its bitrate follows the network.
     let mut abr = input.bitrate_kbps().map(|k| Abr::new(k, t0));
@@ -2753,6 +2781,7 @@ mod tests {
             raw_audio: None,
             ffmpeg: None,
             input: InputSpec::TestPattern,
+            playback: None,
         }
     }
 
@@ -3650,6 +3679,7 @@ mod tests {
             events::Route::Builtin,
             0,
             vec![Box::new(sink)],
+            None,
             &never(),
         )
         .unwrap();
@@ -3766,6 +3796,7 @@ mod tests {
             events::Route::Builtin,
             0,
             vec![Box::new(sink)],
+            None,
             &never(),
         )
         .unwrap();

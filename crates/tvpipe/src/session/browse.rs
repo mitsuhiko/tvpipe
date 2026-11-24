@@ -386,6 +386,7 @@ fn browse_rejoin(
         events::Route::Browser,
         plan.latency_ms,
         sinks,
+        None,
         ctx,
     );
     drop(source);

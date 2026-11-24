@@ -1,14 +1,16 @@
 //! Single keys on a terminal: stdin switched to non-canonical, no-echo
-//! input (`stty -icanon -echo min 1 time 0`), so `q` needs no Enter.
+//! input, so `q` needs no Enter and arrows arrive as they are typed.
 //!
-//! Through the `stty` program (std::process with stdin inherited), not
-//! OS calls (AGENTS.md: platform-neutral code). Where stty is missing or
-//! changes nothing (Windows consoles; an MSYS stty that only reports a
-//! terminal of its own), [`enter`] fails and input stays line by line
-//! (`q` + Enter).
+//! On Unix through the `stty` program (`stty -icanon -echo min 1 time 0`,
+//! std::process with stdin inherited), not OS calls (AGENTS.md:
+//! platform-neutral code). Windows consoles have no stty: there the
+//! console mode does it ([`windows`], one of the files with platform
+//! code, ARCHITECTURE.md), and an MSYS terminal (whose stdin is a pipe,
+//! not a console) gets stty again. Where neither works, [`enter`] fails
+//! and input stays line by line (`q` + Enter).
 //!
 //! The terminal gets its old state back (`stty` with what `stty -g`
-//! printed) on every way out: [`restore`] when `main` returns (normal end,
+//! printed, or the console mode as it was) on every way out: [`restore`] when `main` returns (normal end,
 //! errors, `q`, the first Ctrl-C), on a panic (a hook), and before a
 //! second Ctrl-C ends the process (main, through
 //! `tvpipe::signals::before_forced_exit`);
@@ -19,8 +21,44 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
-/// The terminal's state before [`enter`], as `stty -g` printed it.
-static SAVED: OnceLock<String> = OnceLock::new();
+#[cfg(windows)]
+pub mod windows;
+
+/// The terminal's state before [`enter`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Saved {
+    /// What `stty -g` printed.
+    Stty(String),
+    /// A Windows console's input mode.
+    #[cfg(windows)]
+    Console(u32),
+}
+
+impl Saved {
+    /// Puts the terminal back in this state.
+    fn apply(&self) {
+        match self {
+            Saved::Stty(s) => {
+                let _ = stty(&[s]);
+            }
+            #[cfg(windows)]
+            Saved::Console(m) => {
+                windows::set_input_mode(*m);
+            }
+        }
+    }
+
+    /// Single keys again (after a [`Cooked`] prompt).
+    fn keys(&self) -> bool {
+        match self {
+            Saved::Stty(_) => stty(&KEYS).is_some(),
+            #[cfg(windows)]
+            Saved::Console(m) => windows::set_input_mode(windows::keys_mode(*m)),
+        }
+    }
+}
+
+static SAVED: OnceLock<Saved> = OnceLock::new();
 /// Single keys are on now.
 static ON: AtomicBool = AtomicBool::new(false);
 /// [`restore`] ran: never single keys again.
@@ -42,26 +80,45 @@ fn stty(args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&out.stdout).trim().to_owned())
 }
 
+/// A Windows console on stdin switched to single keys.
+#[cfg(windows)]
+fn enter_console() -> Option<Saved> {
+    let before = windows::input_mode()?;
+    windows::set_input_mode(windows::keys_mode(before)).then_some(Saved::Console(before))
+}
+
+#[cfg(not(windows))]
+fn enter_console() -> Option<Saved> {
+    None
+}
+
+/// The terminal switched to single keys by stty.
+fn enter_stty() -> Option<Saved> {
+    let before = stty(&["-g"]).filter(|s| !s.is_empty())?;
+    if stty(&KEYS).is_none() {
+        let _ = stty(&[&before]);
+        return None;
+    }
+    // A stty that succeeds without changing the terminal (an MSYS stty on
+    // a Windows console) leaves it line by line.
+    if stty(&["-g"]).is_none_or(|after| after == before) {
+        let _ = stty(&[&before]);
+        return None;
+    }
+    Some(Saved::Stty(before))
+}
+
 /// Switches stdin (a terminal; the caller checks) to single keys without
 /// echo. False if that is not possible here: input stays line by line.
 pub fn enter() -> bool {
     if DONE.load(Ordering::SeqCst) || SAVED.get().is_some() {
         return ON.load(Ordering::SeqCst);
     }
-    let Some(before) = stty(&["-g"]).filter(|s| !s.is_empty()) else {
+    let Some(saved) = enter_console().or_else(enter_stty) else {
         return false;
     };
-    if stty(&KEYS).is_none() {
-        let _ = stty(&[&before]);
-        return false;
-    }
-    // A stty that succeeds without changing the terminal (an MSYS stty on
-    // a Windows console) leaves it line by line.
-    if stty(&["-g"]).is_none_or(|after| after == before) {
-        let _ = stty(&[&before]);
-        return false;
-    }
-    if SAVED.set(before).is_err() {
+    if let Err(saved) = SAVED.set(saved) {
+        saved.apply();
         return false;
     }
     ON.store(true, Ordering::SeqCst);
@@ -84,7 +141,7 @@ pub fn restore() {
     DONE.store(true, Ordering::SeqCst);
     if ON.swap(false, Ordering::SeqCst) {
         if let Some(saved) = SAVED.get() {
-            let _ = stty(&[saved]);
+            saved.apply();
         }
     }
 }
@@ -107,7 +164,7 @@ impl Cooked {
         let was = ON.swap(false, Ordering::SeqCst);
         if was {
             if let Some(saved) = SAVED.get() {
-                let _ = stty(&[saved]);
+                saved.apply();
             }
         }
         Cooked(was)
@@ -116,14 +173,14 @@ impl Cooked {
 
 impl Drop for Cooked {
     fn drop(&mut self) {
-        if self.0 && !DONE.load(Ordering::SeqCst) && stty(&KEYS).is_some() {
+        if self.0 && !DONE.load(Ordering::SeqCst) && SAVED.get().is_some_and(Saved::keys) {
             ON.store(true, Ordering::SeqCst);
         }
     }
 }
 
 /// Echo is off for a [`NoEcho`] prompt; what the terminal had before.
-static HIDDEN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+static HIDDEN: std::sync::Mutex<Option<Saved>> = std::sync::Mutex::new(None);
 
 /// Gives the terminal its echo back after a [`NoEcho`], once; whether it
 /// was off.
@@ -131,16 +188,33 @@ fn show() -> bool {
     let saved = HIDDEN.lock().unwrap_or_else(|e| e.into_inner()).take();
     match saved {
         Some(saved) => {
-            let _ = stty(&[&saved]);
+            saved.apply();
             true
         }
         None => false,
     }
 }
 
+/// Echo off for a line; what to put back.
+#[cfg(windows)]
+fn hide_console() -> Option<Saved> {
+    let before = windows::input_mode()?;
+    windows::set_input_mode(windows::no_echo_mode(before)).then_some(Saved::Console(before))
+}
+
+#[cfg(not(windows))]
+fn hide_console() -> Option<Saved> {
+    None
+}
+
+fn hide_stty() -> Option<Saved> {
+    let before = stty(&["-g"]).filter(|s| !s.is_empty())?;
+    stty(&["-echo"]).map(|_| Saved::Stty(before))
+}
+
 /// No echo while this lives, for a password prompt that reads a line
-/// (inside a [`Cooked`]). Where stty cannot do it (Windows consoles) the
-/// typing stays visible. Ctrl-C while it is off gives the echo back
+/// (inside a [`Cooked`]). Where neither the console nor stty can do it
+/// the typing stays visible. Ctrl-C while it is off gives the echo back
 /// before the usual: the process exits (130) unless a session catches
 /// Ctrl-C to stop.
 pub struct NoEcho {
@@ -163,13 +237,13 @@ impl NoEcho {
                 }
             });
         });
-        let mut hidden = false;
-        if let Some(before) = stty(&["-g"]).filter(|s| !s.is_empty()) {
-            if stty(&["-echo"]).is_some() {
+        let hidden = match hide_console().or_else(hide_stty) {
+            Some(before) => {
                 *HIDDEN.lock().unwrap_or_else(|e| e.into_inner()) = Some(before);
-                hidden = true;
+                true
             }
-        }
+            None => false,
+        };
         NoEcho { hidden }
     }
 }

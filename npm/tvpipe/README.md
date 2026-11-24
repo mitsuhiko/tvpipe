@@ -74,6 +74,16 @@ const s = await share("https://status.example.com", { to: "TV" });
 s.navigate("https://status.example.com/next"); // a log warning if tvpipe refuses it
 ```
 
+A file, or a URL with a length, seeks and pauses while it plays:
+
+```js
+const m = await play("movie.mkv", { to: "TV" });
+m.seekBy(60_000); // a minute forward
+m.pause();        // the TV keeps the picture
+m.resume();
+m.on("playback", (p) => console.log(p.positionMs, p.paused));
+```
+
 ## Frames from code
 
 ```js
