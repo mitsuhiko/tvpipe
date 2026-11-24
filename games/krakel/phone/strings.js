@@ -1,7 +1,6 @@
 // @ts-check
 /**
- * What the phone says, per language (the room's, or the one picked with
- * the switch). Names, words and player texts are passed in, rendered as
+ * What the phone says, per language (the room's). Names, words and player texts are passed in, rendered as
  * text.
  */
 
@@ -11,7 +10,7 @@ import { format } from "./i18n.js";
 const en = (f) => ({
   /** A number as the language writes it. */
   n: f.n,
-  otherLang: "Deutsch",
+  langName: "English",
   connecting: "Connecting…",
   scanToJoin: "Scan the QR code on the TV to join.",
   joinTitle: "Join the game",
@@ -50,6 +49,7 @@ const en = (f) => ({
   vipReady: "Everybody here? Start when you're ready.",
   waitVip: "The VIP starts the game.",
   settings: "Settings",
+  langLabel: "Language",
   roundsLabel: "Rounds",
   drawLabel: "Time to draw",
   guessLabel: "Time to guess",
@@ -65,6 +65,10 @@ const en = (f) => ({
   hintsOff: "hidden",
   hintsLine: ["Hard: no help, just the category.", "Easy: you see how many letters the word has."],
   lockNone: "free",
+  lateLabel: "Latecomers",
+  lateWait: "next round",
+  lateClosed: "after the game",
+  lateLine: ["Whoever comes during a game plays from the next round.", "Whoever comes during a game joins after it."],
   lockLine: (/** @type {number} */ s) => (s > 0 ? f.p(s, { one: "A wrong guess locks your phone for # second.", other: "A wrong guess locks your phone for # seconds." }) : "Guess as often as you like."),
   rulesLine: (/** @type {number} */ rounds, /** @type {number} */ draw, /** @type {number} */ guess, /** @type {boolean} */ hints, /** @type {boolean} */ mixed) =>
     `${f.p(rounds, { one: "# round", other: "# rounds" })} · ${mixed ? "mixed words" : "one category a round"} · ${f.n(draw)} s to draw · ${f.n(guess)} s to guess · letters ${hints ? "shown" : "hidden"}`,
@@ -154,7 +158,7 @@ const en = (f) => ({
 /** @type {(f: import("./i18n.js").Format) => Strings} */
 const de = (f) => ({
   n: f.n,
-  otherLang: "English",
+  langName: "Deutsch",
   connecting: "Verbinde…",
   scanToJoin: "Scanne den QR-Code auf dem Fernseher, um mitzuspielen.",
   joinTitle: "Mitspielen",
@@ -192,6 +196,7 @@ const de = (f) => ({
   vipReady: "Alle da? Dann starte das Spiel.",
   waitVip: "Der VIP startet das Spiel.",
   settings: "Einstellungen",
+  langLabel: "Sprache",
   roundsLabel: "Runden",
   drawLabel: "Zeit zum Zeichnen",
   guessLabel: "Zeit zum Raten",
@@ -207,6 +212,10 @@ const de = (f) => ({
   hintsOff: "verstecken",
   hintsLine: ["Schwer: keine Hilfe, nur die Kategorie.", "Leicht: Du siehst, wie viele Buchstaben das Wort hat."],
   lockNone: "frei",
+  lateLabel: "Nachzügler",
+  lateWait: "nächste Runde",
+  lateClosed: "nach dem Spiel",
+  lateLine: ["Wer während eines Spiels kommt, spielt ab der nächsten Runde mit.", "Wer während eines Spiels kommt, spielt erst danach mit."],
   lockLine: (s) => (s > 0 ? f.p(s, { one: "Wer falsch rät, muss # Sekunde warten.", other: "Wer falsch rät, muss # Sekunden warten." }) : "Rate, so oft du willst."),
   rulesLine: (rounds, draw, guess, hints, mixed) =>
     `${f.p(rounds, { one: "# Runde", other: "# Runden" })} · ${mixed ? "gemischte Wörter" : "eine Kategorie pro Runde"} · ${f.n(draw)} s zeichnen · ${f.n(guess)} s raten · Buchstaben ${hints ? "sichtbar" : "versteckt"}`,

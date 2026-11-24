@@ -11,7 +11,7 @@
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { watchFit } from "./fit.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { drawInk, ERASER, fit, GRID, Live, MAX_POINTS, MAX_STROKES, PALETTE, progressAt, Replay, WIDTHS } from "./ink.js";
 import { strings } from "./strings.js";
 
@@ -46,48 +46,27 @@ blockEmoji();
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone (the words and the
+// guesses are in it; the host page or the VIP sets it); before joining,
+// the browser's.
 
-const LANG_KEY = "krakel:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-  else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  }
-});
 
 let shown = "";
 /** @type {(() => void) | null} called on every view while the screen stays */
@@ -208,8 +187,6 @@ document.addEventListener("focusin", (e) => e.target instanceof HTMLInputElement
 function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   input.value = typed ?? client.saved?.name ?? localStorage.getItem("krakel:name") ?? "";
@@ -318,8 +295,6 @@ function render(view) {
     autoSubmit = null;
     for (const c of cleanups) c();
     cleanups = [];
-    langButton.hidden = !(me.task === "lobby" || me.task === "final");
-    langButton.textContent = t.otherLang;
     document.body.classList.toggle("full", (me.task === "draw" && !me.done) || me.task === "guess" || me.task === "artist");
     appHeight();
     build(view);
@@ -375,6 +350,7 @@ const isVip = () => !!(client.view?.roster ?? []).find((/** @type {any} */ r) =>
 /** @param {HTMLElement} err */
 function settings(err) {
   /** @type {{ key: string, buttons: HTMLButtonElement[], values: any[], line: HTMLElement | null }[]} */
+  // The host page's settings, the same choices (the game checks them; none during a game).
   const items = [];
   const box = h("div", { class: "settings" }, h("h2", {}, t.settings));
   const add = (/** @type {string} */ key, /** @type {any[]} */ values, /** @type {string[]} */ labels, /** @type {string} */ title, /** @type {boolean} */ withLine) => {
@@ -383,21 +359,26 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons), line));
     items.push({ key, buttons, values, line });
   };
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel, false);
   add("rounds", [1, 2, 3, 4], ["1", "2", "3", "4"], t.roundsLabel, false);
   add("drawTime", [60, 90, 120, 180], [60, 90, 120, 180].map(t.minutes), t.drawLabel, false);
   add("guessTime", [30, 45, 60, 90], [30, 45, 60, 90].map(t.seconds), t.guessLabel, false);
   add("mixed", [false, true], [t.modeCategory, t.modeMixed], t.modeLabel, true);
   add("hints", [true, false], [t.hintsOn, t.hintsOff], t.hintsLabel, true);
   add("lockout", [0, 2, 4, 8], [t.lockNone, "2 s", "4 s", "8 s"], t.lockLabel, true);
+  add("late", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, true);
   const update = () => {
     const room = client.view?.room ?? {};
     box.hidden = !isVip();
     for (const it of items) {
       const cur = room[it.key];
       it.buttons.forEach((b, i) => b.classList.toggle("on", it.values[i] === cur));
+      // Only the languages there are words for.
+      if (it.key === "lang") it.buttons.forEach((b, i) => (b.disabled = Array.isArray(room.langs) && !room.langs.includes(it.values[i])));
       if (it.key === "hints" && it.line) it.line.textContent = t.hintsLine[cur ? 1 : 0];
       if (it.key === "mixed" && it.line) it.line.textContent = t.modeLine[cur ? 1 : 0];
       if (it.key === "lockout" && it.line) it.line.textContent = t.lockLine(cur ?? 0);
+      if (it.key === "late" && it.line) it.line.textContent = t.lateLine[cur === "closed" ? 1 : 0];
     }
   };
   return { box, update };

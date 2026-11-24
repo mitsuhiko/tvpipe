@@ -69,11 +69,11 @@ cd games/krakel && npm install && npm run build
 Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once three
 are in (or the host page's Start). Settings (the host page, or the
-VIP's phone in the lobby): rounds (1–4), time to draw (1, 1½, 2 or 3
-minutes), time to guess (30, 45, 60 or 90 s), the words (one category a
-round, or mixed), letters shown or hidden, the wait after a wrong
-guess; on the host page only, the language and latecomers (next round,
-or not during a game). A game ends early, after the round, when fewer
+VIP's phone in the lobby and after a game, the same ones): the
+language, rounds (1–4), time to draw (1, 1½, 2 or 3 minutes), time to
+guess (30, 45, 60 or 90 s), the words (one category a round, or mixed),
+letters shown or hidden, the wait after a wrong guess, and latecomers
+(next round, or not during a game). A game ends early, after the round, when fewer
 than three players are left in it.
 
 ## Checking it
@@ -104,11 +104,10 @@ a TV with its sound on included) and on any bot's error.
 ## Languages
 
 English and German. The language is the room's: a setting on the host
-page, which starts with the browser's language (then the last choice on
-that computer) and changes only between games. It goes with the room
-and TV views (`lang`), so every phone, the TV and the host page speak
-it; a phone may switch for itself on the join screen, in the lobby and
-at the end. Each language has its own words (`data/words.txt`,
+page (which starts with the browser's language, then the last choice on
+that computer) and on the VIP's phone, changed only between games. It
+goes with the room and TV views (`lang`), so every phone, the TV and
+the host page speak it (a phone before joining: the browser's). Each language has its own words (`data/words.txt`,
 `data/words.de.txt`: 22 categories, about 570 words each) and its own
 rules for articles and endings in the matcher (`game/rules.ts`). The
 pages' string tables (`phone/strings.js`, `screen/strings.js`) write

@@ -97,12 +97,18 @@ start ─▶ draw (everyone at once) ─▶ per drawing: count-in ─▶ replay 
   *Krakel of the game* (the drawing that earned its artist the most,
   redrawn once more) and the *sharpest eye* (the most points for
   guessing).
-- **Settings** (the host page, or the VIP's phone in the lobby): rounds
-  1–4 (default 2), time to draw 1, 1½, 2 or 3 minutes (default 2), time
-  to guess 30, 45, 60 or 90 s (default 45), the words (one category a
-  round, or mixed), letters shown or hidden (§3), the lockout, and on
-  the host page the language and whether latecomers join at the next
-  round or not during a game.
+- **Settings** (the host page, or the VIP's phone in the lobby and on
+  the final screen; all of them, the same choices, none during a game):
+  the language (one with words; every phone and the TV speak the room's,
+  the words and the guesses are in it), rounds 1–4 (default 2), time to
+  draw 1, 1½, 2 or 3 minutes (default 2), time to guess 30, 45, 60 or
+  90 s (default 45), the words (one category a round, or mixed), letters
+  shown or hidden (§3), the lockout, and whether latecomers join at the
+  next round or not during a game (the party's `lateJoin`, `wait` or
+  `closed`). The VIP's `settings` action takes any of them (`lang`,
+  `late`, `rounds`, `drawTime`, `guessTime`, `mixed`, `hints`,
+  `lockout`), refuses anything else, and a change reaches the host page
+  (`settings`).
 - **A game** of two rounds with six players takes about 15 minutes:
   2 min drawing and 6 × (4 + ≤ 45 + 6.5) s on stage a round.
 - **Leaving and joining.** A phone that drops out keeps its seat (the

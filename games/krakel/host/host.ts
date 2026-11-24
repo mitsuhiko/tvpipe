@@ -12,7 +12,7 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { bots, type Bot } from "../game/bots.ts";
-import { FAST_TIMINGS, Krakel } from "../game/game.ts";
+import { FAST_TIMINGS, Krakel, LATE_JOINS } from "../game/game.ts";
 import { LANGS, parseCategories, type Category, type Lang } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
@@ -76,7 +76,8 @@ function settings(game: Krakel, words: Partial<Record<Lang, Category[]>>): Field
       get: () => s().mixed,
       set: (mixed) => game.configure({ mixed }),
     },
-    lateJoinField(game.party, ["wait", "closed"]),
+    // The game shows it to the phones (the VIP's settings) and keeps it to these two.
+    lateJoinField(game.party, LATE_JOINS, (late) => game.configure({ late: late === "closed" ? "closed" : "wait" })),
   ];
 }
 

@@ -11,8 +11,9 @@
  * authority: phones and screens only ever get views.
  *
  * Views:
- * - `party.room` (every phone): `{ phase, lang, round, rounds, drawTime, guessTime, hints, lockout, mixed, minPlayers,
- *   colors, category?, deadline?, spot?, got?, stage?, gallery? }` (`category`: the round's, or on stage the drawing's;
+ * - `party.room` (every phone): `{ phase, lang, langs, late, round, rounds, drawTime, guessTime, hints, lockout, mixed,
+ *   minPlayers, colors, category?, deadline?, spot?, got?, stage?, gallery? }` (`langs`: the languages there are
+ *   words for; `late`: latecomers, `wait` or `closed`, the party's `lateJoin`; `category`: the round's, or on stage the drawing's;
  *   null while a mixed round draws and in its gallery); `spot` is the drawing on stage: `{ key, index, of, artist,
  *   drawing, start, end, shape, asked }` (`shape`: the word's letters as blanks, with `hints`; `asked`: how many guess),
  *   `got` who named it so far, `reveal` (`word`, `points`) once it is over.
@@ -101,8 +102,11 @@ export const DRAW_TIMES = [60, 90, 120, 180] as const;
 export const GUESS_TIMES = [30, 45, 60, 90] as const;
 export const LOCKOUTS = [0, 2, 4, 8] as const;
 export const MAX_ROUNDS = 4;
+/** Who may join during a game (the party's `lateJoin`): at the next round, or not at all. */
+export const LATE_JOINS = ["wait", "closed"] as const;
+export type LateJoins = (typeof LATE_JOINS)[number];
 
-/** The room's settings: the host page's, or the VIP's in the lobby. */
+/** The room's settings: the host page's, or the VIP's (lobby and final). */
 export interface Settings {
   /** Seconds to draw. */
   drawTime: number;
@@ -287,6 +291,11 @@ export class Krakel extends Emitter<GameEvents> {
     return [...this.#words.keys()];
   }
 
+  /** Who may join during a game: the party's `lateJoin` as one of {@link LATE_JOINS} (`open` reads as `wait`). */
+  get late(): LateJoins {
+    return this.party.lateJoin === "closed" ? "closed" : "wait";
+  }
+
   /** The round being played (tests: the words, the drawings). */
   get round(): Readonly<Round> | undefined {
     return this.#round;
@@ -330,9 +339,18 @@ export class Krakel extends Emitter<GameEvents> {
     });
     party.handle("settings", (d, from) => {
       vipOnly(from);
-      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "rounds, drawTime, guessTime, hints, lockout, mixed");
+      const keys = ["lang", "late", "rounds", "drawTime", "guessTime", "hints", "lockout", "mixed"];
+      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", keys.join(", "));
       const v = d as Record<string, Json>;
-      const o: Partial<Settings> & { rounds?: number } = {};
+      for (const k of Object.keys(v)) if (!keys.includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const o: Partial<Settings> & { rounds?: number; lang?: Lang; late?: LateJoins } = {};
+      const word = <T extends string>(key: "lang" | "late", list: readonly T[]): T | undefined => {
+        if (v[key] === undefined) return undefined;
+        if (!list.includes(v[key] as T)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
+        return v[key] as T;
+      };
+      o.lang = word("lang", this.langs);
+      o.late = word("late", LATE_JOINS);
       const oneOf = (key: "drawTime" | "guessTime" | "lockout" | "rounds", list: readonly number[]) => {
         if (v[key] === undefined) return;
         if (!list.includes(v[key] as number)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
@@ -372,26 +390,28 @@ export class Krakel extends Emitter<GameEvents> {
   }
 
   /**
-   * Changes the rounds, the timers, the language or the settings before
-   * a game; every phone and the TV follow.
+   * Changes the rounds, the timers, the language, the latecomers or the
+   * settings before a game; every phone and the TV follow.
    */
-  configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
+  configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined; late?: LateJoins | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
     if (o.lang !== undefined && !this.langs.includes(o.lang)) throw new PartyError("bad-lang", `Nothing to play in ${o.lang}`);
-    const was = JSON.stringify([this.rounds, this.settings]);
+    if (o.late !== undefined && !LATE_JOINS.includes(o.late)) throw new PartyError("bad-late", `Latecomers: ${LATE_JOINS.join(", ")}`);
+    const was = JSON.stringify([this.#lang, this.late, this.rounds, this.settings]);
     if (o.rounds !== undefined) this.rounds = Math.max(1, Math.min(MAX_ROUNDS, Math.round(o.rounds)));
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     if (o.lang !== undefined) this.#lang = o.lang;
+    if (o.late !== undefined) this.party.lateJoin = o.late;
     if (o.drawTime !== undefined && o.drawTime > 0) this.timings.draw = o.drawTime * 1000;
     if (o.guessTime !== undefined && o.guessTime > 0) this.timings.guess = o.guessTime * 1000;
     if (o.hints !== undefined) this.#hints = o.hints;
     if (o.mixed !== undefined) this.#mixed = o.mixed;
     if (o.lockout !== undefined && o.lockout >= 0) this.#lockout = o.lockout;
     if (this.#phase === "lobby" || this.#phase === "final") {
-      this.party.room.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
+      this.party.room.set({ lang: this.#lang, late: this.late, rounds: this.rounds, ...this.settings });
       this.party.screen.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
     }
-    if (JSON.stringify([this.rounds, this.settings]) !== was) this.emit("settings", this.settings);
+    if (JSON.stringify([this.#lang, this.late, this.rounds, this.settings]) !== was) this.emit("settings", this.settings);
   }
 
   /**
@@ -477,7 +497,7 @@ export class Krakel extends Emitter<GameEvents> {
   }
 
   #room(fields: Record<string, unknown>): void {
-    this.party.room.replace({ lang: this.#lang, round: this.#roundNo, rounds: this.rounds, ...this.settings, minPlayers: this.minPlayers, colors: this.#colorMap(), ...fields });
+    this.party.room.replace({ lang: this.#lang, langs: this.langs, late: this.late, round: this.#roundNo, rounds: this.rounds, ...this.settings, minPlayers: this.minPlayers, colors: this.#colorMap(), ...fields });
   }
 
   #screen(fields: Record<string, unknown>): void {
