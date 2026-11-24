@@ -344,10 +344,14 @@ lifts).
 
 ## 12. Settings
 
-The host page and the VIP's phone: **level** (easy, normal, hard: where
-the ladder starts and the checks, §7),
-**pace** (relaxed, normal, rushed), the language (English, German), late
-joining (wait, closed).
+The host page and the VIP's phone (the lobby and the end), all of them,
+the same choices, only between games: the language (English, German;
+the room's, every phone and the TV speak it), **level** (easy, normal,
+hard: where the ladder starts and the checks, §7), **pace** (relaxed,
+normal, rushed), late joining (wait: at the next shape; closed: not
+during a game). The VIP's `settings` action takes `lang`, `level`,
+`pace` and `lateJoin`; the room view carries them all, and a change from
+the phone shows on the host page.
 
 ## 13. Checking it
 

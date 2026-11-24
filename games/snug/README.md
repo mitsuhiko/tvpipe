@@ -59,8 +59,8 @@ cd games/snug && npm install && npm run build
 Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once two
 are in (or the host page's Start). Settings (the host page, or the VIP's
-phone in the lobby): the level (easy, normal, hard) and the clock
-(relaxed, normal, rushed); on the host page only, the language and
+phone in the lobby and at the end; between games only): the language,
+the level (easy, normal, hard), the clock (relaxed, normal, rushed) and
 latecomers (next shape, or not during a game). A phone away for 8
 seconds passes its pieces to the others; the game ends at the next
 shape when fewer than two players are left in it.
@@ -88,10 +88,10 @@ its box or under the join badge, and fails on any page's or bot's error.
 
 ## Languages
 
-English and German. The language is the room's: a setting on the host
-page, which starts with the browser's language and changes only between
-games; a phone may switch for itself on the join screen, in the lobby
-and at the end.
+English and German. The language is the room's, the same on every
+phone and the TV: a setting on the host page (it starts with the
+browser's language) or the VIP's phone, changed only between games. A
+phone that has not joined yet speaks its browser's language.
 
 ## The font
 

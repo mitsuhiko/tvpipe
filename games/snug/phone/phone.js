@@ -14,7 +14,7 @@ import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { fitsAnywhere, flip, normalize, turn } from "../game/rules.js";
 import { cushion, initial, piece, pointer, s } from "./candy.js";
 import { watchFit } from "./fit.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { strings } from "./strings.js";
 
 // A controller, not a document: no pinch or double-tap zoom, no selection.
@@ -32,48 +32,26 @@ const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const toastEl = /** @type {HTMLElement} */ (document.getElementById("toast"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone (the host page or the
+// VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "snug:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-  else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  }
-});
 
 let shown = "";
 /** @type {((view: any) => void) | null} called on every view while the screen stays */
@@ -187,8 +165,6 @@ function logo() {
 function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   input.value = typed ?? client.saved?.name ?? localStorage.getItem("snug:name") ?? "";
@@ -265,8 +241,6 @@ function render(view) {
     refresh = null;
     for (const c of cleanups) c();
     cleanups = [];
-    langButton.hidden = !(me.task === "lobby" || me.task === "final");
-    langButton.textContent = t.otherLang;
     document.body.classList.toggle("playing", k.startsWith("board:"));
     build(view);
   }
@@ -306,9 +280,12 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons)));
     items.push({ key, buttons, values });
   };
+  add("lang", [...LANGS], Object.fromEntries(LANGS.map((l) => [l, strings(l).langName])), t.langLabel);
   add("level", ["easy", "normal", "hard"], t.levels, t.levelLabel);
   box.append(line);
   add("pace", ["relaxed", "normal", "rushed"], t.paces, t.paceLabel);
+  // As the host page offers it (game/game.ts LATE_JOINS).
+  add("lateJoin", ["wait", "closed"], t.lates, t.lateLabel);
   const update = () => {
     const room = client.view?.room ?? {};
     box.hidden = !isVip();

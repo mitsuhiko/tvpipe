@@ -11,7 +11,7 @@ export function strings(lang) {
   if (lang === "de") {
     return {
       ...f,
-      otherLang: "English",
+      langName: "Deutsch",
       connecting: "Verbinde …",
       reconnecting: "Verbindung weg, verbinde neu …",
       scanToJoin: "Scanne den Code auf dem Fernseher, um mitzuspielen.",
@@ -38,7 +38,10 @@ export function strings(lang) {
       waitVip: "Der VIP startet das Spiel.",
       settings: "Einstellungen",
       levelLabel: "Stufe",
+      langLabel: "Sprache",
       paceLabel: "Uhr",
+      lateLabel: "Nachzügler",
+      lates: { wait: "nächste Form", closed: "nach dem Spiel" },
       levels: { easy: "leicht", normal: "normal", hard: "schwer" },
       paces: { relaxed: "gemütlich", normal: "normal", rushed: "hektisch" },
       levelLine: {
@@ -100,7 +103,7 @@ export function strings(lang) {
   }
   return {
     ...f,
-    otherLang: "Deutsch",
+    langName: "English",
     connecting: "Connecting…",
     reconnecting: "Lost the connection, reconnecting…",
     scanToJoin: "Scan the code on the TV to play.",
@@ -127,7 +130,10 @@ export function strings(lang) {
     waitVip: "The VIP starts the game.",
     settings: "Settings",
     levelLabel: "Level",
+    langLabel: "Language",
     paceLabel: "Clock",
+    lateLabel: "Latecomers",
+    lates: { wait: "next shape", closed: "after the game" },
     levels: { easy: "easy", normal: "normal", hard: "hard" },
     paces: { relaxed: "relaxed", normal: "normal", rushed: "rushed" },
     levelLine: {

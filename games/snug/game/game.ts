@@ -8,7 +8,7 @@
  * end. The host is the only authority: phones and screens only get views.
  *
  * Views:
- * - `party.room` (every phone): `{ phase, lang, level, pace, minPlayers, colors, solved, best, board?, shape?,
+ * - `party.room` (every phone): `{ phase, lang, level, pace, lateJoin, minPlayers, colors, solved, best, board?, shape?,
  *   placed?, counts?, team?, deadline?, left?, checks, check?, cursors?, bonus?, earned?, by?, spares?, solution?,
  *   hands?, awards?, stats? }`: `phase` is `lobby`, `board`, `solved`, `over` (time's up) or `final`; `shape` the board
  *   (`{ w, h, rows }`), `placed` the pieces on it (`{ id, owner, cells }`), `counts` the pieces each player still
@@ -29,7 +29,7 @@
  * (a new board, solved, time's up, the end) with the TV.
  */
 
-import { Emitter, PartyError, type Json, type Party, type Player, type Sender } from "@tvpipe/party";
+import { Emitter, PartyError, type Json, type LateJoin, type Party, type Player, type Sender } from "@tvpipe/party";
 
 import {
   bonusTime,
@@ -40,6 +40,7 @@ import {
   deal,
   effort,
   key,
+  LANGS,
   LEVELS,
   LIFT_COST,
   MIN_PLAYERS,
@@ -77,6 +78,9 @@ export const DEFAULT_TIMINGS: Timings = { celebrate: 4500, over: 10_000, handoff
 
 /** For trying the game: a short clock. */
 export const FAST_TIMINGS: Partial<Timings> = { celebrate: 3000, over: 6000, start: 60_000, bonus: 20_000 };
+
+/** Who may join during a game, as the host page and the VIP offer it: at the next board, or nobody. */
+export const LATE_JOINS: readonly LateJoin[] = ["wait", "closed"];
 
 export interface Settings {
   level: Level;
@@ -268,10 +272,13 @@ export class Snug extends Emitter<GameEvents> {
     party.handle("settings", (d, from) => {
       vipOnly(from);
       const v = obj(d);
-      for (const k of Object.keys(v)) if (k !== "level" && k !== "pace") throw new PartyError("bad-settings", `${k}: not a setting`);
-      if (v["level"] !== undefined && !(LEVELS as readonly Json[]).includes(v["level"])) throw new PartyError("bad-settings", `level: ${LEVELS.join(", ")}`);
-      if (v["pace"] !== undefined && !(PACES as readonly Json[]).includes(v["pace"])) throw new PartyError("bad-settings", `pace: ${PACES.join(", ")}`);
-      this.configure({ level: v["level"] as Level | undefined, pace: v["pace"] as Pace | undefined });
+      for (const k of Object.keys(v)) if (!["lang", "level", "pace", "lateJoin"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const oneOf = <T extends Json>(k: string, list: readonly T[]): T | undefined => {
+        if (v[k] === undefined) return undefined;
+        if (!list.includes(v[k] as T)) throw new PartyError("bad-settings", `${k}: ${list.join(", ")}`);
+        return v[k] as T;
+      };
+      this.configure({ lang: oneOf("lang", LANGS), level: oneOf("level", LEVELS), pace: oneOf("pace", PACES), lateJoin: oneOf("lateJoin", LATE_JOINS) });
       return null;
     });
     party.handle("place", (d, from) => this.#place(d, from));
@@ -310,19 +317,25 @@ export class Snug extends Emitter<GameEvents> {
     this.#lobby();
   }
 
-  /** Changes the level, the pace, the language or the timers between games; every phone and the TV follow. */
-  configure(o: { level?: Level | undefined; pace?: Pace | undefined; lang?: Lang | undefined; timings?: Partial<Timings> | undefined }): void {
+  /**
+   * Changes the level, the pace, the language, who may join late or the
+   * timers between games; every phone and the TV follow, and a change
+   * tells the host page (`settings`).
+   */
+  configure(o: { level?: Level | undefined; pace?: Pace | undefined; lang?: Lang | undefined; lateJoin?: LateJoin | undefined; timings?: Partial<Timings> | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
-    const was = JSON.stringify(this.settings);
+    const now = () => JSON.stringify([this.#lang, this.party.lateJoin, this.settings]);
+    const was = now();
     if (o.level !== undefined && LEVELS.includes(o.level)) this.#level = o.level;
     if (o.pace !== undefined && PACES.includes(o.pace)) this.#pace = o.pace;
-    if (o.lang !== undefined) this.#lang = o.lang;
+    if (o.lang !== undefined && LANGS.includes(o.lang)) this.#lang = o.lang;
+    if (o.lateJoin !== undefined && LATE_JOINS.includes(o.lateJoin)) this.party.lateJoin = o.lateJoin;
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     if (this.#phase === "lobby" || this.#phase === "final") {
-      this.party.room.set({ lang: this.#lang, ...this.settings, checks: this.checks });
+      this.party.room.set({ lang: this.#lang, ...this.settings, lateJoin: this.party.lateJoin, checks: this.checks });
       this.party.screen.set({ lang: this.#lang, ...this.settings, checks: this.checks });
     }
-    if (JSON.stringify(this.settings) !== was) this.emit("settings", this.settings);
+    if (now() !== was) this.emit("settings", this.settings);
   }
 
   /** Ends a running game (the party stays): the lobby at once, nothing of the old game writes after this. */
@@ -381,7 +394,7 @@ export class Snug extends Emitter<GameEvents> {
   }
 
   #base(): Record<string, unknown> {
-    return { lang: this.#lang, ...this.settings, minPlayers: this.minPlayers, colors: this.#colorMap(), solved: this.#solved, best: this.#best, checks: this.checks };
+    return { lang: this.#lang, ...this.settings, lateJoin: this.party.lateJoin, minPlayers: this.minPlayers, colors: this.#colorMap(), solved: this.#solved, best: this.#best, checks: this.checks };
   }
 
   #room(fields: Record<string, unknown>): void {

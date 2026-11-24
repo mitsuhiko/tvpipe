@@ -499,17 +499,45 @@ test("cursors: a phone's finger on the TV and the other phones, pings counted", 
   }
 });
 
-test("the VIP's settings: level and pace, nothing else, not during a game", async () => {
-  const { g, phone, close } = await game(0);
+test("the VIP's settings: level, pace, language and latecomers, nothing else, not during a game", async () => {
+  const { g, party, phone, close } = await game(0);
   const ann = await phone("Ann");
   const ben = await phone("Ben");
   try {
+    let told = 0;
+    g.on("settings", () => told++);
     await ann.act("settings", { level: "hard", pace: "rushed" });
     assert.deepEqual(g.settings, { level: "hard", pace: "rushed" });
     await assert.rejects(ben.act("settings", { level: "easy" }), { code: "not-vip" });
     await assert.rejects(ann.act("settings", { level: "insane" }), { code: "bad-settings" });
     await assert.rejects(ann.act("settings", { rounds: 3 }), { code: "bad-settings" });
     await until(() => ben.view.room["level"] === "hard" && ben.view.room["pace"] === "rushed");
+    // The language is the room's: every phone and the TV follow the VIP, and the host page hears of it.
+    await assert.rejects(ben.act("settings", { lang: "de" }), { code: "not-vip" });
+    await assert.rejects(ann.act("settings", { lang: "fr" }), { code: "bad-settings" });
+    await ann.act("settings", { lang: "de" });
+    assert.equal(g.lang, "de");
+    await until(() => ann.view.room["lang"] === "de" && ben.view.room["lang"] === "de");
+    // Latecomers: the host page's choices (wait, closed), the party's setting.
+    assert.equal(ben.view.room["lateJoin"], "wait");
+    await assert.rejects(ben.act("settings", { lateJoin: "closed" }), { code: "not-vip" });
+    await assert.rejects(ann.act("settings", { lateJoin: "open" }), { code: "bad-settings" });
+    await assert.rejects(ann.act("settings", { lateJoin: 1 }), { code: "bad-settings" });
+    assert.equal(party.lateJoin, "wait");
+    await ann.act("settings", { lateJoin: "closed" });
+    assert.equal(party.lateJoin, "closed");
+    await until(() => ben.view.room["lateJoin"] === "closed");
+    assert.equal(told, 3);
+    // A refused change changes nothing, not even part of it.
+    await assert.rejects(ann.act("settings", { pace: "relaxed", lang: "fr" }), { code: "bad-settings" });
+    assert.equal(g.settings.pace, "rushed");
+    // During a game: nothing.
+    g.configure({ timings: { start: 60_000 } });
+    await ann.act("start");
+    await until(() => g.running);
+    for (const s of [{ level: "easy" }, { pace: "normal" }, { lang: "en" }, { lateJoin: "wait" }]) await assert.rejects(ann.act("settings", s), { code: "running" });
+    assert.equal(party.lateJoin, "closed");
+    assert.equal(g.lang, "de");
   } finally {
     ann.close();
     ben.close();

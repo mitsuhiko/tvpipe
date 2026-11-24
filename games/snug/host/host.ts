@@ -11,7 +11,7 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { Bot } from "../game/bots.ts";
-import { FAST_TIMINGS, Snug } from "../game/game.ts";
+import { FAST_TIMINGS, LATE_JOINS, Snug } from "../game/game.ts";
 import { LANGS, type Lang, type Level, type Pace } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
@@ -49,7 +49,7 @@ function settings(game: Snug): Field[] {
       get: () => game.settings.pace,
       set: (pace: Pace) => game.configure({ pace }),
     },
-    lateJoinField(game.party, ["wait", "closed"]),
+    lateJoinField(game.party, LATE_JOINS, (lateJoin) => game.configure({ lateJoin })),
   ];
 }
 
