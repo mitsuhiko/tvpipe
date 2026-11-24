@@ -12,13 +12,13 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { bots, type Bot } from "../game/bots.ts";
-import { DEFAULT_TIMINGS, FAST_TIMINGS, Garble } from "../game/game.ts";
+import { DEFAULT_TIMINGS, FAST_TIMINGS, Garble, LATE_JOIN, ROUNDS } from "../game/game.ts";
 import { LANGS, LENGTHS, parseWords, type Lang, type Word } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
 const robots: Bot[] = [];
 
-/** Garble's settings, as the host page shows them (the VIP's phone has some of them too). */
+/** Garble's settings, as the host page shows them (the VIP's phone has them all too: the `settings` action). */
 function settings(game: Garble, words: Partial<Record<Lang, Word[]>>): Field[] {
   return [
     languageField({ langs: LANGS, get: () => game.lang, set: (lang) => game.configure({ lang }), available: (l) => !!words[l]?.length }),
@@ -26,7 +26,7 @@ function settings(game: Garble, words: Partial<Record<Lang, Word[]>>): Field[] {
       key: "rounds",
       type: "buttons",
       label: { en: "Rounds", de: "Runden" },
-      choices: [1, 2, 3, 4].map((n) => ({ value: n, label: String(n) })),
+      choices: ROUNDS.map((n) => ({ value: n, label: String(n) })),
       get: () => game.rounds,
       set: (rounds: number) => game.configure({ rounds }),
     },
@@ -46,10 +46,11 @@ function settings(game: Garble, words: Partial<Record<Lang, Word[]>>): Field[] {
         { value: "normal", label: { en: "normal", de: "normal" } },
         { value: "fast", label: { en: "fast", de: "schnell" } },
       ],
-      get: () => (game.timings.draw === FAST_TIMINGS.draw ? "fast" : "normal"),
+      get: () => game.pace,
       set: (v: string) => game.configure({ timings: v === "fast" ? FAST_TIMINGS : DEFAULT_TIMINGS }),
     },
-    lateJoinField(game.party, ["wait", "closed"]),
+    // The phones show who may join late too: the game sets it and its views.
+    lateJoinField(game.party, LATE_JOIN, (late) => game.configure({ late })),
     {
       key: "undo",
       type: "toggle",

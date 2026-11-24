@@ -44,7 +44,7 @@ phones join with the QR code.
 | `game/` | the rules (`rules.ts`: drawings, the word lists and the matcher, seating, decks, points), the ink's geometry (`ink.ts`: the grid and the limits, a stroke's path, a replay's cut; the pages load it too), the game (`game.ts`), bots (`bots.ts`) | TypeScript on `@tvpipe/party`, tested in Node |
 | `host/` | the host page | tvpipe's standard host page (`HostPage`: the party, the TVs, the players, a preview of the TV) with Garble's settings as a spec (`host.ts`) and its look (`host.css`); `strings.ts` (the status line) |
 | `screen/` | the TV page | the lobby, the ring of players passing their pages, the reveal, the gallery and the best move, the ledger, the podium; `strings.js` |
-| `phone/` | the phone page | joining, the lobby (the VIP's settings), picking a word, guessing, the pad on top of the old ink, reactions, the best-move vote; `strings.js`, `ink.js` (the strokes on a canvas, shared with the TV) |
+| `phone/` | the phone page | joining, the lobby and the final screen (the VIP's settings: all of the host page's, the room's language among them), picking a word, guessing, the pad on top of the old ink, reactions, the best-move vote; `strings.js`, `ink.js` (the strokes on a canvas, shared with the TV) |
 | `data/` | the word lists, English and German: `word\|synonym\|…` per line | fetched by the host page |
 
 ## Running it

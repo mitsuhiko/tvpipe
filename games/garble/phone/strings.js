@@ -9,7 +9,7 @@ import { format } from "./i18n.js";
 
 /** @param {import("./i18n.js").Format} f */
 const en = (f) => ({
-  otherLang: "Deutsch",
+  langName: "English",
   connecting: "Connecting…",
   scanToJoin: "Scan the QR code on the TV to join.",
   joinTitle: "Join the game",
@@ -45,8 +45,16 @@ const en = (f) => ({
   vipReady: "Everybody here? Start when you're ready.",
   waitVip: "The VIP starts the game.",
   settings: "Settings",
+  langLabel: "Language",
   roundsLabel: "Rounds",
   lengthLabel: "Layers",
+  timersLabel: "Timers",
+  normal: "normal",
+  fast: "fast",
+  lateLabel: "Latecomers",
+  lateWait: "next round",
+  lateClosed: "no",
+  lateLine: ["Latecomers play from the next round.", "Nobody joins during a game."],
   undoLabel: "Undo",
   off: "off",
   on: "on",
@@ -120,7 +128,7 @@ const en = (f) => ({
 
 /** @type {(f: import("./i18n.js").Format) => Strings} */
 const de = (f) => ({
-  otherLang: "English",
+  langName: "Deutsch",
   connecting: "Verbinde…",
   scanToJoin: "Scanne den QR-Code am Fernseher, um mitzuspielen.",
   joinTitle: "Mitspielen",
@@ -155,8 +163,16 @@ const de = (f) => ({
   vipReady: "Alle da? Starte, wenn ihr bereit seid.",
   waitVip: "Der VIP startet das Spiel.",
   settings: "Einstellungen",
+  langLabel: "Sprache",
   roundsLabel: "Runden",
   lengthLabel: "Schichten",
+  timersLabel: "Zeit",
+  normal: "normal",
+  fast: "schnell",
+  lateLabel: "Nachzügler",
+  lateWait: "nächste Runde",
+  lateClosed: "nein",
+  lateLine: ["Nachzügler spielen ab der nächsten Runde mit.", "Während eines Spiels kommt niemand dazu."],
   undoLabel: "Rückgängig",
   off: "aus",
   on: "an",

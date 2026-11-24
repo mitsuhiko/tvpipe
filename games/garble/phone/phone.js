@@ -1,16 +1,17 @@
 // @ts-check
 /**
- * Garble's phone page: joining, the lobby (the VIP's settings), picking
- * the first word, guessing what a picture is now, drawing the dealt word
- * on top of it (the old ink a shade lighter; undo for your own strokes
- * when the room allows it), passing on, reactions during the reveal, the
- * vote for the best move, scores. Everything it shows comes from the
- * party's view (`{ roster, room, me }`); everything it does is an action.
+ * Garble's phone page: joining, the lobby and the final screen (the VIP's
+ * settings: all of the host page's), picking the first word, guessing
+ * what a picture is now, drawing the dealt word on top of it (the old ink
+ * a shade lighter; undo for your own strokes when the room allows it),
+ * passing on, reactions during the reveal, the vote for the best move,
+ * scores. Everything it shows comes from the party's view (`{ roster,
+ * room, me }`); everything it does is an action.
  */
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { watchFit } from "./fit.js";
-import { browserLang, format, pickLang } from "./i18n.js";
+import { browserLang, format, LANGS, pickLang } from "./i18n.js";
 import { drawInk, drawLayers, fit, GRID, INK, Live, MAX_POINTS, MAX_STROKES, OLD_INK, WIDTHS } from "./ink.js";
 import { strings } from "./strings.js";
 
@@ -46,30 +47,21 @@ blockEmoji();
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone (the host page or the
+// VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "garble:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 let fmt = format(lang);
 document.documentElement.lang = lang;
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
@@ -77,19 +69,6 @@ function useLang() {
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-  else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  }
-});
 
 let shown = "";
 /** @type {(() => void) | null} called on every view while the screen stays */
@@ -197,8 +176,6 @@ function avatar(p) {
 function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   input.value = typed ?? client.saved?.name ?? localStorage.getItem("garble:name") ?? "";
@@ -304,8 +281,6 @@ function render(view) {
     autoSubmit = null;
     for (const c of cleanups) c();
     cleanups = [];
-    langButton.hidden = !(me.task === "lobby" || me.task === "final");
-    langButton.textContent = t.otherLang;
     document.body.classList.toggle("full", (me.task === "draw" || me.task === "guess") && !me.done);
     appHeight();
     build(view);
@@ -359,6 +334,7 @@ const isVip = () => !!(client.view?.roster ?? []).find((/** @type {any} */ r) =>
 
 /** @param {HTMLElement} err */
 function settings(err) {
+  // The host page's settings (host/host.ts), in its order.
   /** @type {{ key: string, buttons: HTMLButtonElement[], values: any[], line: HTMLElement | null }[]} */
   const items = [];
   const box = h("div", {}, h("h2", {}, t.settings));
@@ -368,8 +344,11 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons), line));
     items.push({ key, buttons, values, line });
   };
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel, false);
   add("rounds", [1, 2, 3, 4], ["1", "2", "3", "4"], t.roundsLabel, false);
   add("length", [3, 5, 7], ["3", "5", "7"], t.lengthLabel, true);
+  add("timers", ["normal", "fast"], [t.normal, t.fast], t.timersLabel, false);
+  add("late", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, true);
   add("undo", [false, true], [t.off, t.on], t.undoLabel, true);
   const update = () => {
     const room = client.view?.room ?? {};
@@ -377,6 +356,9 @@ function settings(err) {
     for (const it of items) {
       const cur = room[it.key];
       it.buttons.forEach((b, i) => b.classList.toggle("on", it.values[i] === cur));
+      // A language without words cannot be played (the host page greys it out too).
+      if (it.key === "lang" && Array.isArray(room.langs)) it.buttons.forEach((b, i) => (b.disabled = !room.langs.includes(it.values[i])));
+      if (it.key === "late" && it.line) it.line.textContent = t.lateLine[cur === "closed" ? 1 : 0];
       if (it.key === "undo" && it.line) it.line.textContent = t.undoLine[cur ? 1 : 0];
       if (it.key === "length" && it.line) it.line.textContent = t.lengthLine(cur ?? 5);
     }

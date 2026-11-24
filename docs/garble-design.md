@@ -56,9 +56,15 @@ after the guess.
 - **The last guess.** After layer `L`, the next player only guesses.
 - **Length.** `L = min(setting, n − 1)` layers (setting 3, 5 or 7;
   default 5), so every picture visits `L + 1` different players.
-- **Settings** (the host page, or the VIP's phone in the lobby): rounds
-  1–4 (default 2), the length, undo (default on: your own strokes; off:
-  every stroke counts), the language (host page).
+- **Settings** (the host page, or the VIP's phone in the lobby and on
+  the final screen; none during a game): the language (one for the whole
+  room, every phone follows it; only one with words), rounds 1–4
+  (default 2), the length, the timers (normal or fast), latecomers (from
+  the next round or not during a game), undo (default on: your own
+  strokes; off: every stroke counts). The VIP's `settings` action takes
+  `lang`, `rounds`, `length`, `timers`, `late` and `undo`, refuses
+  anything else, and the room view carries them all (`langs`: the
+  languages with words); a VIP's change tells the host page.
 - Missing answers: no guess counts as wrong; no drawing leaves the page
   as it was (the next guesser still sees something). A blank layer pays
   nobody, even if its word is guessed by luck.

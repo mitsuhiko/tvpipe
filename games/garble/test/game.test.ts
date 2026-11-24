@@ -6,7 +6,7 @@ import { Party, type PartyOptions } from "@tvpipe/party";
 import { dropOuts, MemoryRelay } from "@tvpipe/party/testing";
 
 import { Bot, bots } from "../game/bots.ts";
-import { Garble, type Timings } from "../game/game.ts";
+import { DEFAULT_TIMINGS, FAST_TIMINGS, Garble, type Timings } from "../game/game.ts";
 import { bestMove, earnedTotal, flatten, judge, parseWords, pictureAt, scoreRound, seeded, type Picture, type Word } from "../game/rules.ts";
 
 const data = (f: string) => parseWords(readFileSync(new URL(`../data/${f}`, import.meta.url), "utf8"));
@@ -409,6 +409,56 @@ test("settings: the VIP only, before a game", async () => {
     await assert.rejects(players[0]!.client.act("settings", { length: 4 }), /length/);
     await assert.rejects(players[0]!.client.act("settings", { rounds: 9 }), /rounds/);
     await until(() => players[2]!.client.view["room"].undo === false && players[2]!.client.view["room"].rounds === 3);
+    await assert.rejects(players[0]!.client.act("settings", { colour: "red" }), /not a setting/);
+    // Every setting of the host page: only the VIP, only its choices, every phone sees it, the host page hears of it.
+    let told = 0;
+    g.on("settings", () => told++);
+    const room = () => players[2]!.client.view["room"];
+    const cases: [string, unknown, unknown][] = [
+      ["lang", "de", "fr"],
+      ["timers", "fast", "slow"],
+      ["late", "closed", "open"],
+    ];
+    for (const [key, good, bad] of cases) {
+      await assert.rejects(players[1]!.client.act("settings", { [key]: good }), { code: "not-vip" }, key);
+      await assert.rejects(players[0]!.client.act("settings", { [key]: bad }), { code: "bad-settings" }, key);
+      const before = told;
+      await players[0]!.client.act("settings", { [key]: good });
+      assert.equal(told, before + 1, `${key}: the host page hears of it`);
+      await until(() => room()[key] === good);
+    }
+    assert.equal(g.lang, "de");
+    assert.deepEqual(room()["langs"], ["en", "de"]);
+    assert.equal(g.pace, "fast");
+    assert.equal(g.timings.draw, FAST_TIMINGS.draw);
+    assert.equal(g.party.lateJoin, "closed");
+    // The host page's late-join field (lateJoinField) sets the party, then tells the game: the phones follow.
+    g.party.lateJoin = "wait";
+    g.configure({ late: "wait" });
+    await until(() => room()["late"] === "wait");
+    assert.throws(() => g.configure({ late: "open" }), /Latecomers/);
+    await players[0]!.client.act("settings", { lang: "en", timers: "normal" });
+    assert.equal(g.timings.draw, DEFAULT_TIMINGS.draw);
+    await until(() => room()["lang"] === "en" && room()["timers"] === "normal");
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("settings: none during a game, all again on the final screen", async () => {
+  const { g, players, close } = await game(3);
+  try {
+    const end = new Promise((r) => g.once("end", r));
+    await players[0]!.client.act("start");
+    await until(() => g.phase === "play");
+    for (const s of [{ lang: "de" }, { rounds: 2 }, { length: 3 }, { timers: "fast" }, { late: "closed" }, { undo: false }]) await assert.rejects(players[0]!.client.act("settings", s), { code: "running" }, JSON.stringify(s));
+    assert.equal(g.lang, "en");
+    assert.equal(g.party.lateJoin, "wait");
+    await end;
+    await players[0]!.client.act("settings", { lang: "de", late: "closed", timers: "fast" });
+    const room = () => players[1]!.client.view["room"];
+    await until(() => room()["phase"] === "final" && room()["lang"] === "de" && room()["late"] === "closed" && room()["timers"] === "fast");
   } finally {
     for (const b of players) b.close();
     close();

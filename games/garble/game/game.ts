@@ -8,7 +8,7 @@
  * the only authority: phones and screens only ever get views.
  *
  * Views:
- * - `party.room` (every phone): `{ phase, lang, round, rounds, length, undo, minPlayers, colors, step?, steps?, deadline?, gallery? }`
+ * - `party.room` (every phone): `{ phase, lang, langs, round, rounds, length, undo, timers, late, minPlayers, colors, step?, steps?, deadline?, gallery? }`
  * - `player.state` (one phone): `{ task, color, score, rank, of, … }`, `task` one of
  *   `lobby`, `wait` (a late joiner), `draw` (`picture`: the old ink, `word` or `choices`, `undo`,
  *   `deadline`, `done`, `next`), `guess` (`picture`, `from`, `deadline`, `last`, `done`), `watch`
@@ -26,7 +26,7 @@
  * and deadlines count from then (`party.deadline`).
  */
 
-import { Emitter, PartyError, type Json, type Party, type Player } from "@tvpipe/party";
+import { Emitter, PartyError, type Json, type LateJoin, type Party, type Player } from "@tvpipe/party";
 
 import {
   bestMove,
@@ -92,6 +92,16 @@ export const FAST_TIMINGS: Timings = {
   best: 6500,
   scores: 8000,
 };
+
+/** The timers' choices: {@link DEFAULT_TIMINGS} or {@link FAST_TIMINGS}. */
+export const PACES = ["normal", "fast"] as const;
+export type Pace = (typeof PACES)[number];
+
+/** Who may join during a game (the host page's late-join field, the VIP's phone): from the next round, or nobody. */
+export const LATE_JOIN = ["wait", "closed"] as const satisfies readonly LateJoin[];
+
+/** The rounds' choices. */
+export const ROUNDS = [1, 2, 3, 4] as const;
 
 /** The room's settings: the host page's, or the VIP's in the lobby. */
 export interface Settings {
@@ -248,6 +258,16 @@ export class Garble extends Emitter<GameEvents> {
     return this.#lang;
   }
 
+  /** The timers, as the settings name them (custom timings read as normal). */
+  get pace(): Pace {
+    return this.timings.draw === FAST_TIMINGS.draw ? "fast" : "normal";
+  }
+
+  /** Who may join during a game, as one of {@link LATE_JOIN} (the party's `open` reads as `wait`). */
+  get late(): (typeof LATE_JOIN)[number] {
+    return this.party.lateJoin === "closed" ? "closed" : "wait";
+  }
+
   /** The languages there are words for. */
   get langs(): Lang[] {
     return [...this.#words.keys()];
@@ -301,22 +321,23 @@ export class Garble extends Emitter<GameEvents> {
     });
     party.handle("settings", (d, from) => {
       vipOnly(from as Player);
-      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "undo, length, rounds");
-      const o: Partial<Settings> & { rounds?: number } = {};
+      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "lang, rounds, length, timers, late, undo");
       const v = d as Record<string, Json>;
-      if (v["undo"] !== undefined) {
-        if (typeof v["undo"] !== "boolean") throw new PartyError("bad-settings", "undo: true or false");
-        o.undo = v["undo"];
-      }
-      if (v["length"] !== undefined) {
-        if (!LENGTHS.includes(v["length"] as never)) throw new PartyError("bad-settings", "length: 3, 5 or 7");
-        o.length = v["length"] as number;
-      }
-      if (v["rounds"] !== undefined) {
-        if (![1, 2, 3, 4].includes(v["rounds"] as number)) throw new PartyError("bad-settings", "rounds: 1 to 4");
-        o.rounds = v["rounds"] as number;
-      }
-      this.configure(o);
+      for (const k of Object.keys(v)) if (!["lang", "rounds", "length", "timers", "late", "undo"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const oneOf = <T extends Json>(key: string, list: readonly T[]): T | undefined => {
+        if (v[key] === undefined) return undefined;
+        if (!list.includes(v[key] as T)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
+        return v[key] as T;
+      };
+      const timers = oneOf("timers", PACES);
+      this.configure({
+        lang: oneOf("lang", this.langs),
+        rounds: oneOf("rounds", ROUNDS),
+        length: oneOf("length", LENGTHS),
+        timings: timers === undefined ? undefined : timers === "fast" ? FAST_TIMINGS : DEFAULT_TIMINGS,
+        late: oneOf("late", LATE_JOIN),
+        undo: oneOf("undo", [true, false]),
+      });
       return null;
     });
     party.handle("react", (d, from) => {
@@ -348,23 +369,34 @@ export class Garble extends Emitter<GameEvents> {
   }
 
   /**
-   * Changes the rounds, the timers, the language or the settings before
-   * a game; every phone and the TV follow.
+   * Changes the rounds, the timers, the language, who may join late or
+   * the settings before a game; every phone and the TV follow, and a
+   * change tells the host page (`settings`).
    */
-  configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
+  configure(
+    o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined; late?: LateJoin | undefined } & { [K in keyof Settings]?: Settings[K] | undefined },
+  ): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
     if (o.lang !== undefined && !this.langs.includes(o.lang)) throw new PartyError("bad-lang", `Nothing to play in ${o.lang}`);
-    const was = JSON.stringify([this.rounds, this.#settings]);
+    if (o.late !== undefined && !(LATE_JOIN as readonly LateJoin[]).includes(o.late)) throw new PartyError("bad-late", `Latecomers: ${LATE_JOIN.join(", ")}`);
+    const now = () => JSON.stringify([this.#lang, this.rounds, this.#settings, this.timings, this.party.lateJoin]);
+    const was = now();
     if (o.rounds !== undefined) this.rounds = Math.max(1, Math.min(4, Math.round(o.rounds)));
     if (o.timings) this.timings = { ...DEFAULT_TIMINGS, ...o.timings };
     if (o.lang !== undefined) this.#lang = o.lang;
+    if (o.late !== undefined) this.party.lateJoin = o.late;
     if (o.undo !== undefined) this.#settings.undo = o.undo;
     if (o.length !== undefined && LENGTHS.includes(o.length as never)) this.#settings.length = o.length;
     if (this.#phase === "lobby" || this.#phase === "final") {
-      this.party.room.set({ lang: this.#lang, rounds: this.rounds, ...this.#settings });
+      this.party.room.set(this.#settingsView());
       this.party.screen.set({ lang: this.#lang, rounds: this.rounds, ...this.#settings });
     }
-    if (JSON.stringify([this.rounds, this.#settings]) !== was) this.emit("settings", this.settings);
+    if (now() !== was) this.emit("settings", this.settings);
+  }
+
+  /** The settings as the phones see them (the VIP's controls, everyone's rules line). */
+  #settingsView(): Record<string, Json> {
+    return { lang: this.#lang, langs: this.langs, rounds: this.rounds, ...this.#settings, timers: this.pace, late: this.late };
   }
 
   /**
@@ -447,7 +479,7 @@ export class Garble extends Emitter<GameEvents> {
   }
 
   #room(fields: Record<string, unknown>): void {
-    this.party.room.replace({ lang: this.#lang, round: this.#roundNo, rounds: this.rounds, ...this.#settings, minPlayers: this.minPlayers, colors: this.#colorMap(), ...fields });
+    this.party.room.replace({ ...this.#settingsView(), round: this.#roundNo, minPlayers: this.minPlayers, colors: this.#colorMap(), ...fields });
   }
 
   #screen(fields: Record<string, unknown>): void {
