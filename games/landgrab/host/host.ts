@@ -12,7 +12,7 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { Bot } from "../game/bots.ts";
-import { FAST_TIMINGS, Landgrab, PLAN_TIMES, ROUNDS } from "../game/game.ts";
+import { FAST_TIMINGS, LATE, Landgrab, PLAN_TIMES, ROUNDS } from "../game/game.ts";
 import { LANGS, type Lang } from "../game/rules.ts";
 import { parseWorld } from "../game/world.ts";
 import { status } from "./strings.ts";
@@ -38,7 +38,8 @@ function settings(game: Landgrab): Field[] {
       get: () => game.planTime,
       set: (planTime: number) => game.configure({ planTime }),
     },
-    lateJoinField(game.party, ["wait", "closed"]),
+    // The phones see it too (the VIP can change it there).
+    lateJoinField(game.party, LATE, (late) => game.configure({ late: late === "closed" ? "closed" : "wait" })),
   ];
 }
 

@@ -8,8 +8,8 @@
  * is the only authority: phones and screens only ever get views.
  *
  * Views:
- * - `party.room` (every phone): `{ phase, lang, round, rounds, planTime, minPlayers, colors, board?, players?,
- *   deadline?, step? }`: `board` is `{ own, arm }` by territory index (`own` a player's id or `""` for the wild
+ * - `party.room` (every phone): `{ phase, lang, round, rounds, planTime, late, minPlayers, colors, board?,
+ *   players?, deadline?, step? }`: `late` the latecomers setting (`wait` or `closed`), `board` is `{ own, arm }` by territory index (`own` a player's id or `""` for the wild
  *   lands), `players` the standings (`{ id, lands, armies, stars, out, ready }`), `step` the event the TV plays
  *   (`{ i, of, ev, ms, scale }`: its length on the TV, as `timeline.ts` splits it).
  * - `player.state` (one phone): `{ task, color, … }`: `lobby`, `wait` (a latecomer, until the next round),
@@ -49,6 +49,7 @@ import {
   type Board,
   type Change,
   type Event,
+  LANGS,
   type Lang,
   type Plan,
   type Reinforcements,
@@ -76,6 +77,9 @@ export const FAST_TIMINGS: Timings = { plan: 25_000, firstPlan: 5000, ready: 600
 /** What the room can pick. */
 export const ROUNDS = [6, 8, 10, 12, 24] as const;
 export const PLAN_TIMES = [45, 60, 90, 120] as const;
+/** Latecomers: wait for the next round, or none (the host page's `lateJoinField` offers the same). */
+export const LATE = ["wait", "closed"] as const;
+export type Late = (typeof LATE)[number];
 
 /** The players' colours: one each for six players (the wild lands are parchment). */
 export const COLORS = ["#e4572e", "#2e86de", "#f3b61f", "#17b890", "#9b5de5", "#f15bb5"] as const;
@@ -196,6 +200,10 @@ export class Landgrab extends Emitter<GameEvents> {
   get planTime(): number {
     return this.timings.plan / 1000;
   }
+  /** Who may join during a game (the party's `lateJoin`, as this game offers it). */
+  get late(): Late {
+    return this.party.lateJoin === "closed" ? "closed" : "wait";
+  }
   stars(id: string): number {
     return this.#stars.get(id) ?? 0;
   }
@@ -228,12 +236,16 @@ export class Landgrab extends Emitter<GameEvents> {
     });
     party.handle("settings", (d, from) => {
       vipOnly(from);
-      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "rounds, planTime");
+      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "lang, rounds, planTime, late");
       const v = d as Record<string, Json>;
-      for (const k of Object.keys(v)) if (k !== "rounds" && k !== "planTime") throw new PartyError("bad-settings", `${k}: not a setting`);
-      if (v["rounds"] !== undefined && !(ROUNDS as readonly Json[]).includes(v["rounds"])) throw new PartyError("bad-settings", `rounds: ${ROUNDS.join(", ")}`);
-      if (v["planTime"] !== undefined && !(PLAN_TIMES as readonly Json[]).includes(v["planTime"])) throw new PartyError("bad-settings", `planTime: ${PLAN_TIMES.join(", ")}`);
-      this.configure({ rounds: v["rounds"] as number | undefined, planTime: v["planTime"] as number | undefined });
+      for (const k of Object.keys(v)) if (!["lang", "rounds", "planTime", "late"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const oneOf = <T extends Json>(key: string, list: readonly T[]): T | undefined => {
+        if (v[key] === undefined) return undefined;
+        if (!list.includes(v[key] as T)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
+        return v[key] as T;
+      };
+      const o = { lang: oneOf("lang", LANGS), rounds: oneOf("rounds", ROUNDS), planTime: oneOf("planTime", PLAN_TIMES), late: oneOf("late", LATE) };
+      this.configure(o);
       return null;
     });
     party.handle("plan", (d, from) => this.#plan(d, from));
@@ -254,20 +266,21 @@ export class Landgrab extends Emitter<GameEvents> {
     this.#lobby();
   }
 
-  /** Changes the rounds, the planning time, the language or the timers before a game. */
-  configure(o: { rounds?: number | undefined; planTime?: number | undefined; lang?: Lang | undefined; timings?: Partial<Timings> | undefined }): void {
+  /** Changes the rounds, the planning time, the language, the latecomers or the timers before a game. */
+  configure(o: { rounds?: number | undefined; planTime?: number | undefined; lang?: Lang | undefined; late?: Late | undefined; timings?: Partial<Timings> | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
-    const was = JSON.stringify([this.rounds, this.timings.plan, this.#lang]);
+    const was = JSON.stringify([this.rounds, this.timings.plan, this.#lang, this.late]);
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     if (o.rounds !== undefined) this.rounds = Math.max(1, Math.min(30, Math.round(o.rounds)));
     if (o.planTime !== undefined && o.planTime > 0) this.timings.plan = o.planTime * 1000;
     if (o.lang !== undefined) this.#lang = o.lang;
+    if (o.late !== undefined && (LATE as readonly string[]).includes(o.late)) this.party.lateJoin = o.late;
     if (this.#phase === "lobby" || this.#phase === "final") {
       const s = { lang: this.#lang, rounds: this.rounds, planTime: this.planTime };
-      this.party.room.set(s);
+      this.party.room.set({ ...s, late: this.late });
       this.party.screen.set(s);
     }
-    if (JSON.stringify([this.rounds, this.timings.plan, this.#lang]) !== was) this.emit("settings");
+    if (JSON.stringify([this.rounds, this.timings.plan, this.#lang, this.late]) !== was) this.emit("settings");
   }
 
   /** Ends a running game at once (the lobby is back; nothing of it writes afterwards). */
@@ -334,7 +347,7 @@ export class Landgrab extends Emitter<GameEvents> {
   }
 
   #room(fields: Record<string, unknown>): void {
-    this.party.room.replace({ ...this.#common(), minPlayers: this.minPlayers, maxPlayers: this.party.maxPlayers, ...fields });
+    this.party.room.replace({ ...this.#common(), late: this.late, minPlayers: this.minPlayers, maxPlayers: this.party.maxPlayers, ...fields });
   }
 
   #screen(fields: Record<string, unknown>): void {

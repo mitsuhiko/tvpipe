@@ -20,7 +20,7 @@ import { armiesAlong, CASH_ARMIES, checkPlan, losses, MAX_ORDERS, planArmies, ST
 import { FAST_PACE, PACE, timeline } from "../game/timeline.js";
 import { parseWorld } from "../game/world.js";
 import { watchFit } from "./fit.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { between, drawMap, frameView, pickAt, WILD } from "./minimap.js";
 import { strings } from "./strings.js";
 
@@ -48,7 +48,6 @@ const bar = $("bar");
 const hud = $("hud");
 const banner = $("banner");
 const who = $("who");
-const langButton = /** @type {HTMLButtonElement} */ ($("lang"));
 const dock = $("dock");
 
 // The header's and the dock's heights, for the plan's map and for scrolling under the header.
@@ -72,45 +71,24 @@ const worldLoaded = fetch(new URL("../data/world.txt", import.meta.url))
   });
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone and the TV (the host
+// page or the VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "landgrab:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-  else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  }
-});
 
 let shown = "";
 /** @type {(() => void) | null} called on every view while the screen stays */
@@ -196,8 +174,6 @@ function joinForm(error = "", typed) {
   refresh = null;
   dock.hidden = true;
   setHud();
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   let saved = "";
@@ -307,8 +283,6 @@ function render(view) {
     cleanups = [];
     dock.hidden = true;
     setHud();
-    langButton.hidden = !(m.task === "lobby" || m.task === "final");
-    langButton.textContent = t.otherLang;
     build(view);
     scrollTo(0, 0);
   }
@@ -360,8 +334,11 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons)));
     items.push({ key, buttons, values });
   };
+  // The same choices as the host page (game/game.ts `LANGS`, `ROUNDS`, `PLAN_TIMES`, `LATE`).
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel);
   add("rounds", [6, 8, 10, 12, 24], ["6", "8", "10", "12", "24"], t.roundsLabel);
   add("planTime", [45, 60, 90, 120], [45, 60, 90, 120].map(t.seconds), t.planLabel);
+  add("late", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel);
   const update = () => {
     const room = client.view?.room ?? {};
     box.hidden = !isVip();

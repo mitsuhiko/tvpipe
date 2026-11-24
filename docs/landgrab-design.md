@@ -145,6 +145,12 @@ card's sides are in their players' colours.
 
 ## 7. The phone
 
+**Settings** (the host page, or the VIP's phone in the lobby and at the
+end; none during a game): the language (the room's: every phone and the
+TV speak it; before joining, a phone speaks the browser's), rounds (6,
+8, 10, 12 or 24), time to plan (45, 60, 90 or 120 s) and latecomers
+(they join at the next round as rebels, or not until the game is over).
+
 Colour on the phone means a holder and nothing else: the six players'
 colours and the wild lands' parchment. The interface is parchment on ink
 (no brass, no red or green for actions); what an action is shows in its

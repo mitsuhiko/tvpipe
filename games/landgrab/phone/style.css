@@ -53,7 +53,6 @@ body:has(.logo-wrap) #bar .mark { visibility: hidden; }
 #who b { min-width: 0; white-space: nowrap; }
 #who .vip { font-size: 13px; font-weight: 800; color: var(--parch); }
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 2px rgba(0, 0, 0, .4), inset 0 2px 0 rgba(255, 255, 255, .3); }
-#lang { font-size: 15px; font-weight: 800; background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; min-height: 34px; }
 .hud-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding-bottom: 2px; }
 .hud-round { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 19px; line-height: 1; }
 .hud-round .dot { width: 14px; height: 14px; }

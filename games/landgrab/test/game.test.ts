@@ -249,3 +249,42 @@ test("a latecomer waits, then rises as a rebel at the next round", async () => {
     close();
   }
 });
+
+test("the VIP's settings: every one the host page has, checked, only the VIP's, none during a game", async () => {
+  const { party, g, players, close } = await game(2, { rounds: 1, timings: { plan: 60_000 } });
+  try {
+    const [vip, other] = players.map((p) => p.client) as [Bot["client"], Bot["client"]];
+    let told = 0;
+    g.on("settings", () => told++);
+    const room = () => other.view["room"] as Record<string, unknown>;
+    await until(() => room()?.["late"] === "wait" && room()["lang"] === "en");
+    for (const s of [{ lang: "de" }, { rounds: 12 }, { planTime: 90 }, { late: "closed" }]) {
+      await assert.rejects(other.act("settings", s), { code: "not-vip" });
+    }
+    for (const s of [{ lang: "fr" }, { rounds: 7 }, { planTime: 30 }, { late: "open" }, { late: true }, { colour: 1 }]) {
+      await assert.rejects(vip.act("settings", s), { code: "bad-settings" });
+    }
+    assert.equal(told, 0);
+    await vip.act("settings", { lang: "de", rounds: 12, planTime: 90, late: "closed" });
+    assert.deepEqual([g.lang, g.rounds, g.planTime, g.late, party.lateJoin], ["de", 12, 90, "closed", "closed"]);
+    assert.ok(told > 0, "the host page hears of it");
+    await until(() => room()["lang"] === "de" && room()["rounds"] === 12 && room()["planTime"] === 90 && room()["late"] === "closed");
+    await vip.act("settings", { late: "wait" });
+    assert.equal(party.lateJoin, "wait");
+    await until(() => room()["late"] === "wait");
+    // The host page's latecomers field goes through the game too: the phones see it.
+    g.configure({ late: "closed" });
+    await until(() => room()["late"] === "closed");
+    g.configure({ rounds: 1, planTime: 45 });
+    await vip.act("start");
+    await until(() => g.phase === "plan");
+    for (const s of [{ lang: "en" }, { rounds: 6 }, { planTime: 60 }, { late: "wait" }]) {
+      await assert.rejects(vip.act("settings", s), { code: "running" });
+    }
+    // The plan's room view carries it too.
+    await until(() => room()["phase"] === "plan" && room()["late"] === "closed");
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});

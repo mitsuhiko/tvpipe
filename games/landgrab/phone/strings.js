@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * What Landgrab's phone page says, in English and German (the phone's
- * own choice, else the room's language). Territory and continent names
+ * What Landgrab's phone page says, in English and German (the room's
+ * language, the same on every phone). Territory and continent names
  * come from the world (`data/world.txt`).
  */
 
@@ -14,7 +14,7 @@ export function strings(lang) {
   const N = (/** @type {number} */ n) => f.n(n);
   return {
     ...f,
-    otherLang: de ? "English" : "Deutsch",
+    langName: de ? "Deutsch" : "English",
     yourName: de ? "Dein Name" : "Your name",
     join: de ? "Mitspielen" : "Join",
     joinTitle: de ? "Wer erobert die Welt?" : "Who takes the world?",
@@ -41,6 +41,10 @@ export function strings(lang) {
     settings: de ? "Einstellungen" : "Settings",
     roundsLabel: de ? "Runden" : "Rounds",
     planLabel: de ? "Zeit zum Planen" : "Time to plan",
+    langLabel: de ? "Sprache" : "Language",
+    lateLabel: de ? "Nachzügler" : "Latecomers",
+    lateWait: de ? "Nächste Runde" : "Next round",
+    lateClosed: de ? "Nach dem Spiel" : "After the game",
     seconds: (/** @type {number} */ n) => `${n} s`,
     howTitle: de ? "So geht's" : "How to play",
     how: /** @type {[string, string][]} */ (
