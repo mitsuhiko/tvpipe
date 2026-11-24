@@ -39,14 +39,22 @@ import { Emitter, PartyError, type Json, type Party, type Player, type Sender } 
 
 import { Matcher, type Candidate } from "./answer.ts";
 import type { Country, Lang, Ring } from "./data.ts";
-import { nearestOfCountry } from "./geo.ts";
+import type { FlagColours } from "./flagcolours.ts";
+import { km, nearestOfCountry, ringArea } from "./geo.ts";
 import {
+  ANSWERS,
+  biggerOf,
   captainFor,
   compete,
   Deck,
   deckOf,
   DIFFICULTIES,
   FACTS,
+  factOf,
+  GUESS_FACTS,
+  GUESS_RANGE,
+  guessOf,
+  judgeGuesses,
   judgePins,
   KINDS,
   knownEnough,
@@ -57,18 +65,26 @@ import {
   MAX_TRIES,
   MIN_PLAYERS,
   neighboursIn,
+  oddOf,
   pick,
+  POOL_SIZE,
+  POOLS,
   ranksOf,
+  rightNeighbour,
   ROUNDS,
   roundsFor,
+  SHAPE_KM,
+  shuffle,
   STRONG,
   strongFacts,
   topLists,
+  wrongFlags,
   type Difficulty,
   type Fact,
   type Kind,
   type MapMode,
   type Mode,
+  type Pool,
   type Ranks,
 } from "./rules.ts";
 
@@ -139,6 +155,10 @@ export interface Settings {
   mode: Mode;
   rounds: number;
   difficulty: Difficulty;
+  /** Which countries challenges ask about: the best known 80, 150, or all (§6). */
+  countries: Pool;
+  /** The kinds of challenge in the mix (§4.11), at least one. */
+  kinds: Kind[];
   disputed: boolean;
   map: MapMode;
 }
@@ -147,6 +167,8 @@ export interface GameOptions {
   countries: readonly Country[];
   /** The land by country id (for the "where" challenge). */
   land: ReadonlyMap<string | null, readonly Ring[]>;
+  /** The flags' colours by file (data/colours.json; hard "pick the flag" takes the most alike). */
+  colours?: ReadonlyMap<string, FlagColours> | undefined;
   lang?: Lang | undefined;
   settings?: Partial<Settings> | undefined;
   minPlayers?: number | undefined;
@@ -196,7 +218,24 @@ interface Answer {
   text?: string;
   lon?: number;
   lat?: number;
+  /** One of the shown options (pick the flag, which is bigger, odd one out). */
+  choice?: number;
+  /** A guessed number. */
+  value?: number;
   locked: boolean;
+}
+
+/** What a challenge knows beyond its country, until the reveal. */
+interface Truth {
+  /** The options shown, in their order, and which is right. */
+  options?: Country[];
+  right?: number;
+  fact?: Fact;
+  /** The number to guess, and the slider's ends. */
+  value?: number;
+  range?: [number, number];
+  /** The country's neighbours in the deck (ids). */
+  neighbours?: string[];
 }
 
 /** A wait for everyone's Next: who was asked, who pressed. */
@@ -218,6 +257,7 @@ interface Challenge {
   players: string[];
   deadline: number;
   answers: Map<string, Answer>;
+  truth: Truth;
   wake: () => void;
 }
 
@@ -227,6 +267,7 @@ export class Worldquiz extends Emitter<GameEvents> {
   timings: Timings;
   readonly #all: readonly Country[];
   readonly #land: ReadonlyMap<string | null, readonly Ring[]>;
+  readonly #colours: ReadonlyMap<string, FlagColours> | undefined;
   readonly #rng: () => number;
   #lang: Lang;
   #settings: Settings;
@@ -269,13 +310,15 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#lang = options.lang ?? "en";
     this.#all = options.countries;
     this.#land = options.land;
+    this.#colours = options.colours;
     if (this.#all.length === 0) throw new Error("worldquiz: no countries");
-    this.#settings = { mode: "cards", rounds: 15, difficulty: "normal", disputed: false, map: "flat", ...options.settings };
+    this.#settings = { mode: "cards", rounds: 15, difficulty: "normal", countries: "known", kinds: [...KINDS], disputed: false, map: "flat", ...options.settings };
+    this.#settings.kinds = cleanKinds(this.#settings.kinds) ?? [...KINDS];
     for (const c of this.#all) this.#byId.set(c.id, c);
   }
 
   get settings(): Settings {
-    return { ...this.#settings };
+    return { ...this.#settings, kinds: [...this.#settings.kinds] };
   }
 
   get phase(): Phase {
@@ -306,9 +349,19 @@ export class Worldquiz extends Emitter<GameEvents> {
   }
 
   /** The challenge's answer as the bots' oracle wants it (never sent before the reveal). */
-  truth(): { kind: string; capitals: string[]; name: string; at: [number, number] } | undefined {
+  truth(): { kind: string; capitals: string[]; name: string; at: [number, number]; choice?: number; value?: number; neighbours?: string[] } | undefined {
     const c = this.#challenge;
-    return c ? { kind: c.kind, capitals: c.country.capitals[this.#lang], name: c.country.name[this.#lang], at: c.country.at } : undefined;
+    if (!c) return undefined;
+    const l = this.#lang;
+    return {
+      kind: c.kind,
+      capitals: c.country.capitals[l],
+      name: c.country.name[l],
+      at: c.country.at,
+      ...(c.truth.right !== undefined ? { choice: c.truth.right } : {}),
+      ...(c.truth.value !== undefined ? { value: c.truth.value } : {}),
+      ...(c.truth.neighbours ? { neighbours: c.truth.neighbours.map((id) => this.#byId.get(id)?.name[l] ?? id) } : {}),
+    };
   }
 
   /** The round's hands (tests). */
@@ -383,6 +436,8 @@ export class Worldquiz extends Emitter<GameEvents> {
     if (o.mode !== undefined && MODES.includes(o.mode)) s.mode = o.mode;
     if (o.rounds !== undefined && o.rounds > 0) s.rounds = Math.min(99, Math.round(o.rounds));
     if (o.difficulty !== undefined && DIFFICULTIES.includes(o.difficulty)) s.difficulty = o.difficulty;
+    if (o.countries !== undefined && POOLS.includes(o.countries)) s.countries = o.countries;
+    if (o.kinds !== undefined) s.kinds = cleanKinds(o.kinds) ?? s.kinds;
     if (o.disputed !== undefined) s.disputed = !!o.disputed;
     if (o.map !== undefined && MAPS.includes(o.map)) s.map = o.map;
     if (this.#phase === "lobby" || this.#phase === "final") {
@@ -700,11 +755,34 @@ export class Worldquiz extends Emitter<GameEvents> {
     const party = this.party;
     const level = LEVELS[this.#settings.difficulty];
     const deck = this.#deck!;
-    const country = deck.draw(knownEnough(deckOf(this.#all, this.#settings.disputed), level));
-    kind ??= pick(KINDS, this.#rng);
+    const all = deckOf(this.#all, this.#settings.disputed);
+    const known = knownEnough(all, POOL_SIZE[this.#settings.countries]);
+    const pool = all.filter(known);
+    // A kind some country can be asked in, then a country that fits it.
+    if (!kind) {
+      const can = this.#settings.kinds.filter((k) => pool.some((c) => this.#fits(k, c)));
+      kind = can.length ? pick(can, this.#rng) : "where";
+    }
+    const want = kind;
+    const country = deck.draw((c) => known(c) && this.#fits(want, c));
+    // The drawn card may still not make one (no fair four for "which is bigger"): another kind of the mix, else a pin.
+    let made = this.#question(kind, country, pool, all);
+    if (!made) {
+      for (const k of shuffle(this.#settings.kinds, this.#rng)) {
+        made = this.#fits(k, country) ? this.#question(k, country, pool, all) : null;
+        if (made) {
+          kind = k;
+          break;
+        }
+      }
+    }
+    if (!made) {
+      kind = "where";
+      made = this.#question("where", country, pool, all)!;
+    }
+    const { question, truth } = made;
     const players = only ?? party.players.filter((p) => this.steps.has(p.id) && p.connected).map((p) => p.id);
     const key = `${this.#game}:${this.#roundNo}:${++this.#challengeNo}`;
-    const question = this.#question(kind, country);
     // The announcement, then the question with its deadline.
     party.withTv(() => {
       this.#setPhase("round", only ? "tiebreak" : "challenge");
@@ -716,7 +794,7 @@ export class Worldquiz extends Emitter<GameEvents> {
     if (signal.aborted) return [];
     const deadline = party.deadline(this.#answerMs());
     let wake = () => {};
-    const ch: Challenge = { key, kind, country, players, deadline, answers: new Map(), wake: () => wake() };
+    const ch: Challenge = { key, kind, country, players, deadline, answers: new Map(), truth, wake: () => wake() };
     this.#challenge = ch;
     const borders = level.borders;
     party.withTv(() => {
@@ -749,15 +827,73 @@ export class Worldquiz extends Emitter<GameEvents> {
     return this.#reveal(ch, attempt, only, signal);
   }
 
-  #question(kind: Kind, c: Country): Record<string, unknown> {
+  /** Whether a country can be asked in a kind (§4.6, §4.8–4.10). */
+  #fits(kind: Kind, c: Country): boolean {
+    switch (kind) {
+      case "shape": {
+        const [w, s, e, n] = c.box;
+        return (this.#land.get(c.id)?.length ?? 0) > 0 && km([w, s], [e, n]) >= SHAPE_KM;
+      }
+      case "neighbour":
+        return neighboursIn(c, this.#inDeck).length >= 1;
+      case "odd":
+        return neighboursIn(c, this.#inDeck).length >= 3;
+      case "guess":
+        return GUESS_FACTS.some((f) => {
+          const v = factOf(c, f, this.#inDeck);
+          return v >= GUESS_RANGE[f][0] && v <= GUESS_RANGE[f][1];
+        });
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * What a challenge shows (never its answer: a "where" names the country
+   * but not its place, a flag is only its file, a shape its outline and
+   * view, options only their names and flags) and what the host keeps
+   * until the reveal; null when the country cannot make one.
+   */
+  #question(kind: Kind, c: Country, pool: readonly Country[], all: readonly Country[]): { question: Record<string, unknown>; truth: Truth } | null {
     const l = this.#lang;
+    const level = LEVELS[this.#settings.difficulty];
+    const rng = this.#rng;
+    const shown = (o: Country) => ({ name: o.name[l], flag: o.flag });
     switch (kind) {
       case "capital":
-        return { name: c.name[l], flag: c.flag, at: c.at, box: c.box, id: c.id };
+        return { question: { name: c.name[l], flag: c.flag, at: c.at, box: c.box, id: c.id }, truth: {} };
       case "flag":
-        return { flag: c.flag };
+        return { question: { flag: c.flag }, truth: {} };
       case "where":
-        return { name: c.name[l] };
+        return { question: { name: c.name[l] }, truth: {} };
+      case "pickflag": {
+        const wrong = wrongFlags(c, pool.length > level.flags ? pool : all, this.#settings.difficulty, level.flags - 1, rng, this.#colours);
+        const options = shuffle([c, ...wrong], rng);
+        return { question: { name: c.name[l], flags: options.map((o) => o.flag) }, truth: { options, right: options.indexOf(c) } };
+      }
+      case "shape":
+        return { question: { shape: outline(this.#land.get(c.id) ?? []), box: c.box, at: c.at }, truth: {} };
+      case "bigger": {
+        const b = biggerOf(c, pool.length >= 8 ? pool : all, this.#settings.difficulty, rng);
+        if (!b) return null;
+        return { question: { fact: b.fact, options: b.options.map(shown) }, truth: { options: b.options, right: b.right, fact: b.fact } };
+      }
+      case "guess": {
+        const g = guessOf(c, rng);
+        if (!g) return null;
+        const range = GUESS_RANGE[g.fact];
+        return { question: { fact: g.fact, name: c.name[l], flag: c.flag, min: range[0], max: range[1] }, truth: { fact: g.fact, value: g.value, range } };
+      }
+      case "neighbour": {
+        const neighbours = neighboursIn(c, this.#inDeck);
+        if (!neighbours.length) return null;
+        return { question: { name: c.name[l], flag: c.flag, at: c.at, box: c.box, id: c.id }, truth: { neighbours } };
+      }
+      case "odd": {
+        const o = oddOf(c, all, pool.length >= 8 ? pool : all, this.#settings.difficulty, rng);
+        if (!o) return null;
+        return { question: { name: c.name[l], flag: c.flag, options: o.options.map(shown) }, truth: { options: o.options, right: o.right, neighbours: neighboursIn(c, this.#inDeck) } };
+      }
     }
   }
 
@@ -772,7 +908,18 @@ export class Worldquiz extends Emitter<GameEvents> {
     const had = ch.answers.get(from.id);
     if (had?.locked) throw new PartyError("locked", "Already locked in");
     const a: Answer = { locked: v["lock"] === true };
-    if (ch.kind === "where") {
+    const how = ANSWERS[ch.kind];
+    if (how === "choice") {
+      const choice = v["choice"];
+      const n = ch.truth.options?.length ?? 0;
+      if (typeof choice !== "number" || !Number.isInteger(choice) || choice < 0 || choice >= n) throw new PartyError("bad-answer", `choice: 0 to ${n - 1}`);
+      a.choice = choice;
+    } else if (how === "number") {
+      const value = v["value"];
+      const [lo, hi] = ch.truth.range ?? [0, 0];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < lo || value > hi) throw new PartyError("bad-answer", `value: ${lo} to ${hi}`);
+      a.value = value;
+    } else if (how === "pin") {
       const lon = v["lon"];
       const lat = v["lat"];
       if (typeof lon !== "number" || typeof lat !== "number" || !Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new PartyError("bad-answer", "lon and lat");
@@ -786,7 +933,8 @@ export class Worldquiz extends Emitter<GameEvents> {
     }
     ch.answers.set(from.id, a);
     // The phone's draft, for a reloaded page (never the others').
-    this.party.player(from.id)?.state.set({ draft: ch.kind === "where" ? { lon: a.lon!, lat: a.lat! } : { text: a.text ?? "" } });
+    const draft = how === "pin" ? { lon: a.lon!, lat: a.lat! } : how === "choice" ? { choice: a.choice! } : how === "number" ? { value: a.value! } : { text: a.text ?? "" };
+    this.party.player(from.id)?.state.set({ draft });
     if (a.locked) {
       const locked = ch.players.filter((id) => ch.answers.get(id)?.locked);
       this.party.room.set({ locked });
@@ -806,7 +954,28 @@ export class Worldquiz extends Emitter<GameEvents> {
     const answers: Record<string, unknown>[] = [];
     let winners: string[] = [];
     let band: number | null = null;
-    if (ch.kind === "where") {
+    const how = ANSWERS[ch.kind];
+    const t = ch.truth;
+    if (how === "choice") {
+      for (const id of ch.players) {
+        const choice = ch.answers.get(id)?.choice ?? null;
+        const right = choice !== null && choice === t.right;
+        if (right) winners.push(id);
+        answers.push({ pid: id, choice, right });
+      }
+    } else if (how === "number") {
+      const guesses = new Map<string, number>();
+      for (const id of ch.players) {
+        const g = ch.answers.get(id)?.value;
+        if (g !== undefined) guesses.set(id, g);
+      }
+      const judged = judgeGuesses(guesses, t.value ?? 0, level.factor);
+      winners = judged.winners;
+      for (const id of ch.players) {
+        const off = judged.off.get(id);
+        answers.push({ pid: id, value: guesses.get(id) ?? null, off: off === undefined ? null : Math.round(off * 1000) / 1000, right: winners.includes(id) });
+      }
+    } else if (how === "pin") {
       const dists = new Map<string, number>();
       const nearest = new Map<string, [number, number]>();
       for (const id of ch.players) {
@@ -833,27 +1002,51 @@ export class Worldquiz extends Emitter<GameEvents> {
         const a = ch.answers.get(id);
         const text = a?.text ?? "";
         const r = text ? m.read(text) : { ids: [], name: null };
-        const right = r.ids.includes(c.id);
+        // A neighbour: any of them, never the country itself (not by a name they share either).
+        const right = ch.kind === "neighbour" ? rightNeighbour(r.ids, c.id, t.neighbours ?? []) : r.ids.includes(c.id);
         if (right) winners.push(id);
         const as = r.ids.length ? (ch.kind === "capital" ? this.#capitalName(r.ids[0]!, r.name) : this.#byId.get(r.ids[0]!)?.name[this.#lang]) : null;
         answers.push({ pid: id, text, as: as ?? null, right });
       }
     }
     if (!only) for (const w of winners) this.steps.set(w, (this.steps.get(w) ?? 0) + 1);
-    const solution = { ...this.card(c) };
+    // "Which is bigger": the card is the biggest's.
+    const solution = { ...this.card(ch.kind === "bigger" && t.options && t.right !== undefined ? t.options[t.right]! : c) };
+    const reveal = this.#revealView(ch);
     const last = !winners.length && attempt < MAX_TRIES && !only;
     const nx = this.#openNext(party.players.filter((p) => this.steps.has(p.id)).map((p) => p.id));
     party.withTv(() => {
-      this.#room({ phase: "round", stage: "answer", kind: ch.kind, solution, winners, band, captain: this.#captain, again: last, tiebreak: !!only, ...this.#nextView(nx) });
-      this.#screen({ phase: "round", stage: "answer", kind: ch.kind, solution, answers, winners, band, captain: this.#captain, again: last, tiebreak: only ?? null, try: attempt, ...this.#nextView(nx) });
+      this.#room({ phase: "round", stage: "answer", kind: ch.kind, solution, reveal, winners, band, captain: this.#captain, again: last, tiebreak: !!only, ...this.#nextView(nx) });
+      this.#screen({ phase: "round", stage: "answer", kind: ch.kind, solution, reveal, answers, winners, band, captain: this.#captain, again: last, tiebreak: only ?? null, try: attempt, ...this.#nextView(nx) });
       for (const p of party.players) {
         if (!this.steps.has(p.id)) continue;
         const mine = answers.find((a) => a["pid"] === p.id) ?? null;
-        p.state.replace({ task: "result", kind: ch.kind, right: winners.includes(p.id), solution, mine, winners: winners.map((w) => this.#name(w)), color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, again: last, next: nx.key, ready: false });
+        p.state.replace({ task: "result", kind: ch.kind, right: winners.includes(p.id), solution, reveal, mine, winners: winners.map((w) => this.#name(w)), color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, again: last, next: nx.key, ready: false });
       }
     });
     await this.#awaitNext(nx, ch.kind === "where" ? this.timings.revealWhere : this.timings.reveal, signal);
     return winners;
+  }
+
+  /** What the reveal shows beyond the card: the options with their names (and numbers), the number, the neighbours. */
+  #revealView(ch: Challenge): Record<string, unknown> | null {
+    const l = this.#lang;
+    const t = ch.truth;
+    const c = ch.country;
+    const place = (o: Country) => ({ id: o.id, name: o.name[l], flag: o.flag, at: o.at, box: o.box });
+    switch (ch.kind) {
+      case "pickflag":
+      case "odd":
+        return { options: (t.options ?? []).map(place), right: t.right ?? null, ...(ch.kind === "odd" ? { of: place(c) } : {}) };
+      case "bigger":
+        return { fact: t.fact, options: (t.options ?? []).map((o) => ({ ...place(o), value: factOf(o, t.fact!, this.#inDeck) })), right: t.right ?? null };
+      case "guess":
+        return { fact: t.fact, value: t.value, min: t.range?.[0], max: t.range?.[1], factor: LEVELS[this.#settings.difficulty].factor };
+      case "neighbour":
+        return { neighbours: (t.neighbours ?? []).map((id) => this.#byId.get(id)).filter((o): o is Country => !!o).map(place) };
+      default:
+        return null;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -1004,10 +1197,20 @@ export class Worldquiz extends Emitter<GameEvents> {
 
 /** The settings an action may change, checked. */
 export function parseSettings(d: Json): Partial<Settings> {
-  if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "mode, rounds, difficulty, disputed, map");
+  if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "mode, rounds, difficulty, countries, kinds, disputed, map");
   const v = d as Record<string, Json>;
   const o: Partial<Settings> = {};
-  for (const k of Object.keys(v)) if (!["mode", "rounds", "difficulty", "disputed", "map"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+  for (const k of Object.keys(v)) if (!["mode", "rounds", "difficulty", "countries", "kinds", "disputed", "map"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+  if (v["countries"] !== undefined) {
+    if (!(POOLS as readonly Json[]).includes(v["countries"])) throw new PartyError("bad-settings", `countries: ${POOLS.join(", ")}`);
+    o.countries = v["countries"] as Pool;
+  }
+  if (v["kinds"] !== undefined) {
+    const k = v["kinds"];
+    const kinds = Array.isArray(k) && k.every((x) => typeof x === "string") ? cleanKinds(k as string[]) : null;
+    if (!kinds || kinds.length !== (k as unknown[]).length) throw new PartyError("bad-settings", `kinds: at least one of ${KINDS.join(", ")}, each once`);
+    o.kinds = kinds;
+  }
   if (v["mode"] !== undefined) {
     if (!(MODES as readonly Json[]).includes(v["mode"])) throw new PartyError("bad-settings", "mode: cards or quiz");
     o.mode = v["mode"] as Mode;
@@ -1029,6 +1232,39 @@ export function parseSettings(d: Json): Partial<Settings> {
     o.map = v["map"] as MapMode;
   }
   return o;
+}
+
+/** Kinds as a setting: known ones, each once, in KINDS' order; null when none is left. */
+export function cleanKinds(kinds: readonly string[]): Kind[] | null {
+  const out = KINDS.filter((k) => kinds.includes(k));
+  return out.length ? out : null;
+}
+
+/**
+ * A country's outline for "name the shape" (§4.6), as data/shapes.json
+ * codes it (delta-coded hundredths of a degree): its rings biggest first,
+ * those under 1 % of the biggest dropped, at most 40, so the message
+ * stays small (Canada's thousand islands).
+ */
+export function outline(rings: readonly Ring[]): number[][] {
+  const sized = rings.map((r) => ({ r, a: ringArea(r) })).sort((x, y) => y.a - x.a);
+  const top = sized[0]?.a ?? 0;
+  return sized
+    .filter((x) => x.a >= top * 0.01)
+    .slice(0, 40)
+    .map(({ r }) => {
+      const out: number[] = [];
+      let px = 0;
+      let py = 0;
+      for (const [lon, lat] of r) {
+        const x = Math.round(lon * 100);
+        const y = Math.round(lat * 100);
+        out.push(x - px, y - py);
+        px = x;
+        py = y;
+      }
+      return out;
+    });
 }
 
 export { STRONG };

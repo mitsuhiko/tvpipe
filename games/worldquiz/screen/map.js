@@ -29,6 +29,8 @@ const NOBODY = "#e9e2cf";
 const SEA = "#6cc7e8";
 const SEA_SHADOW = "#3f8fb3";
 const HOT = "#ff7a45";
+/** The second highlight (a country's neighbours beside it in the hot colour). */
+const WARM = "#ffc61a";
 const LAT_MAX = 84;
 const LAT_MIN = -60;
 
@@ -40,6 +42,30 @@ const LAT_MIN = -60;
  * @typedef {{ lon: number, lat: number, name?: string, flag?: HTMLImageElement | null }} Goal
  * @typedef {{ lon: number, lat: number, zoom: number, R: number }} Cam
  */
+
+/**
+ * Rings as `data/shapes.json` codes them (delta-coded, × `scale`), e.g. a
+ * shape challenge's outline (game/game.ts `outline`).
+ * @param {number[][]} coded @param {number} [scale] @returns {LonLat[][]}
+ */
+export function decodeRings(coded, scale = 100) {
+  /** @type {LonLat[][]} */
+  const out = [];
+  for (const c of Array.isArray(coded) ? coded : []) {
+    if (!Array.isArray(c)) continue;
+    /** @type {LonLat[]} */
+    const r = [];
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i + 1 < c.length; i += 2) {
+      x += Number(c[i]) || 0;
+      y += Number(c[i + 1]) || 0;
+      r.push([x / scale, y / scale]);
+    }
+    if (r.length >= 3) out.push(r);
+  }
+  return out;
+}
 
 /** Undoes `data/shapes.json`'s delta coding. @param {{ scale: number, units: { id: string | null, rings: number[][] }[] }} shapes */
 export function decodeShapes(shapes) {
@@ -146,6 +172,14 @@ export class WorldMap {
     /** Countries that pop up. @type {Set<string>} */
     this.hot = new Set();
     this.hotColor = HOT;
+    /** Countries in the second highlight colour. @type {Set<string>} */
+    this.warm = new Set();
+    /** An outline drawn like a hot country, without saying whose (name the shape). @type {LonLat[][] | null} */
+    this.outline = null;
+    /** @type {{ of: LonLat[][], path: Path2D, v: [number, number, number][][] } | null} */
+    this.outlineCache = null;
+    /** Only the outline on the sea: no other land, no graticule (name the shape: nothing around gives it away). */
+    this.lone = false;
     /** Countries left out of the game (drawn as nobody's land). @type {Set<string>} */
     this.out = new Set();
     /** @type {Mark[]} */
@@ -172,6 +206,9 @@ export class WorldMap {
     /** Insets on the right and the left (px) the camera keeps clear, e.g. for a card. */
     this.right = 0;
     this.left = 0;
+    /** Insets at the top and the bottom (px), e.g. for panels; the camera keeps them clear. */
+    this.top = 0;
+    this.bottom = 0;
     this.waves = (() => { const r = rng(7), a = []; for (let i = 0; i < 90; i++) a.push([r() * 360 - 180, r() * 140 - 60]); return a; })();
     this.stars = (() => { const r = rng(3), a = []; for (let i = 0; i < 170; i++) a.push([r(), r(), r() * 1.6 + 0.4, r()]); return a; })();
     /** @type {Map<string, Path2D>} cached flat paths per unit index (Mercator units: radians and mercY) */
@@ -230,9 +267,10 @@ export class WorldMap {
   /**
    * Where the camera goes to show a box: flat (zoom so it fills about
    * `fill` of the free part), globe (turned to it, close enough).
-   * @param {[number, number, number, number]} box @param {LonLat} [at] @param {number} [fill]
+   * `maxZoom`: how close it may get (a shape to name gets closer than a country among others).
+   * @param {[number, number, number, number]} box @param {LonLat} [at] @param {number} [fill] @param {number} [maxZoom]
    */
-  viewOf(box, at, fill = 0.3) {
+  viewOf(box, at, fill = 0.3, maxZoom = 14) {
     let [w, s, e, n] = box;
     if (e < w) e += 360;
     const lon = at ? at[0] : (w + e) / 2;
@@ -241,16 +279,20 @@ export class WorldMap {
     const wRad = Math.max((e - w) * D2R, 0.03);
     const hMerc = Math.max(mercY(n) - mercY(s), 0.03);
     const base = this.w / (2 * Math.PI);
-    const zoom = Math.max(this.minZoom, Math.min(14, Math.min((free * fill) / (wRad * base), (this.h * fill) / (hMerc * base))));
+    const high = Math.max(1, this.h - this.top - this.bottom);
+    const zoom = Math.max(this.minZoom, Math.min(maxZoom, Math.min((free * fill) / (wRad * base), (high * fill) / (hMerc * base))));
     const shift = (this.right - this.left) / 2 / (base * zoom) / D2R;
+    // Clear of the insets: the box's centre lies in the middle of what is left.
+    const flatLat = this.bottom !== this.top ? unmercY(mercY(lat) - (this.bottom - this.top) / 2 / (base * zoom)) : lat;
     const ext = Math.max((e - w) * Math.cos(lat * D2R), n - s, 1) * D2R;
-    const R = Math.max(0.42, Math.min(1.2, (0.3 * fill) / 0.4 / Math.sin(Math.min(ext, 1.2) / 2 + 0.05)));
-    return { lon: wrap(lon + shift), lat: Math.max(-60, Math.min(70, lat)), zoom, R, glon: lon, glat: Math.max(-55, Math.min(65, lat)) };
+    // The globe gets close only when asked to (a shape to name), else a country stays among others.
+    const R = Math.max(0.42, Math.min(maxZoom > 14 ? 8 : 1.2, (0.3 * fill * (high / this.h)) / 0.4 / Math.sin(Math.min(ext, 1.2) / 2 + (maxZoom > 14 ? 0.005 : 0.05))));
+    return { lon: wrap(lon + shift), lat: Math.max(-60, Math.min(70, flatLat)), zoom, R, glon: lon, glat: Math.max(-55, Math.min(65, lat)) };
   }
 
-  /** Flies to a box (ms; 0 jumps). @param {[number, number, number, number]} box @param {LonLat} [at] @param {number} [ms] @param {number} [fill] */
-  flyTo(box, at, ms = 1600, fill) {
-    const v = this.viewOf(box, at, fill);
+  /** Flies to a box (ms; 0 jumps). @param {[number, number, number, number]} box @param {LonLat} [at] @param {number} [ms] @param {number} [fill] @param {number} [maxZoom] */
+  flyTo(box, at, ms = 1600, fill, maxZoom) {
+    const v = this.viewOf(box, at, fill, maxZoom);
     this.#flyCam({ lon: this.mode === "globe" ? v.glon : v.lon, lat: this.mode === "globe" ? v.glat : v.lat, zoom: v.zoom, R: v.R }, ms);
   }
 
@@ -314,7 +356,7 @@ export class WorldMap {
 
   get globe() {
     const R = this.cam.R * this.h;
-    return { cx: (this.w - this.right + this.left) / 2, cy: this.h / 2, R };
+    return { cx: (this.w - this.right + this.left) / 2, cy: (this.h + this.top - this.bottom) / 2, R };
   }
 
   /** A point to pixels, or null behind the globe. @param {number} lon @param {number} lat @returns {[number, number] | null} */
@@ -475,16 +517,16 @@ export class WorldMap {
     const s = this.scale;
     ctx.fillStyle = SEA;
     ctx.fillRect(0, 0, w, h);
-    // Graticule and waves.
+    // Graticule (not when the outline is alone: it would tell where) and waves.
     ctx.save();
     ctx.strokeStyle = "rgba(255,255,255,.35)";
     ctx.lineWidth = 1.3;
     ctx.setLineDash([6, 8]);
-    for (let lo = -180; lo < 180; lo += 30) {
+    for (let lo = -180; lo < 180 && !this.lone; lo += 30) {
       const [x] = this.flat(lo, 0);
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
     }
-    for (let la = -60; la <= 80; la += 20) {
+    for (let la = -60; la <= 80 && !this.lone; la += 20) {
       const [, y] = this.flat(0, la);
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
@@ -510,12 +552,12 @@ export class WorldMap {
       copies.push(ox);
     }
     const coast = Math.max(2.5, Math.min(5, 2 + this.cam.zoom * 0.5));
-    for (const pass of ["shadow", "coast", "fill", "border"]) {
+    for (const pass of this.lone ? [] : ["shadow", "coast", "fill", "border"]) {
       for (const ox of copies) {
         ctx.save();
         ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * (ox + (pass === "shadow" ? 4 : 0)), this.dpr * (cy + (pass === "shadow" ? 5 : 0)));
         this.units.forEach((u, i) => {
-          if (u.id !== null && this.hot.has(u.id)) return;
+          if (this.#lit(u)) return;
           const p = this.#flatPath(i);
           if (pass === "shadow") { ctx.fillStyle = SEA_SHADOW; ctx.fill(p); }
           else if (pass === "coast") { ctx.lineJoin = "round"; ctx.strokeStyle = INK; ctx.lineWidth = coast / s; ctx.stroke(p); }
@@ -525,10 +567,11 @@ export class WorldMap {
         ctx.restore();
       }
     }
-    // Highlighted countries, in place.
+    // Highlighted countries, in place; the outline over everything.
     for (const ox of copies) {
       this.units.forEach((u, i) => {
-        if (u.id === null || !this.hot.has(u.id)) return;
+        const lit = this.lone ? null : this.#lit(u);
+        if (!lit) return;
         const p = this.#flatPath(i);
         ctx.save();
         ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * ox, this.dpr * cy);
@@ -536,7 +579,7 @@ export class WorldMap {
         ctx.strokeStyle = INK;
         ctx.lineWidth = 6 / s;
         ctx.stroke(p);
-        ctx.fillStyle = this.hotColor;
+        ctx.fillStyle = lit;
         ctx.fill(p);
         // Enclaves stay themselves on the lifted country.
         this.#enclaves(u).forEach((j) => {
@@ -548,7 +591,55 @@ export class WorldMap {
         });
         ctx.restore();
       });
+      const o = this.#outline();
+      if (o) {
+        ctx.save();
+        // Alone, it gets the land's sea shadow.
+        if (this.lone) {
+          ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * (ox + 4), this.dpr * (cy + 5));
+          ctx.fillStyle = SEA_SHADOW;
+          ctx.fill(o.path);
+        }
+        ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * ox, this.dpr * cy);
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 6 / s;
+        ctx.stroke(o.path);
+        ctx.fillStyle = this.hotColor;
+        ctx.fill(o.path);
+        ctx.restore();
+      }
     }
+  }
+
+  /** The outline's extent [w, s, e, n]. @returns {[number, number, number, number]} */
+  #outlineBox() {
+    let w = 180, s = 90, e = -180, n = -90;
+    for (const r of this.outline ?? []) for (const [lo, la] of r) { w = Math.min(w, lo); e = Math.max(e, lo); s = Math.min(s, la); n = Math.max(n, la); }
+    return [w, s, e, n];
+  }
+
+  /** The highlight colour of a unit, or null. @param {Unit} u */
+  #lit(u) {
+    if (u.id === null) return null;
+    if (this.hot.has(u.id)) return this.hotColor;
+    if (this.warm.has(u.id)) return WARM;
+    return null;
+  }
+
+  /** The outline's flat path (Mercator units) and its rings as vectors, made once per outline. */
+  #outline() {
+    const rings = this.outline;
+    if (!rings?.length) return null;
+    if (this.outlineCache?.of !== rings) {
+      const path = new Path2D();
+      for (const r of rings) {
+        r.forEach(([lo, la], j) => (j ? path.lineTo(lo * D2R, -mercY(la)) : path.moveTo(lo * D2R, -mercY(la))));
+        path.closePath();
+      }
+      this.outlineCache = { of: rings, path, v: rings.map((r) => r.map(([lo, la]) => vec(lo, la))) };
+    }
+    return this.outlineCache;
   }
 
   /** The units lying inside a unit's box and much smaller (enclaves), by index. @param {Unit} u */
@@ -558,7 +649,7 @@ export class WorldMap {
     /** @type {number[]} */
     const out = [];
     this.units.forEach((v, j) => {
-      if (v === u || (v.id !== null && this.hot.has(v.id))) return;
+      if (v === u || this.#lit(v)) return;
       const [a, b, c, d] = v.box;
       if (a >= w && c <= e && b >= s && d <= n && (c - a) * (d - b) < area * 0.02 && v.id !== null) out.push(j);
     });
@@ -615,26 +706,28 @@ export class WorldMap {
       }
       ctx.stroke();
     };
-    for (let lo = -180; lo < 180; lo += 30) line(Array.from({ length: 37 }, (_, i) => /** @type {LonLat} */ ([lo, -90 + i * 5])));
-    for (let la = -60; la <= 60; la += 30) line(Array.from({ length: 91 }, (_, i) => /** @type {LonLat} */ ([-180 + i * 4, la])));
+    for (let lo = -180; lo < 180 && !this.lone; lo += 30) line(Array.from({ length: 37 }, (_, i) => /** @type {LonLat} */ ([lo, -90 + i * 5])));
+    for (let la = -60; la <= 60 && !this.lone; la += 30) line(Array.from({ length: 91 }, (_, i) => /** @type {LonLat} */ ([-180 + i * 4, la])));
     ctx.setLineDash([]);
-    const paths = this.units.map((u) => this.#globePath(u));
+    // Alone, the outline is the only land.
+    const paths = this.lone ? [] : this.units.map((u) => this.#globePath(u));
     ctx.lineJoin = "round";
     ctx.strokeStyle = INK;
     ctx.lineWidth = Math.max(2.5, Math.min(4.5, g.R / 90));
-    paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!(u.id && this.hot.has(u.id))) ctx.stroke(p); });
-    paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!(u.id && this.hot.has(u.id))) { ctx.fillStyle = this.#fill(u); ctx.fill(p); } });
+    paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!this.#lit(u)) ctx.stroke(p); });
+    paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!this.#lit(u)) { ctx.fillStyle = this.#fill(u); ctx.fill(p); } });
     ctx.strokeStyle = "rgba(38,52,80,.75)";
     ctx.lineWidth = 1;
-    paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!(u.id && this.hot.has(u.id)) && (this.borders || u.id === null)) ctx.stroke(p); });
+    paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!this.#lit(u) && (this.borders || u.id === null)) ctx.stroke(p); });
     paths.forEach((p, i) => {
       const u = /** @type {Unit} */ (this.units[i]);
-      if (!(u.id && this.hot.has(u.id))) return;
+      const lit = this.#lit(u);
+      if (!lit) return;
       ctx.save();
       ctx.strokeStyle = INK;
       ctx.lineWidth = 6;
       ctx.stroke(p);
-      ctx.fillStyle = this.hotColor;
+      ctx.fillStyle = lit;
       ctx.fill(p);
       for (const j of this.#enclaves(u)) {
         const q = /** @type {Path2D} */ (paths[j]);
@@ -645,6 +738,16 @@ export class WorldMap {
       }
       ctx.restore();
     });
+    const o = this.#outline();
+    if (o) {
+      const p = new Path2D();
+      for (const r of o.v) this.#globeRing(p, r);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 6;
+      ctx.stroke(p);
+      ctx.fillStyle = this.hotColor;
+      ctx.fill(p);
+    }
     // Shading: light from the upper left.
     const sh = ctx.createRadialGradient(g.cx - g.R * 0.4, g.cy - g.R * 0.45, g.R * 0.1, g.cx, g.cy, g.R * 1.05);
     sh.addColorStop(0, "rgba(255,255,255,.26)");
@@ -665,7 +768,8 @@ export class WorldMap {
     const ctx = this.ctx;
     // Rings around hot countries too small to see (still: no pulsing).
     for (const u of this.units) {
-      if (u.id === null || !this.hot.has(u.id)) continue;
+      const lit = this.#lit(u);
+      if (!lit) continue;
       const [w, s, e, n] = u.box;
       const a = this.project(w, s), b = this.project(e, n);
       if (!a || !b || Math.hypot(a[0] - b[0], a[1] - b[1]) > 26) continue;
@@ -678,8 +782,23 @@ export class WorldMap {
       ctx.arc(c[0], c[1], r, 0, 7);
       ctx.stroke();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = this.hotColor;
+      ctx.strokeStyle = lit;
       ctx.stroke();
+    }
+    // A small outline gets its ring too.
+    const ob = this.outline?.length ? this.#outlineBox() : null;
+    if (ob) {
+      const a = this.project(ob[0], ob[1]), b = this.project(ob[2], ob[3]), c = this.project((ob[0] + ob[2]) / 2, (ob[1] + ob[3]) / 2);
+      if (a && b && c && Math.hypot(a[0] - b[0], a[1] - b[1]) <= 26) {
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = INK;
+        ctx.beginPath();
+        ctx.arc(c[0], c[1], 18, 0, 7);
+        ctx.stroke();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = this.hotColor;
+        ctx.stroke();
+      }
     }
     if (this.circle) {
       const { lon, lat, km } = this.circle;

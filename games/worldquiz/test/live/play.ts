@@ -8,7 +8,7 @@
  * the TV (nothing off the screen, no word cut, nothing under the join
  * badge) and of every phone screen at 390 and 320 px.
  *
- *   npm run build && node test/live/play.ts [--bots N] [--rounds N] [--lang en|de] [--map flat|globe] [--out DIR] [--shots DIR]
+ *   npm run build && node test/live/play.ts [--bots N] [--rounds N] [--lang en|de] [--map flat|globe] [--mode cards|quiz] [--difficulty easy|normal|hard] [--kinds a,b,…] [--out DIR] [--shots DIR]
  *
  * `--shots DIR`: the pictures for the games list (docs/game-catalog.md)
  * into DIR: `tv-compete`, `tv-where`, `phone-card`, `phone-where`; the
@@ -35,6 +35,9 @@ const { values: args } = parseArgs({
     rounds: { type: "string", default: "4" },
     lang: { type: "string", default: "en" },
     map: { type: "string", default: "flat" },
+    mode: { type: "string", default: "cards" },
+    difficulty: { type: "string", default: "normal" },
+    kinds: { type: "string" },
     out: { type: "string" },
     shots: { type: "string" },
   },
@@ -172,12 +175,13 @@ try {
   await sleep(800);
   await tvShot("lobby");
   await phoneShot("lobby");
-  await win.eval(`(() => { worldquiz.game.configure({ rounds: 15 }); return true; })()`);
+  const kinds = args.kinds ? args.kinds.split(",") : undefined;
+  await win.eval(`(() => { worldquiz.game.configure(${JSON.stringify({ rounds: 15, mode: args.mode === "quiz" ? "quiz" : "cards", difficulty: args.difficulty, ...(kinds ? { kinds } : {}) })}); return true; })()`);
   await phone.until(`!document.getElementById("start")?.disabled`);
   await phone.eval(`document.getElementById("start").click(); true`);
 
   const state = () =>
-    win.eval<{ phase: string; stage: string; key: string; captain: boolean; kind: string; round: number; truth: { capitals: string[]; name: string; at: [number, number] } | null }>(`(() => {
+    win.eval<{ phase: string; stage: string; key: string; captain: boolean; kind: string; round: number; truth: { capitals: string[]; name: string; at: [number, number]; choice?: number; value?: number; neighbours?: string[] } | null }>(`(() => {
       const g = worldquiz.game; const s = worldquiz.party.screenView().screen ?? {};
       const phil = worldquiz.party.players.find((p) => p.name === "Phil");
       return { phase: g.phase, stage: s.stage ?? "", key: [g.phase, s.stage ?? "", s.round ?? "", s.try ?? "", s.kind ?? ""].join("|"), captain: s.captain === phil?.id, kind: s.kind ?? "", round: s.round ?? 0, truth: g.truth() ?? null };
@@ -244,9 +248,26 @@ try {
         await phoneShot(name);
         await pic(phone, "phone-where", "phone", 400);
         await phone.eval(`document.getElementById("lock")?.click(); true`);
+      } else if (["pickflag", "bigger", "odd"].includes(s.kind)) {
+        // Phil knows: he taps the right option.
+        const sel = `.opt[data-choice="${t?.choice ?? 0}"]`;
+        await phone.until(`!!document.querySelector('${sel}')`, 5000).catch(() => problem(`phone: no options (${s.kind})`));
+        await phone.eval(`document.querySelector('${sel}')?.click(); true`);
+        await sleep(600);
+        await tvShot(name);
+        await phoneShot(name);
+        await phone.eval(`document.getElementById("lock")?.click(); true`);
+      } else if (s.kind === "guess") {
+        await phone.until(`!!document.getElementById("guess")`, 5000).catch(() => problem("phone: no slider"));
+        // Somewhere near the middle, then a nudge.
+        await phone.eval(`(() => { const i = document.getElementById("guess"); i.value = "620"; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+        await sleep(600);
+        await tvShot(name);
+        await phoneShot(name);
+        await phone.eval(`document.getElementById("lock")?.click(); true`);
       } else {
         await phone.until(`!!document.getElementById("answer")`, 5000).catch(() => problem(`phone: no answer field (${s.kind})`));
-        const text = t ? (s.kind === "capital" ? t.capitals[0] : t.name) : "Atlantis";
+        const text = t ? (s.kind === "capital" ? t.capitals[0] : s.kind === "neighbour" ? (t.neighbours?.[0] ?? "") : t.name) : "Atlantis";
         await phone.eval(`(() => { const i = document.getElementById("answer"); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
         await sleep(400);
         await tvShot(name);
@@ -254,7 +275,7 @@ try {
         await phone.eval(`document.getElementById("lock")?.click(); true`);
       }
     } else if (s.stage === "answer") {
-      await sleep(s.kind === "where" ? 4200 : 1600);
+      await sleep(s.kind === "where" || ["neighbour", "bigger", "odd"].includes(s.kind) ? 4200 : 1600);
       await tvShot(name);
       if (s.kind === "where") await pic(tv, "tv-where", "tv", 200);
       await phoneShot(name);

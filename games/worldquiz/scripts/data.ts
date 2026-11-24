@@ -55,6 +55,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Countries, Country, Named, ShapeUnit, Shapes } from "../game/data.ts";
+import { withViewBox } from "./flags.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = join(ROOT, ".cache");
@@ -1124,7 +1125,8 @@ async function commonsFlags(files: string[]): Promise<Map<string, Flag>> {
       }
       // LF line ends: the repository checks text out with LF (.gitattributes), and the file's name is its content's hash.
       const raw = await cached(`flags/${f.replace(/[^\p{L}\p{N}.]+/gu, "_")}`, info.url);
-      const svg = Buffer.from(raw.toString("utf8").replace(/\r\n?/g, "\n"), "utf8");
+      // A viewBox where it has none, so every browser scales it (scripts/flags.ts).
+      const svg = Buffer.from(withViewBox(raw.toString("utf8").replace(/\r\n?/g, "\n")), "utf8");
       const meta = info.extmetadata ?? {};
       const plain = (s: string | undefined): string => (s ?? "").replace(/<[^>]*>/g, "").trim();
       out.set(f, { file: f, svg, licence: plain(meta["LicenseShortName"]?.value), artist: plain(meta["Artist"]?.value) });

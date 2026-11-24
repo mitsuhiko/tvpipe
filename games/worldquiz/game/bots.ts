@@ -12,13 +12,19 @@
 
 import { memoryStorage, PartyClient, type WebSocketFactory } from "@tvpipe/party/client";
 
-import { FACTS } from "./rules.ts";
+import { ANSWERS, FACTS, type Kind } from "./rules.ts";
 
 export interface Truth {
   kind: string;
   capitals: string[];
   name: string;
   at: [number, number];
+  /** The right option (pick the flag, which is bigger, odd one out). */
+  choice?: number;
+  /** The number to guess. */
+  value?: number;
+  /** The neighbours' names (name a neighbour). */
+  neighbours?: string[];
 }
 
 export interface BotOptions {
@@ -129,7 +135,19 @@ export class Bot {
           this.#once(
             `answer:${me.key}`,
             async () => {
-              if (me.kind === "where") {
+              const how = ANSWERS[me.kind as Kind] ?? "text";
+              const q = me.question ?? {};
+              if (how === "choice") {
+                const n = (q.flags ?? q.options ?? []).length || 1;
+                const choice = knows && truth?.choice !== undefined ? truth.choice : Math.floor(this.#rng() * n);
+                await c.act("answer", { key: me.key, choice, lock: true });
+              } else if (how === "number") {
+                const lo = Number(q.min) || 1;
+                const hi = Number(q.max) || lo * 10;
+                // Knowing: within ×1.3 of it; else anywhere on the slider (logarithmically).
+                const guess = knows && truth?.value ? truth.value * Math.exp((this.#rng() - 0.5) * 0.5) : Math.exp(Math.log(lo) + this.#rng() * (Math.log(hi) - Math.log(lo)));
+                await c.act("answer", { key: me.key, value: Math.max(lo, Math.min(hi, guess)), lock: true });
+              } else if (me.kind === "where") {
                 const [lon, lat] = knows && truth ? truth.at : [this.#rng() * 300 - 150, this.#rng() * 120 - 50];
                 const jx = knows ? (this.#rng() - 0.5) * 4 : 0;
                 const jy = knows ? (this.#rng() - 0.5) * 4 : 0;
@@ -137,7 +155,7 @@ export class Bot {
                 await c.act("answer", { key: me.key, ...pin, lock: false });
                 await c.act("answer", { key: me.key, ...pin, lock: true });
               } else {
-                const right = truth ? (me.kind === "capital" ? truth.capitals[0] : truth.name) : undefined;
+                const right = truth ? (me.kind === "capital" ? truth.capitals[0] : me.kind === "neighbour" ? truth.neighbours?.[0] : truth.name) : undefined;
                 const text = knows && right ? this.#typo(right) : this.#pick(GUESSES);
                 await c.act("answer", { key: me.key, text, lock: true });
               }

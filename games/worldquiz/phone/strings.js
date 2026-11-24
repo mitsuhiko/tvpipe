@@ -46,10 +46,19 @@ export function strings(lang) {
       difficultyLabel: "Schwierigkeit",
       levels: { easy: "leicht", normal: "normal", hard: "schwer" },
       levelLine: {
-        easy: "90 s pro Frage, nur bekannte Länder, Grenzen auf der Karte.",
-        normal: "60 s pro Frage, die 150 bekanntesten Länder.",
-        hard: "30 s pro Frage, alle Länder, nur Küsten auf der Karte.",
+        easy: "90 s pro Frage, Nadeln bis 3.000 km, Schätzungen bis ×3, Grenzen auf der Karte.",
+        normal: "60 s pro Frage, Nadeln bis 1.500 km, Schätzungen bis ×2.",
+        hard: "30 s pro Frage, 9 Flaggen zur Wahl, ähnliche falsche Antworten, nur Küsten auf der Karte.",
       },
+      countriesLabel: "Gefragte Länder",
+      pools: { famous: "80", known: "150", all: "alle" },
+      poolLine: {
+        famous: "Fragen nur zu den 80 bekanntesten Ländern.",
+        known: "Fragen zu den 150 bekanntesten Ländern.",
+        all: "Fragen zu allen Ländern, auch den kleinsten.",
+      },
+      kindsLabel: "Fragen",
+      kindsLine: "Tippe eine Art an, um sie wegzulassen. Eine bleibt immer.",
       disputedLabel: "Umstrittene Staaten",
       off: "aus",
       on: "an",
@@ -61,7 +70,7 @@ export function strings(lang) {
       how: [
         "Jede Runde ziehen alle ein Land als Karte. Nur du siehst deine.",
         "Der Kapitän vergleicht eine Zahl (die höchste gewinnt) oder ruft eine Frage aus.",
-        "Fragen: Hauptstadt, Flagge oder Stecknadel auf der Karte. Alle spielen mit.",
+        "Fragen: Hauptstädte, Flaggen, Nadeln auf der Karte, Umrisse, Zahlen, Nachbarn. Alle spielen mit.",
         "Jeder Sieg fliegt dein Flugzeug eine Station weiter. Wer am weitesten kommt, gewinnt.",
       ],
       waitRound: "Du steigst ab der nächsten Runde ein.",
@@ -78,7 +87,7 @@ export function strings(lang) {
       captainTitle: "Du bist Kapitän!",
       captainHint: "Vergleiche eine Zahl oder ruf eine Frage aus.",
       challenge: "Frage!",
-      challengeLine: "Hauptstadt, Flagge oder Karte",
+      challengeLine: "Eine Frage für alle",
       /** @param {string} name */
       chooses: (name) => `${name} wählt …`,
       choosesHint: "Eine Zahl vergleichen oder eine Frage? Gleich siehst du's.",
@@ -90,8 +99,48 @@ export function strings(lang) {
       winners: (names) => (names.length ? `${names.length > 1 ? "Gewinner" : "Gewonnen hat"}: ${f.list(names)}` : "Niemand hat gewonnen."),
       discardTitle: "Alle Karten sind am Fernseher",
       discardHint: "Sie kommen auf den Ablagestapel. Merk dir die starken!",
-      kinds: { capital: "Hauptstadt", flag: "Flagge", where: "Wo liegt's?" },
-      kindLines: { capital: "Tippe die Hauptstadt.", flag: "Welches Land hat diese Flagge?", where: "Setz eine Nadel auf die Karte." },
+      kinds: { capital: "Hauptstadt", flag: "Flagge", where: "Wo liegt's?", pickflag: "Welche Flagge?", shape: "Welche Form?", bigger: "Wer hat mehr?", guess: "Schätzen!", neighbour: "Nachbarland", odd: "Wer passt nicht?" },
+      kindLines: {
+        capital: "Tippe die Hauptstadt.",
+        flag: "Welches Land hat diese Flagge?",
+        where: "Setz eine Nadel auf die Karte.",
+        pickflag: "Tippe die richtige Flagge an.",
+        shape: "Welches Land hat diese Form?",
+        bigger: "Tippe auf das Land mit dem meisten.",
+        guess: "Schieb auf deine Schätzung.",
+        neighbour: "Tippe ein Land, das angrenzt.",
+        odd: "Tippe auf das Land, das nicht angrenzt.",
+      },
+      /** @param {string} name */
+      flagOf: (name) => `Welche Flagge hat ${name}?`,
+      whichShape: "Welches Land ist das?",
+      biggerQ: { population: "Die meisten Einwohner?", area: "Die größte Fläche?", highest: "Der höchste Punkt?", gdp: "Das höchste BIP pro Kopf?" },
+      guessQ: {
+        /** @param {string} n */
+        population: (n) => `Wie viele Menschen leben in ${n}?`,
+        /** @param {string} n */
+        area: (n) => `Wie groß ist ${n}?`,
+        /** @param {string} n */
+        highest: (n) => `Wie hoch ist der höchste Punkt von ${n}?`,
+      },
+      /** @param {string} name */
+      neighbourOf: (name) => `Ein Nachbarland von ${name}?`,
+      /** @param {string} name */
+      oddOf: (name) => `Welches grenzt nicht an ${name}?`,
+      tapPick: "Tippe eins an.",
+      pickCounts: "Deine Wahl zählt, wenn die Zeit um ist.",
+      slide: "Schieb den Regler.",
+      guessCounts: "Deine Schätzung zählt, wenn die Zeit um ist.",
+      less: "Weniger",
+      more: "Mehr",
+      noPick: "Nichts gewählt",
+      noGuess: "Keine Schätzung",
+      /** @param {string} x */
+      offBy: (x) => `≈ ×${x} daneben`,
+      answerIs: "Richtig ist",
+      neighbours: "Die Nachbarn",
+      borders: "grenzt an",
+      notBorders: "grenzt nicht an",
       /** @param {number} k */
       tryN: (k) => `Versuch ${k} von 3`,
       tiebreak: "Stechen!",
@@ -175,10 +224,19 @@ export function strings(lang) {
     difficultyLabel: "Difficulty",
     levels: { easy: "easy", normal: "normal", hard: "hard" },
     levelLine: {
-      easy: "90 s per question, well-known countries only, borders on the map.",
-      normal: "60 s per question, the 150 best-known countries.",
-      hard: "30 s per question, every country, only coastlines on the map.",
+      easy: "90 s per question, pins within 3,000 km, guesses within ×3, borders on the map.",
+      normal: "60 s per question, pins within 1,500 km, guesses within ×2.",
+      hard: "30 s per question, 9 flags to pick from, look-alike wrong answers, only coastlines on the map.",
     },
+    countriesLabel: "Countries asked",
+    pools: { famous: "80", known: "150", all: "all" },
+    poolLine: {
+      famous: "Questions about the 80 best-known countries only.",
+      known: "Questions about the 150 best-known countries.",
+      all: "Questions about every country, the tiniest too.",
+    },
+    kindsLabel: "Challenges",
+    kindsLine: "Tap a kind to leave it out. One always stays.",
     disputedLabel: "Disputed states",
     off: "off",
     on: "on",
@@ -190,7 +248,7 @@ export function strings(lang) {
     how: [
       "Each round everyone draws a country card. Only you see yours.",
       "The captain compares one number (the highest wins) or calls a challenge.",
-      "Challenges: a capital, a flag, or a pin on the map. Everyone plays.",
+      "Challenges: capitals, flags, pins on the map, shapes, numbers, neighbours. Everyone plays.",
       "Every win flies your plane one stop on. Whoever gets furthest wins.",
     ],
     waitRound: "You're in from the next round.",
@@ -207,7 +265,7 @@ export function strings(lang) {
     captainTitle: "You're the captain!",
     captainHint: "Compete with a number or call a challenge.",
     challenge: "Challenge!",
-    challengeLine: "Capital, flag or map",
+    challengeLine: "A question for everyone",
     /** @param {string} name */
     chooses: (name) => `${name} chooses …`,
     choosesHint: "A number to compare, or a challenge? You'll see in a moment.",
@@ -219,8 +277,48 @@ export function strings(lang) {
     winners: (names) => (names.length ? `${names.length > 1 ? "Winners" : "Winner"}: ${f.list(names)}` : "Nobody won."),
     discardTitle: "All cards are on the TV",
     discardHint: "They go onto the discard pile. Remember the strong ones!",
-    kinds: { capital: "Capital", flag: "Flag", where: "Where is it?" },
-    kindLines: { capital: "Type the capital.", flag: "Whose flag is this?", where: "Drop a pin on the map." },
+    kinds: { capital: "Capital", flag: "Flag", where: "Where is it?", pickflag: "Pick the flag", shape: "Name the shape", bigger: "Which is bigger?", guess: "Guess the number", neighbour: "Name a neighbour", odd: "Odd one out" },
+    kindLines: {
+      capital: "Type the capital.",
+      flag: "Whose flag is this?",
+      where: "Drop a pin on the map.",
+      pickflag: "Tap the right flag.",
+      shape: "Which country has this shape?",
+      bigger: "Tap the one with the most.",
+      guess: "Slide to your guess.",
+      neighbour: "Type any country that borders it.",
+      odd: "Tap the one that is no neighbour.",
+    },
+    /** @param {string} name */
+    flagOf: (name) => `Which flag is ${name}'s?`,
+    whichShape: "Which country is this?",
+    biggerQ: { population: "The most people?", area: "The largest area?", highest: "The highest point?", gdp: "The highest GDP per person?" },
+    guessQ: {
+      /** @param {string} n */
+      population: (n) => `How many people live in ${n}?`,
+      /** @param {string} n */
+      area: (n) => `How big is ${n}?`,
+      /** @param {string} n */
+      highest: (n) => `How high is ${n}'s highest point?`,
+    },
+    /** @param {string} name */
+    neighbourOf: (name) => `A neighbour of ${name}?`,
+    /** @param {string} name */
+    oddOf: (name) => `Which one does not border ${name}?`,
+    tapPick: "Tap one.",
+    pickCounts: "Your pick counts when time is up.",
+    slide: "Move the slider.",
+    guessCounts: "Your guess counts when time is up.",
+    less: "Less",
+    more: "More",
+    noPick: "No pick",
+    noGuess: "No guess",
+    /** @param {string} x */
+    offBy: (x) => `≈ ×${x} off`,
+    answerIs: "The answer",
+    neighbours: "The neighbours",
+    borders: "borders",
+    notBorders: "does not border",
     /** @param {number} k */
     tryN: (k) => `Try ${k} of 3`,
     tiebreak: "Tie-break!",

@@ -11,12 +11,14 @@
  * `?demo=NAME` (no party) renders fake views for looking at the screens:
  * lobby, card, captain, gone, compete, discard, announce, tiebreak,
  * capital, flag, where, locked, right, wrong, result-where, again,
- * final, wait.
+ * final, wait; the newer kinds pickflag, pickflag9, shape, bigger, guess,
+ * neighbour, odd and their result-pickflag, result-bigger, result-guess,
+ * result-neighbour, result-odd.
  */
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
-import { decodeShapes, WorldMap } from "../screen/map.js";
-import { cardEl, FACTS, flagSrc, GLOBE, h, ICONS, LABELS, numbers, SHORT, STRONG } from "./cards.js";
+import { decodeRings, decodeShapes, WorldMap } from "../screen/map.js";
+import { cardEl, FACTS, flagSrc, GLOBE, h, ICONS, KIND_ICONS_MORE, LABELS, numbers, SHORT, STRONG } from "./cards.js";
 import { watchFit } from "./fit.js";
 import { browserLang, pickLang } from "./i18n.js";
 import { strings } from "./strings.js";
@@ -26,6 +28,13 @@ import { strings } from "./strings.js";
 /** @typedef {import("../screen/map.js").Mark} Mark */
 /** @typedef {import("../screen/map.js").Line} Line */
 /** @typedef {[number, number]} LonLat */
+/** @typedef {"capital" | "flag" | "where" | "pickflag" | "shape" | "bigger" | "guess" | "neighbour" | "odd"} Kind */
+
+/** The kinds of challenge (game/rules.ts KINDS) and how each is answered (ANSWERS there). */
+const KINDS = /** @type {Kind[]} */ (["capital", "flag", "where", "pickflag", "shape", "bigger", "guess", "neighbour", "odd"]);
+/** @type {Record<Kind, "text" | "pin" | "choice" | "number">} */
+const HOW = { capital: "text", flag: "text", where: "pin", pickflag: "choice", shape: "text", bigger: "choice", guess: "number", neighbour: "text", odd: "choice" };
+const LETTERS = "ABCDEFGHI";
 
 const MAX_ANSWER = 40;
 const DEMO = new URLSearchParams(location.search).get("demo");
@@ -134,6 +143,7 @@ const KIND_ICONS = {
   capital: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 35h30M8 35V18h24v17M5 18 20 6l15 12z" fill="#ffcf4a" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M13 22v9M20 22v9M27 22v9" stroke="#263450" stroke-width="3" stroke-linecap="round"/><path d="M20 6V1l6 2-6 2" fill="#ff7a45" stroke="#263450" stroke-width="2" stroke-linejoin="round"/></svg>',
   flag: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37V4" stroke="#263450" stroke-width="3.5" stroke-linecap="round"/><path d="M9 6c8-4 14 4 24 0v17c-10 4-16-4-24 0z" fill="#ef4444" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M9 12.5c8-4 14 4 24 0v5c-10 4-16-4-24 0z" fill="#fff"/></svg>',
   where: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 37s12-12 12-21a12 12 0 0 0-24 0c0 9 12 21 12 21z" fill="#ff7a45" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="16" r="4.5" fill="#fff" stroke="#263450" stroke-width="2.5"/></svg>',
+  ...KIND_ICONS_MORE,
 };
 const CHALLENGE_ICON = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M14 14a6 6 0 1 1 9 5c-2 1-3 2-3 5" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="20" cy="32" r="3" fill="currentColor"/></svg>';
 /** The captain's buttons: a colour per number. */
@@ -203,7 +213,7 @@ function mapMode() {
  * A map on the screen: not interactive, flown to `box` with `hot` popping
  * up; or interactive (drag, pinch, tap). A flat/globe toggle in the corner
  * (and zoom buttons when interactive).
- * @param {{ hot?: string | null, box?: number[] | null, at?: LonLat | null, interactive?: boolean, borders?: boolean, marks?: Mark[], lines?: Line[], onTap?: (ll: LonLat) => void, cls?: string, id?: string, fill?: number, onMap?: (m: WorldMap) => void }} o
+ * @param {{ lone?: boolean, maxZoom?: number, hot?: string | null, warm?: string[], outline?: LonLat[][] | null, box?: number[] | null, at?: LonLat | null, interactive?: boolean, borders?: boolean, marks?: Mark[], lines?: Line[], onTap?: (ll: LonLat) => void, cls?: string, id?: string, fill?: number, onMap?: (m: WorldMap) => void }} o
  */
 function mapView(o) {
   const canvas = /** @type {HTMLCanvasElement} */ (h("canvas", { id: o.id ?? null }));
@@ -216,7 +226,7 @@ function mapView(o) {
   const box = /** @type {[number, number, number, number] | null} */ (o.box && o.box.length === 4 ? o.box : null);
   const place = () => {
     if (!map) return;
-    if (box) map.flyTo(box, o.at ?? undefined, 0, o.fill);
+    if (box) map.flyTo(box, o.at ?? undefined, 0, o.fill, o.maxZoom);
     else map.flyWorld(0, 15);
     placed = true;
   };
@@ -258,6 +268,9 @@ function mapView(o) {
       if (dead) return;
       map = new WorldMap(canvas, units, { mode: mapMode(), borders: o.borders ?? true, interactive: !!o.interactive, ...(o.onTap ? { onTap: o.onTap } : {}) });
       if (o.hot) map.hot.add(o.hot);
+      for (const id of o.warm ?? []) map.warm.add(id);
+      if (o.outline?.length) map.outline = o.outline;
+      map.lone = !!o.lone;
       map.marks = o.marks ?? [];
       map.lines = o.lines ?? [];
       if (wrap.clientWidth && wrap.clientHeight) {
@@ -474,11 +487,41 @@ function settings(err) {
   add("mode", ["cards", "quiz"], [t.modes.cards, t.modes.quiz], t.modeLabel, (v) => t.modeLine[/** @type {"cards"} */ (v)] ?? "");
   add("rounds", [15, 30, 45], ["15", "30", "45"], t.roundsLabel);
   add("difficulty", ["easy", "normal", "hard"], [t.levels.easy, t.levels.normal, t.levels.hard], t.difficultyLabel, (v) => t.levelLine[/** @type {"easy"} */ (v)] ?? "");
+  add("countries", ["famous", "known", "all"], [t.pools.famous, t.pools.known, t.pools.all], t.countriesLabel, (v) => t.poolLine[/** @type {"famous"} */ (v)] ?? "");
   add("disputed", [false, true], [t.off, t.on], t.disputedLabel, (v) => t.disputedLine[v ? 1 : 0] ?? "");
   add("map", ["flat", "globe"], [t.flat, t.globe], t.mapLabel);
+  // The kinds in the mix: each a switch, one always on.
+  const kindsOn = () => /** @type {Kind[]} */ (Array.isArray(V().room?.kinds) ? V().room.kinds : KINDS);
+  const kindButtons = KINDS.map((k) =>
+    /** @type {HTMLButtonElement} */ (
+      h(
+        "button",
+        {
+          type: "button",
+          class: "btn small white kindbtn",
+          "data-kind": k,
+          onclick: () => {
+            const on = kindsOn();
+            const next = on.includes(k) ? on.filter((x) => x !== k) : KINDS.filter((x) => x === k || on.includes(x));
+            if (next.length) act("settings", { kinds: next }, err).catch(() => {});
+          },
+        },
+        h("span", { class: "ico", html: KIND_ICONS[k] ?? "" }),
+        h("span", { class: "kname" }, t.kinds[k] ?? k),
+      )
+    ),
+  );
+  box.append(h("div", { class: "setting" }, h("label", {}, t.kindsLabel), h("div", { class: "kindgrid" }, ...kindButtons), h("p", { class: "line" }, t.kindsLine)));
   const update = () => {
     const room = V().room ?? {};
     box.hidden = !isVip();
+    const on = kindsOn();
+    for (const b of kindButtons) {
+      const yes = on.includes(/** @type {Kind} */ (b.dataset["kind"]));
+      b.classList.toggle("on", yes);
+      b.classList.toggle("white", !yes);
+      b.setAttribute("aria-pressed", String(yes));
+    }
     for (const it of items) {
       const cur = it.key === "rounds" ? (room.roundsSetting ?? room.rounds) : room[it.key];
       it.buttons.forEach((b, i) => {
@@ -796,7 +839,7 @@ function watching(me, room) {
     );
   }
   if (me.what === "announce") {
-    const kind = /** @type {"capital" | "flag" | "where"} */ (me.kind ?? room.kind ?? "where");
+    const kind = /** @type {Kind} */ (me.kind ?? room.kind ?? "where");
     buzz(30);
     return show(
       roundLine(room),
@@ -820,12 +863,13 @@ const TV_ICON = '<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="7" w
 // ---------------------------------------------------------------------------
 // Answering
 
-/** What one has typed or pinned, per challenge (kept over a reconnect). @type {Map<string, { text?: string, lon?: number, lat?: number }>} */
+/** What one has typed, pinned, picked or guessed, per challenge (kept over a reconnect). @type {Map<string, { text?: string, lon?: number, lat?: number, choice?: number, value?: number }>} */
 const drafts = new Map();
 
 /** @param {any} me @param {any} room */
 function answerScreen(me, room) {
-  const kind = me.kind;
+  const kind = /** @type {Kind} */ (me.kind);
+  const how = HOW[kind] ?? "text";
   const q = me.question ?? {};
   const key = String(me.key ?? "");
   // After a reload the host's copy of the draft brings it back.
@@ -836,13 +880,21 @@ function answerScreen(me, room) {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
   let sending = false;
+  /** The answer as the action takes it, or null when there is none (an empty text only unlocked). @param {boolean} lockIt */
+  const payload = (lockIt) => {
+    if (how === "pin") return draft.lon === undefined ? null : { key, lon: draft.lon, lat: draft.lat, lock: lockIt };
+    if (how === "choice") return draft.choice === undefined ? null : { key, choice: draft.choice, lock: lockIt };
+    if (how === "number") return draft.value === undefined ? null : { key, value: draft.value, lock: lockIt };
+    return lockIt && !(draft.text ?? "").trim() ? null : { key, text: draft.text ?? "", lock: lockIt };
+  };
+  const has = () => payload(true) !== null;
   /** Sends the draft (not locked), debounced. */
   const sendDraft = (now = false) => {
     clearTimeout(timer);
     const go = () => {
       timer = undefined;
       if (me.locked || V().me?.locked) return;
-      const data = kind === "where" ? (draft.lon === undefined ? null : { key, lon: draft.lon, lat: draft.lat, lock: false }) : { key, text: draft.text ?? "", lock: false };
+      const data = payload(false);
       if (data) act("answer", data).catch(() => {});
     };
     if (now) go();
@@ -854,9 +906,9 @@ function answerScreen(me, room) {
   const locked = () => !!V().me?.locked;
   const lockIn = async () => {
     if (sending || locked()) return;
-    const data = kind === "where" ? (draft.lon === undefined ? null : { key, lon: draft.lon, lat: draft.lat, lock: true }) : (draft.text ?? "").trim() ? { key, text: draft.text, lock: true } : null;
+    const data = payload(true);
     if (!data) {
-      err.textContent = kind === "where" ? t.tapMap : t.errors["bad-answer"] ?? "";
+      err.textContent = how === "pin" ? t.tapMap : how === "choice" ? t.tapPick : how === "number" ? t.slide : (t.errors["bad-answer"] ?? "");
       buzz([30, 60, 30]);
       return;
     }
@@ -880,9 +932,29 @@ function answerScreen(me, room) {
   let input = null;
   /** @type {ReturnType<typeof mapView> | null} */
   let map = null;
+  /** The options' buttons (choice kinds). @type {HTMLButtonElement[]} */
+  const opts = [];
+  /** Shows the guess (number kind). @type {(() => void) | null} */
+  let showGuess = null;
   const status = h("p", { class: "status" });
+  const lockRow = () => h("form", { class: "lockrow", onsubmit: (/** @type {Event} */ e) => (e.preventDefault(), void lockIn()) }, status, lock);
+  /** @param {number} i */
+  const pickOption = (i) => {
+    if (locked() || sending) return;
+    draft.choice = i;
+    err.textContent = "";
+    buzz(12);
+    sendDraft();
+    refresh?.();
+  };
+  /** An option's button. @param {number} i @param {...(Node | null)} kids */
+  const option = (i, ...kids) => {
+    const b = /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: "opt", "data-choice": String(i), onclick: () => pickOption(i) }, h("b", { class: "letter" }, LETTERS[i] ?? ""), ...kids));
+    opts.push(b);
+    return b;
+  };
 
-  if (kind === "where") {
+  if (how === "pin") {
     const mark = () => (draft.lon === undefined || draft.lat === undefined ? [] : [{ lon: draft.lon, lat: draft.lat, color: colorOf(myId()), big: true }]);
     map = mapView({
       id: "wmap",
@@ -904,16 +976,62 @@ function answerScreen(me, room) {
         hooks.map = m;
       },
     });
+    show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.whereIs), h("h1", { "data-fit": "1" }, q.name ?? "?"), tick), map.el, lockRow(), err);
+  } else if (kind === "pickflag") {
+    const flags = /** @type {string[]} */ (q.flags ?? []);
+    const grid = h("div", { class: `flaggrid n${flags.length}` }, ...flags.map((f, i) => option(i, h("img", { src: flagSrc(f), alt: "" }))));
+    show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.kindLines.pickflag), h("h1", { "data-fit": "2" }, q.name ?? "?"), tick), grid, lockRow(), err);
+  } else if (kind === "bigger" || kind === "odd") {
+    const fact = /** @type {"population" | "area" | "highest" | "gdp"} */ (q.fact);
+    const head =
+      kind === "bigger"
+        ? h("section", { class: "panel pop question where" }, h("p", { class: "factname" }, h("span", { class: "ico", html: ICONS[fact] ?? "" }), LABELS[lang][fact] ?? ""), h("h1", { "data-fit": "2" }, t.biggerQ[fact] ?? ""), tick)
+        : h("section", { class: "panel pop question where" }, h("div", { class: "qrow" }, h("img", { class: "qflag", src: flagSrc(q.flag ?? ""), alt: "" }), h("h1", { "data-fit": "2" }, t.oddOf(q.name ?? "?"))), tick);
+    const list = h("div", { class: "opts" }, ...(q.options ?? []).map((/** @type {any} */ o, /** @type {number} */ i) => option(i, h("img", { class: "oflag", src: flagSrc(o.flag ?? ""), alt: "" }), h("span", { class: "oname" }, o.name ?? ""))));
+    show(head, list, lockRow(), err);
+  } else if (how === "number") {
+    const fact = /** @type {"population" | "area" | "highest"} */ (q.fact);
+    const lo = Math.max(1e-9, Number(q.min) || 1);
+    const hi = Math.max(lo * 10, Number(q.max) || lo * 10);
+    const f = numbers(lang);
+    const STEPS = 1000;
+    const toValue = (/** @type {number} */ pos) => roundNice(Math.exp(Math.log(lo) + (pos / STEPS) * (Math.log(hi) - Math.log(lo))));
+    const toPos = (/** @type {number} */ v) => Math.round(((Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * STEPS);
+    const slider = /** @type {HTMLInputElement} */ (h("input", { type: "range", id: "guess", min: "0", max: String(STEPS), step: "1", value: String(draft.value === undefined ? STEPS / 2 : toPos(draft.value)), "aria-label": t.guessQ[fact]?.(q.name ?? "") ?? "" }));
+    const value = h("p", { class: "gvalue" });
+    const set = (/** @type {number} */ v) => {
+      if (locked() || sending) return;
+      draft.value = Math.max(lo, Math.min(hi, v));
+      slider.value = String(toPos(draft.value));
+      err.textContent = "";
+      sendDraft();
+      refresh?.();
+    };
+    slider.addEventListener("input", () => set(toValue(Number(slider.value))));
+    showGuess = () => {
+      value.textContent = draft.value === undefined ? "?" : f.fact(fact, draft.value);
+      value.classList.toggle("unset", draft.value === undefined);
+    };
+    const nudge = (/** @type {number} */ k) => set(roundNice((draft.value ?? toValue(Number(slider.value))) * k));
+    const ends = h("div", { class: "gends" }, h("span", {}, f.fact(fact, lo)), h("span", {}, f.fact(fact, hi)));
     show(
-      h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.whereIs), h("h1", { "data-fit": "1" }, q.name ?? "?"), tick),
-      map.el,
-      h("form", { class: "lockrow", onsubmit: (/** @type {Event} */ e) => (e.preventDefault(), void lockIn()) }, status, lock),
+      h("section", { class: "panel pop question where" }, h("div", { class: "qrow" }, h("img", { class: "qflag", src: flagSrc(q.flag ?? ""), alt: "" }), h("h1", { "data-fit": "2" }, t.guessQ[fact]?.(q.name ?? "?") ?? "")), tick),
+      h(
+        "section",
+        { class: "panel guess" },
+        value,
+        slider,
+        ends,
+        h("div", { class: "gnudge" }, h("button", { type: "button", class: "btn white small", onclick: () => nudge(1 / 1.1) }, `− ${t.less}`), h("button", { type: "button", class: "btn white small", onclick: () => nudge(1.1) }, `+ ${t.more}`)),
+      ),
+      lockRow(),
       err,
     );
   } else {
+    const placeholder = kind === "capital" ? t.capitalOf(q.name ?? "?") : kind === "neighbour" ? t.neighbourOf(q.name ?? "?") : t.whichCountry;
     input = /** @type {HTMLInputElement} */ (
       // No password managers' or contacts' autofill on a quiz answer.
-      h("input", { id: "answer", class: "answer", maxlength: MAX_ANSWER, autocomplete: "off", "data-1p-ignore": "", "data-lpignore": "true", "data-form-type": "other", autocorrect: "off", autocapitalize: "words", spellcheck: "false", enterkeyhint: "go", placeholder: kind === "capital" ? t.capitalOf(q.name ?? "?") : t.whichCountry, "aria-label": kind === "capital" ? t.capitalOf(q.name ?? "?") : t.whichCountry })
+      h("input", { id: "answer", class: "answer", maxlength: MAX_ANSWER, autocomplete: "off", "data-1p-ignore": "", "data-lpignore": "true", "data-form-type": "other", autocorrect: "off", autocapitalize: "words", spellcheck: "false", enterkeyhint: "go", placeholder, "aria-label": placeholder })
     );
     const field = input;
     field.value = draft.text ?? "";
@@ -923,32 +1041,49 @@ function answerScreen(me, room) {
       sendDraft();
       refresh?.();
     });
-    const head =
-      kind === "capital"
-        ? h("section", { class: "panel pop question capital" }, h("div", { class: "qrow" }, h("img", { class: "qflag", src: flagSrc(q.flag ?? ""), alt: "" }), h("h1", { "data-fit": "2" }, q.name ?? "?")), tick)
-        : h("section", { class: "panel pop question flagq" }, h("img", { class: "bigflag", src: flagSrc(q.flag ?? ""), alt: "" }), tick);
-    if (kind === "capital") map = mapView({ hot: q.id ?? null, box: q.box ?? null, at: q.at ?? null, cls: "qmap", fill: 0.4 });
-    show(
-      head,
-      h("form", { class: "panel answerform", autocomplete: "off", onsubmit: (/** @type {Event} */ e) => (e.preventDefault(), void lockIn()) }, field, lock, status, err),
-      map ? map.el : null,
-    );
+    const form = h("form", { class: "panel answerform", autocomplete: "off", onsubmit: (/** @type {Event} */ e) => (e.preventDefault(), void lockIn()) }, field, lock, status, err);
+    if (kind === "shape") {
+      // The outline is the question: the map first, then the field.
+      // The country alone on the sea: no neighbours, no grid to tell where.
+      map = mapView({ outline: decodeRings(q.shape ?? []), lone: true, box: q.box ?? null, at: null, cls: "shapemap", fill: 0.6, maxZoom: 40, interactive: true, borders: me.borders !== false });
+      show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.kindLines.shape), tick), map.el, form);
+    } else {
+      const head =
+        kind === "capital" || kind === "neighbour"
+          ? h("section", { class: `panel pop question ${kind}` }, h("div", { class: "qrow" }, h("img", { class: "qflag", src: flagSrc(q.flag ?? ""), alt: "" }), h("h1", { "data-fit": "2" }, q.name ?? "?")), kind === "neighbour" ? h("p", { class: "ask" }, t.kindLines.neighbour) : null, tick)
+          : h("section", { class: "panel pop question flagq" }, h("img", { class: "bigflag", src: flagSrc(q.flag ?? ""), alt: "" }), tick);
+      if (kind === "capital" || kind === "neighbour") map = mapView({ hot: q.id ?? null, box: q.box ?? null, at: q.at ?? null, cls: "qmap", fill: kind === "neighbour" ? 0.25 : 0.4 });
+      show(head, form, map ? map.el : null);
+    }
     if (!locked()) field.focus({ preventScroll: true });
   }
   buzz([50, 30, 50]);
   refresh = () => {
     const done = locked();
-    lock.disabled = done || sending || (kind === "where" && draft.lon === undefined);
+    lock.disabled = done || sending || (how !== "text" && !has());
     lock.textContent = done ? t.locked : t.lock;
     lock.classList.toggle("done", done);
     if (input) input.disabled = done;
     if (done && input && document.activeElement === input) input.blur();
-    // A pin or a typed answer counts at the deadline; Done only ends it early.
-    const has = kind === "where" ? draft.lon !== undefined : !!(draft.text ?? "").trim();
-    status.textContent = done ? t.lockedWait : !has ? (kind === "where" ? t.tapMap : "") : kind === "where" ? t.pinCounts : t.textCounts;
+    opts.forEach((b, i) => {
+      b.classList.toggle("picked", draft.choice === i);
+      b.setAttribute("aria-pressed", String(draft.choice === i));
+      b.disabled = done && draft.choice !== i;
+    });
+    showGuess?.();
+    // An answer counts at the deadline; Done only ends it early.
+    status.textContent = done ? t.lockedWait : !has() ? (how === "pin" ? t.tapMap : how === "choice" ? t.tapPick : how === "number" ? t.slide : "") : how === "pin" ? t.pinCounts : how === "choice" ? t.pickCounts : how === "number" ? t.guessCounts : t.textCounts;
     document.body.classList.toggle("locked", done);
   };
   void room;
+}
+
+/** A guess rounded to 2 significant digits (3 from 1,000 on), as people say numbers. @param {number} v */
+function roundNice(v) {
+  if (!(v > 0)) return v;
+  const digits = v >= 1000 ? 3 : 2;
+  const p = Math.pow(10, Math.floor(Math.log10(v)) - digits + 1);
+  return Math.round(v / p) * p;
 }
 
 // ---------------------------------------------------------------------------
@@ -961,10 +1096,25 @@ function result(me, room) {
   const mine = me.mine;
   const f = numbers(lang);
   buzz(right ? [40, 30, 90] : 120);
+  const how = HOW[/** @type {Kind} */ (me.kind)] ?? "text";
+  const rv = me.reveal ?? {};
+  const mark = right ? "✓" : "✗";
   /** @type {Node | null} */
   let answer = null;
   if (me.kind === "where") {
     answer = h("p", { class: "mine" }, !mine || mine.km === null || mine.km === undefined ? t.noPin : mine.km === 0 ? t.hit : t.kmAway(f.km(mine.km)));
+  } else if (how === "choice") {
+    const o = typeof mine?.choice === "number" ? rv.options?.[mine.choice] : null;
+    answer = !o
+      ? h("p", { class: "mine" }, t.noPick)
+      : me.kind === "pickflag"
+        ? h("p", { class: "mine" }, h("img", { class: "qflag small", src: flagSrc(o.flag ?? ""), alt: "" }), " ", o.name ?? "", " ", mark)
+        : h("p", { class: "mine" }, o.name ?? "", " ", mark);
+  } else if (how === "number") {
+    answer =
+      typeof mine?.value !== "number"
+        ? h("p", { class: "mine" }, t.noGuess)
+        : h("p", { class: "mine" }, f.fact(rv.fact, mine.value), " ", mark, typeof mine.off === "number" ? h("span", { class: "off" }, mine.off < 1.005 ? t.hit : t.offBy(timesText(mine.off))) : null);
   } else {
     const text = mine?.text ?? "";
     answer = text
@@ -989,7 +1139,27 @@ function result(me, room) {
     at = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
     fill = 0.7;
   }
-  const map = mapView({ hot: sol.id ?? null, box, at, cls: "solmap", fill, marks: pins, lines });
+  /** @type {string[]} */
+  let warm = [];
+  let hot = sol.id ?? null;
+  // Several countries on the map: the neighbours beside the country, the four of "which is bigger", the odd one.
+  const placed = /** @type {any[]} */ (me.kind === "neighbour" ? (rv.neighbours ?? []) : me.kind === "bigger" || me.kind === "odd" ? (rv.options ?? []) : []);
+  if (placed.length) {
+    warm = placed.map((o) => o.id).filter((id) => id !== hot);
+    if (me.kind === "odd") {
+      const odd = rv.options?.[rv.right];
+      warm = warm.filter((id) => id !== odd?.id);
+      if (odd?.at) pins.push({ lon: odd.at[0], lat: odd.at[1], color: "#ef4444", big: true });
+      hot = rv.of?.id ?? hot;
+    }
+    const all = [sol.box, ...placed.map((o) => o.box)].filter((b) => Array.isArray(b) && b.length === 4);
+    if (all.length) {
+      box = unionBox(all);
+      at = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
+      fill = 0.75;
+    }
+  }
+  const map = mapView({ hot, warm, box, at, cls: "solmap", fill, marks: pins, lines });
   show(
     h(
       "section",
@@ -1002,11 +1172,116 @@ function result(me, room) {
       (me.winners ?? []).length ? h("p", { class: "note" }, t.winners(me.winners)) : me.again ? null : h("p", { class: "note" }, t.nobody),
     ),
     me.again ? h("p", { class: "again pop" }, t.again) : null,
+    revealPanel(me),
     // Where it is, then its whole card.
     h("section", { class: "panel solution" }, map.el),
     h("div", { class: "cardwrap small" }, cardEl(sol, lang)),
     nextRow(me),
   );
+}
+
+/**
+ * Where a guess's number line starts and ends: ×10 past the answer and
+ * the guesses (and the level's band), within the slider's ends.
+ * @param {{ value: number, min: number, max: number, factor?: number }} rv @param {number[]} guesses
+ * @returns {[number, number]}
+ */
+function guessSpan(rv, guesses) {
+  const all = [rv.value, rv.value / (rv.factor ?? 1), rv.value * (rv.factor ?? 1), ...guesses].filter((v) => v > 0);
+  return [Math.max(rv.min || 1, Math.min(...all) / 10), Math.min(rv.max || 10, Math.max(...all) * 10)];
+}
+
+/** A ratio as "1.4" or "12". @param {number} x */
+function timesText(x) {
+  return new Intl.NumberFormat(lang, { maximumFractionDigits: x < 10 ? 1 : 0 }).format(x);
+}
+
+/**
+ * Boxes [w, s, e, n] as one (across the date line the short way round).
+ * @param {number[][]} boxes @returns {[number, number, number, number]}
+ */
+function unionBox(boxes) {
+  let [w, s, e, n] = /** @type {[number, number, number, number]} */ (boxes[0]);
+  if (e < w) e += 360;
+  const mid = (w + e) / 2;
+  for (const b of boxes.slice(1)) {
+    let [bw, bs, be, bn] = /** @type {[number, number, number, number]} */ (b);
+    if (be < bw) be += 360;
+    const bm = (bw + be) / 2;
+    let shift = 0;
+    while (bm + shift - mid > 180) shift -= 360;
+    while (mid - (bm + shift) > 180) shift += 360;
+    w = Math.min(w, bw + shift);
+    e = Math.max(e, be + shift);
+    s = Math.min(s, bs);
+    n = Math.max(n, bn);
+  }
+  return [w, s, e, n];
+}
+
+/**
+ * What the answer shows beyond one's own: the flags with their names
+ * (the right one ticked), the four numbers in order, the odd one among
+ * the neighbours, the number on a line with one's guess, all the
+ * neighbours. One's pick is outlined in one's colour.
+ * @param {any} me
+ */
+function revealPanel(me) {
+  const rv = me.reveal;
+  if (!rv) return null;
+  const f = numbers(lang);
+  const mine = me.mine;
+  const color = colorOf(myId());
+  const picked = (/** @type {number} */ i) => typeof mine?.choice === "number" && mine.choice === i;
+  if (me.kind === "pickflag") {
+    return h(
+      "section",
+      { class: "panel reveal" },
+      h("div", { class: `flaggrid small n${(rv.options ?? []).length}` }, ...(rv.options ?? []).map((/** @type {any} */ o, /** @type {number} */ i) => h("div", { class: `opt${i === rv.right ? " right" : ""}${picked(i) ? " mine" : ""}`, style: { "--c": color } }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), h("span", { class: "oname" }, o.name ?? ""), i === rv.right ? h("b", { class: "tick" }, "✓") : null))),
+    );
+  }
+  if (me.kind === "bigger") {
+    const rows = (rv.options ?? []).map((/** @type {any} */ o, /** @type {number} */ i) => ({ o, i })).sort((/** @type {any} */ a, /** @type {any} */ b) => b.o.value - a.o.value);
+    return h(
+      "section",
+      { class: "panel reveal" },
+      h("p", { class: "factname" }, h("span", { class: "ico", html: ICONS[/** @type {Fact} */ (rv.fact)] ?? "" }), LABELS[lang][/** @type {Fact} */ (rv.fact)] ?? ""),
+      h("ol", { class: "ranked" }, ...rows.map((/** @type {any} */ r) => h("li", { class: `${r.i === rv.right ? "right" : ""}${picked(r.i) ? " mine" : ""}`, style: { "--c": color } }, h("img", { class: "oflag", src: flagSrc(r.o.flag ?? ""), alt: "" }), h("span", { class: "oname" }, r.o.name ?? ""), h("b", { class: "oval" }, f.fact(rv.fact, r.o.value))))),
+    );
+  }
+  if (me.kind === "odd") {
+    return h(
+      "section",
+      { class: "panel reveal" },
+      h("ol", { class: "ranked plain" }, ...(rv.options ?? []).map((/** @type {any} */ o, /** @type {number} */ i) => h("li", { class: `${i === rv.right ? "right" : ""}${picked(i) ? " mine" : ""}`, style: { "--c": color } }, h("img", { class: "oflag", src: flagSrc(o.flag ?? ""), alt: "" }), h("span", { class: "oname" }, o.name ?? "", h("small", {}, `${i === rv.right ? t.notBorders : t.borders} ${rv.of?.name ?? ""}`)), i === rv.right ? h("b", { class: "oval" }, "✓") : null))),
+    );
+  }
+  if (me.kind === "guess") {
+    // The line around the answer and one's guess (×10 past both, within the slider's ends): the whole slider would crowd them.
+    const [from, to] = guessSpan(rv, typeof mine?.value === "number" ? [mine.value] : []);
+    const lo = Math.log(from);
+    const hi = Math.log(to);
+    const x = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, (Math.log(v) - lo) / (hi - lo))) * 100).toFixed(1)}%`;
+    const band = rv.factor ? h("i", { class: "gband", style: { left: x(rv.value / rv.factor), width: `calc(${x(rv.value * rv.factor)} - ${x(rv.value / rv.factor)})` } }) : null;
+    return h(
+      "section",
+      { class: "panel reveal" },
+      h("p", { class: "label" }, t.answerIs),
+      h("p", { class: "gvalue" }, f.fact(rv.fact, rv.value)),
+      h(
+        "div",
+        { class: "gline" },
+        band,
+        h("i", { class: "gmark answer", style: { left: x(rv.value) } }),
+        typeof mine?.value === "number" ? h("i", { class: "gmark", style: { left: x(mine.value), "--c": color } }) : null,
+      ),
+      h("div", { class: "gends" }, h("span", {}, f.fact(rv.fact, from)), h("span", {}, f.fact(rv.fact, to))),
+    );
+  }
+  if (me.kind === "neighbour") {
+    return h("section", { class: "panel reveal" }, h("p", { class: "label" }, t.neighbours), h("div", { class: "nlist" }, ...(rv.neighbours ?? []).map((/** @type {any} */ o) => h("span", { class: "nchip" }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), o.name ?? ""))));
+  }
+  return null;
 }
 
 watchFit();
@@ -1044,8 +1319,33 @@ function demoAct(type, data) {
   return Promise.resolve(null);
 }
 
+/** The real data for the demo's fixtures: the cards by id, the land. @type {{ byId: Map<string, any>, units: Unit[] }} */
+let demoData = { byId: new Map(), units: [] };
+
 /** @param {string} name */
 function fakeView(name) {
+  const fl = (/** @type {string} */ id) => demoData.byId.get(id)?.flag ?? "";
+  const nm = (/** @type {string} */ id) => demoData.byId.get(id)?.name?.[pickLang(new URLSearchParams(location.search).get("lang") ?? "en")] ?? id;
+  const place = (/** @type {string} */ id) => ({ id, name: nm(id), flag: fl(id), at: demoData.byId.get(id)?.at, box: demoData.byId.get(id)?.box });
+  /** Coded rings of a country, as the host sends a shape. @param {string} id */
+  const coded = (id) =>
+    demoData.units
+      .filter((u) => u.id === id)
+      .flatMap((u) => u.rings)
+      .map((r) => {
+        /** @type {number[]} */
+        const out = [];
+        let px = 0;
+        let py = 0;
+        for (const [lo, la] of r) {
+          const x = Math.round(lo * 100);
+          const y = Math.round(la * 100);
+          out.push(x - px, y - py);
+          px = x;
+          py = y;
+        }
+        return out;
+      });
   const qs = new URLSearchParams(location.search);
   const l = pickLang(qs.get("lang") ?? "en");
   const de = l === "de";
@@ -1060,10 +1360,10 @@ function fakeView(name) {
   const room = { lang: l, phase: "round", round: 3, rounds: 16, minPlayers: 2, colors, steps: { me: 2, p2: 1, p3: 3, p4: 0 }, difficulty: "normal", disputed: false, map: qs.get("map") === "globe" ? "globe" : "flat", captain: "p2", left: 151, deckSize: 194 };
   const ranks = { population: 19, area: 63, neighbours: 1, highest: 76, gdp: 17 };
   const germany = {
-    id: "de",
+    id: "DE",
     name: de ? "Deutschland" : "Germany",
     capitals: ["Berlin"],
-    flag: "de.svg",
+    flag: fl("DE"),
     at: [10.4, 51.1],
     box: [5.9, 47.3, 15.0, 55.1],
     facts: { population: 83_280_000, area: 357_588, neighbours: 9, highest: 2962, gdp: 52_746 },
@@ -1073,14 +1373,14 @@ function fakeView(name) {
     neighbours: [],
   };
   const ranked = { ...germany, ranks, strong: ["neighbours"] };
-  const nigeria = { id: "ng", name: "Nigeria", capitals: ["Abuja"], flag: "ng.svg", at: [8.0, 9.6], box: [2.7, 4.3, 14.7, 13.9], facts: { population: 223_800_000, area: 923_768, neighbours: 4, highest: 2419, gdp: 1597 }, ranks: { population: 6, area: 31, neighbours: 60, highest: 90, gdp: 140 }, strong: ["population"], highest: "Chappal Waddi", gdpYear: 2023, populationYear: 2023, neighbours: [] };
+  const nigeria = { id: "NG", name: "Nigeria", capitals: ["Abuja"], flag: fl("NG"), at: [8.0, 9.6], box: [2.7, 4.3, 14.7, 13.9], facts: { population: 223_800_000, area: 923_768, neighbours: 4, highest: 2419, gdp: 1597 }, ranks: { population: 6, area: 31, neighbours: 60, highest: 90, gdp: 140 }, strong: ["population"], highest: "Chappal Waddi", gdpYear: 2023, populationYear: 2023, neighbours: [] };
   const gone = {
     population: [
-      { id: "cn", name: "China", flag: "cn.svg", rank: 2 },
-      { id: "ng", name: "Nigeria", flag: "ng.svg", rank: 6 },
+      { id: "CN", name: "China", flag: fl("CN"), rank: 2 },
+      { id: "NG", name: "Nigeria", flag: fl("NG"), rank: 6 },
     ],
-    area: [{ id: "cn", name: "China", flag: "cn.svg", rank: 4 }],
-    neighbours: [{ id: "cn", name: "China", flag: "cn.svg", rank: 1 }],
+    area: [{ id: "CN", name: "China", flag: fl("CN"), rank: 4 }],
+    neighbours: [{ id: "CN", name: "China", flag: fl("CN"), rank: 1 }],
   };
   /** @type {Record<string, () => { room?: any, me: any }>} */
   const views = {
@@ -1096,8 +1396,8 @@ function fakeView(name) {
     discard: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "discard" }, me: { task: "watch", what: "discard", steps: 2, card: ranked, next: "k" } }),
     announce: () => ({ room: { ...room, stage: "announce", kind: "capital", try: 2 }, me: { task: "watch", what: "announce", kind: "capital", steps: 2 } }),
     tiebreak: () => ({ room: { ...room, stage: "challenge", kind: "where", tiebreak: true }, me: { task: "watch", what: "tiebreak", steps: 2 } }),
-    capital: () => ({ room: { ...room, stage: "challenge", kind: "capital", deadline: now + 15000 }, me: { task: "answer", key: "c1", kind: "capital", question: { name: "Nigeria", flag: "ng.svg", at: nigeria.at, box: nigeria.box, id: "ng" }, deadline: now + 15000, borders: true, locked: false, steps: 2 } }),
-    flag: () => ({ room: { ...room, stage: "challenge", kind: "flag", deadline: now + 15000 }, me: { task: "answer", key: "c2", kind: "flag", question: { flag: "ng.svg" }, deadline: now + 15000, borders: true, locked: false, steps: 2 } }),
+    capital: () => ({ room: { ...room, stage: "challenge", kind: "capital", deadline: now + 15000 }, me: { task: "answer", key: "c1", kind: "capital", question: { name: "Nigeria", flag: fl("NG"), at: nigeria.at, box: nigeria.box, id: "NG" }, deadline: now + 15000, borders: true, locked: false, steps: 2 } }),
+    flag: () => ({ room: { ...room, stage: "challenge", kind: "flag", deadline: now + 15000 }, me: { task: "answer", key: "c2", kind: "flag", question: { flag: fl("NG") }, deadline: now + 15000, borders: true, locked: false, steps: 2 } }),
     where: () => ({ room: { ...room, stage: "challenge", kind: "where", deadline: now + 15000 }, me: { task: "answer", key: "c3", kind: "where", question: { name: de ? "Bosnien und Herzegowina" : "Bosnia and Herzegovina" }, deadline: now + 15000, borders: true, locked: false, steps: 2 } }),
     locked: () => {
       drafts.set("c4", { lon: 17.5, lat: 44.2 });
@@ -1108,6 +1408,49 @@ function fakeView(name) {
     "result-where": () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: { pid: "me", lon: 1.5, lat: 12.4, km: 310, to: [3.6, 11.7], right: false }, winners: ["Bartholomew"], steps: 2, again: false, next: "k" } }),
     again: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: null, winners: [], steps: 2, again: true, next: "k" } }),
     final: () => ({ room: { ...room, phase: "final", rounds: 15 }, me: { task: "final", steps: 9, place: 1, of: 4, won: true } }),
+    pickflag: () => {
+      const ids = ["BA", "HR", "RS", "SI", "ME", "MK"];
+      drafts.set("c5", { choice: 2 });
+      return { room: { ...room, stage: "challenge", kind: "pickflag", deadline: now + 40000 }, me: { task: "answer", key: "c5", kind: "pickflag", question: { name: nm("RS"), flags: ids.map(fl) }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
+    },
+    pickflag9: () => {
+      const ids = ["TD", "RO", "AD", "MD", "BE", "CO", "VE", "EC", "DE"];
+      return { room: { ...room, stage: "challenge", kind: "pickflag", deadline: now + 20000 }, me: { task: "answer", key: "c6", kind: "pickflag", question: { name: nm("TD"), flags: ids.map(fl) }, deadline: now + 20000, borders: true, locked: false, steps: 2 } };
+    },
+    shape: () => {
+      const it = demoData.byId.get("IT");
+      return { room: { ...room, stage: "challenge", kind: "shape", deadline: now + 40000 }, me: { task: "answer", key: "c7", kind: "shape", question: { shape: coded("IT"), box: it?.box, at: it?.at }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
+    },
+    bigger: () => ({ room: { ...room, stage: "challenge", kind: "bigger", deadline: now + 40000 }, me: { task: "answer", key: "c8", kind: "bigger", question: { fact: "population", options: ["NG", "BR", "JP", "MX"].map((id) => ({ name: nm(id), flag: fl(id) })) }, deadline: now + 40000, borders: true, locked: false, steps: 2 } }),
+    guess: () => {
+      drafts.set("c9", { value: 25_000_000 });
+      return { room: { ...room, stage: "challenge", kind: "guess", deadline: now + 40000 }, me: { task: "answer", key: "c9", kind: "guess", question: { fact: "population", name: nm("PE"), flag: fl("PE"), min: 1000, max: 2e9 }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
+    },
+    neighbour: () => {
+      const hu = demoData.byId.get("HU");
+      return { room: { ...room, stage: "challenge", kind: "neighbour", deadline: now + 40000 }, me: { task: "answer", key: "c10", kind: "neighbour", question: { name: nm("HU"), flag: fl("HU"), id: "HU", at: hu?.at, box: hu?.box }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
+    },
+    odd: () => ({ room: { ...room, stage: "challenge", kind: "odd", deadline: now + 40000 }, me: { task: "answer", key: "c11", kind: "odd", question: { name: nm("HU"), flag: fl("HU"), options: ["AT", "CZ", "RO", "SK"].map((id) => ({ name: nm(id), flag: fl(id) })) }, deadline: now + 40000, borders: true, locked: false, steps: 2 } }),
+    "result-pickflag": () => {
+      const ids = ["BA", "HR", "RS", "SI", "ME", "MK"];
+      return { room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "pickflag" }, me: { task: "result", kind: "pickflag", right: false, solution: { ...nigeria, ...place("RS"), name: nm("RS") }, reveal: { options: ids.map(place), right: 2 }, mine: { pid: "me", choice: 4, right: false }, winners: ["Ada"], steps: 2, next: "k" } };
+    },
+    "result-bigger": () => ({
+      room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "bigger" },
+      me: { task: "result", kind: "bigger", right: true, solution: nigeria, reveal: { fact: "population", options: [{ ...place("NG"), value: 223_800_000 }, { ...place("BR"), value: 216_400_000 }, { ...place("JP"), value: 124_500_000 }, { ...place("MX"), value: 128_500_000 }], right: 0 }, mine: { pid: "me", choice: 0, right: true }, winners: ["Phil"], steps: 3, next: "k" },
+    }),
+    "result-guess": () => ({
+      room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "guess" },
+      me: { task: "result", kind: "guess", right: true, solution: { ...nigeria, ...place("PE"), facts: { ...nigeria.facts, population: 34_350_000 } }, reveal: { fact: "population", value: 34_350_000, min: 1000, max: 2e9, factor: 2 }, mine: { pid: "me", value: 25_000_000, off: 1.374, right: true }, winners: ["Phil"], steps: 3, next: "k" },
+    }),
+    "result-neighbour": () => ({
+      room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "neighbour" },
+      me: { task: "result", kind: "neighbour", right: true, solution: { ...nigeria, ...place("HU") }, reveal: { neighbours: ["AT", "SK", "UA", "RO", "RS", "HR", "SI"].map(place) }, mine: { pid: "me", text: "Österreich", as: nm("AT"), right: true }, winners: ["Phil", "Ada"], steps: 3, next: "k" },
+    }),
+    "result-odd": () => ({
+      room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "odd" },
+      me: { task: "result", kind: "odd", right: false, solution: { ...nigeria, ...place("HU") }, reveal: { of: place("HU"), options: ["AT", "CZ", "RO", "SK"].map(place), right: 1 }, mine: { pid: "me", choice: 3, right: false }, winners: [], steps: 2, next: "k" },
+    }),
   };
   const v = (views[name] ?? views["card"] ?? (() => ({ me: {} })))();
   return { roster, room: { ...room, ...v.room }, me: v.me };
@@ -1116,8 +1459,19 @@ function fakeView(name) {
 // ---------------------------------------------------------------------------
 
 if (DEMO) {
-  demoView = fakeView(DEMO);
-  render(demoView);
+  // The fixtures take flags and shapes from the real data.
+  const demo = DEMO;
+  Promise.all([fetch(new URL("../data/countries.json", import.meta.url)).then((r) => r.json()), shapes().catch(() => /** @type {Unit[]} */ ([]))]).then(
+    ([c, units]) => {
+      demoData = { byId: new Map((c.countries ?? []).map((/** @type {any} */ x) => [x.id, x])), units };
+      demoView = fakeView(demo);
+      render(demoView);
+    },
+    () => {
+      demoView = fakeView(demo);
+      render(demoView);
+    },
+  );
 } else {
   const first = /** @type {HTMLElement | null} */ (app.querySelector(".big"));
   if (first) first.textContent = t.connecting;

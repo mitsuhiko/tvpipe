@@ -9,15 +9,46 @@
  * (`tvpipe game play --dev`) or with `?bots` in the page's URL.
  */
 
-import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
+import { HostPage, languageField, lateJoinField, preferredLang, type Field, type ToggleField } from "@tvpipe/party";
 
 import { Bot } from "../game/bots.ts";
 import { landOf, type Countries, type Shapes } from "../game/data.ts";
+import type { FlagColours } from "../game/flagcolours.ts";
 import { FAST_TIMINGS, Worldquiz } from "../game/game.ts";
-import { LANGS, ROUNDS, type Difficulty, type Lang, type MapMode, type Mode } from "../game/rules.ts";
+import { KINDS, LANGS, ROUNDS, type Difficulty, type Kind, type Lang, type MapMode, type Mode, type Pool } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
 const robots: Bot[] = [];
+
+/** The kinds of challenge as the host page names them (§4), with a line on each. */
+const KIND_TEXT: Record<Kind, { label: { en: string; de: string }; hint: { en: string; de: string } }> = {
+  capital: { label: { en: "Capital", de: "Hauptstadt" }, hint: { en: "Type the capital of a country.", de: "Die Hauptstadt eines Landes tippen." } },
+  flag: { label: { en: "Flag", de: "Flagge" }, hint: { en: "Type the country of a flag.", de: "Das Land zu einer Flagge tippen." } },
+  where: { label: { en: "Where is it?", de: "Wo liegt's?" }, hint: { en: "Pin a country on the map.", de: "Ein Land auf der Karte zeigen." } },
+  pickflag: { label: { en: "Pick the flag", de: "Welche Flagge?" }, hint: { en: "A country's name: pick its flag among 6 (9 on hard).", de: "Ein Ländername: seine Flagge unter 6 (schwer: 9) wählen." } },
+  shape: { label: { en: "Name the shape", de: "Welche Form?" }, hint: { en: "A country's outline on the map, no names: type it.", de: "Der Umriss eines Landes auf der Karte, ohne Namen: tippen, welches." } },
+  bigger: { label: { en: "Which is bigger?", de: "Wer hat mehr?" }, hint: { en: "Four countries: the most people, area, height or GDP per person.", de: "Vier Länder: die meisten Einwohner, die größte Fläche, Höhe oder BIP pro Kopf." } },
+  guess: { label: { en: "Guess the number", de: "Schätzen" }, hint: { en: "A country's population, area or highest point on a slider; the closest wins.", de: "Einwohner, Fläche oder höchster Punkt eines Landes schätzen; am nächsten gewinnt." } },
+  neighbour: { label: { en: "Name a neighbour", de: "Nachbarland" }, hint: { en: "Type any country that borders it.", de: "Irgendein Land tippen, das angrenzt." } },
+  odd: { label: { en: "Odd one out", de: "Wer passt nicht?" }, hint: { en: "Four countries, three border a fifth: pick the one that does not.", de: "Vier Länder, drei grenzen an ein fünftes: das wählen, das nicht angrenzt." } },
+};
+
+/** One switch per kind of challenge; the last one on stays on. */
+function kindFields(game: Worldquiz): ToggleField[] {
+  return KINDS.map((kind) => ({
+    key: `kind-${kind}`,
+    type: "toggle",
+    label: KIND_TEXT[kind].label,
+    hint: KIND_TEXT[kind].hint,
+    get: () => game.settings.kinds.includes(kind),
+    set: (on: boolean) => {
+      const now = game.settings.kinds;
+      const next = on ? [...now, kind] : now.filter((k) => k !== kind);
+      if (!next.length) throw new Error(game.lang === "de" ? "Mindestens eine Art bleibt an." : "At least one kind stays on.");
+      game.configure({ kinds: next });
+    },
+  }));
+}
 
 /** Worldquiz's settings, as the host page shows them. */
 function settings(game: Worldquiz): Field[] {
@@ -49,7 +80,10 @@ function settings(game: Worldquiz): Field[] {
       key: "difficulty",
       type: "buttons",
       label: { en: "Difficulty", de: "Schwierigkeit" },
-      hint: { en: "Time to answer (90, 60, 30 s), how well known the challenges' countries are, how close a pin must be.", de: "Zeit zum Antworten (90, 60, 30 s), wie bekannt die Länder der Herausforderungen sind, wie nah eine Nadel sein muss." },
+      hint: {
+        en: "Time to answer (90, 60, 30 s), how close a pin or a guess must be, 9 flags to pick from on hard, how alike the wrong choices are.",
+        de: "Zeit zum Antworten (90, 60, 30 s), wie nah eine Nadel oder Schätzung sein muss, schwer 9 Flaggen zur Wahl, wie ähnlich die falschen Antworten sind.",
+      },
       choices: [
         { value: "easy", label: { en: "easy", de: "leicht" } },
         { value: "normal", label: { en: "normal", de: "normal" } },
@@ -57,6 +91,19 @@ function settings(game: Worldquiz): Field[] {
       ],
       get: () => s().difficulty,
       set: (difficulty: Difficulty) => game.configure({ difficulty }),
+    },
+    {
+      key: "countries",
+      type: "buttons",
+      label: { en: "Countries asked", de: "Gefragte Länder" },
+      hint: { en: "The challenges ask about the best-known countries (by Wikipedia page views) or all. The cards are always all of them.", de: "Die Herausforderungen fragen nach den bekanntesten Ländern (nach Wikipedia-Aufrufen) oder nach allen. Die Karten sind immer alle." },
+      choices: [
+        { value: "famous", label: { en: "80 best known", de: "80 bekannteste" } },
+        { value: "known", label: { en: "150 best known", de: "150 bekannteste" } },
+        { value: "all", label: { en: "all", de: "alle" } },
+      ],
+      get: () => s().countries,
+      set: (countries: Pool) => game.configure({ countries }),
     },
     {
       key: "map",
@@ -77,6 +124,7 @@ function settings(game: Worldquiz): Field[] {
       get: () => s().disputed,
       set: (disputed) => game.configure({ disputed }),
     },
+    ...kindFields(game),
     lateJoinField(game.party, ["wait", "closed"]),
   ];
 }
@@ -84,12 +132,16 @@ function settings(game: Worldquiz): Field[] {
 async function main(): Promise<void> {
   const lang: Lang = preferredLang("worldquiz", LANGS);
   const page = await HostPage.connect({ name: "worldquiz", title: "Worldquiz", lang });
-  const [countries, shapes] = await Promise.all([
+  const [countries, shapes, colours] = await Promise.all([
     fetch(new URL("../data/countries.json", import.meta.url)).then((r) => r.json() as Promise<Countries>),
     fetch(new URL("../data/shapes.json", import.meta.url)).then((r) => r.json() as Promise<Shapes>),
+    // Only for the hard "pick the flag": without it the nearest flags stand in.
+    fetch(new URL("../data/colours.json", import.meta.url))
+      .then((r) => r.json() as Promise<{ flags: Record<string, FlagColours> }>)
+      .catch(() => ({ flags: {} })),
   ]);
   const party = await page.tvpipe.party({ lateJoin: "wait" });
-  const game = new Worldquiz(party, { countries: countries.countries, land: landOf(shapes), lang });
+  const game = new Worldquiz(party, { countries: countries.countries, land: landOf(shapes), colours: new Map(Object.entries(colours.flags)), lang });
   game.open();
 
   /** Bots for test mode and the live check: `names`, how `sharp` they are (0–1) and how long they think (ms). */

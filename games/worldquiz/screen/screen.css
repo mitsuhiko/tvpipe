@@ -148,6 +148,21 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .answering .ok { color: #22c55e; font-weight: 900; }
 .answering .dots { opacity: .5; }
 
+/* The newer kinds: a question on top, the options under it (flags in a grid, countries in a row). */
+.pick-ask { position: absolute; left: 50%; top: 9rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2rem; }
+.ask.static { position: static; transform: none; }
+.letter { display: inline-grid; place-items: center; width: 3.4rem; height: 3.4rem; border-radius: 50%; background: var(--ink); color: #fff; font: 900 1.9rem/1 var(--font); flex: none; }
+.flaggrid { display: grid; grid-template-columns: repeat(3, 19rem); gap: 2rem 2.4rem; }
+.flaggrid.n9 { grid-template-columns: repeat(3, 14.5rem); gap: 1.4rem 2rem; }
+.fopt { position: relative; animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.fopt img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: contain; background: #fff; border: .6rem solid #fff; border-radius: .8rem; box-shadow: .25rem .4rem 0 rgba(38, 52, 80, .45); }
+.fopt .letter { position: absolute; left: -1.2rem; top: -1.2rem; box-shadow: 0 .25rem 0 rgba(0, 0, 0, .25); }
+.options { display: flex; gap: 1.6rem; }
+.option { position: relative; width: 22rem; background: #fff; border-radius: 1.6rem; padding: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: .8rem; box-shadow: 0 .6rem 0 #d3dae6, 0 1rem 1.6rem rgba(10, 20, 50, .3); animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--i, 0) * 90ms); }
+.option img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: .5rem; border: .3rem solid #fff; box-shadow: 0 0 0 .2rem rgba(38, 52, 80, .25); }
+.option .oname { font: 900 2.4rem/1.1 var(--font); max-width: 100%; text-align: center; }
+.option .letter { position: absolute; left: -1rem; top: -1rem; }
+
 /* ---------------------------------------------------------------- answers */
 .answer .side { position: absolute; right: 3rem; top: 9.5rem; width: 38rem; }
 .sol-card { font-size: 1.45rem; position: relative; }
@@ -164,6 +179,45 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .ans .mark { margin-left: auto; font: 900 2.6rem/1 var(--font); color: #ef4444; }
 .ans.right { background: #e6fbe9; box-shadow: 0 .3rem 0 #9bdcaa; }
 .ans.right .mark { color: #22c55e; }
+.ans .letter { width: 2.6rem; height: 2.6rem; font-size: 1.4rem; }
+.ans .aflag { width: 3.6rem; height: 2.4rem; object-fit: cover; border-radius: .3rem; border: .15rem solid var(--ink); flex: none; }
+
+/* What the answer shows beyond the card and the list: at the bottom, between them. */
+.answer .reveal { position: absolute; left: 39rem; right: 43rem; bottom: 13rem; padding: 1.2rem 1.6rem; display: flex; flex-direction: column; align-items: center; animation: pop .5s .4s cubic-bezier(.3, 1.6, .5, 1) both; }
+.answer.k-pickflag .reveal { left: 38rem; right: 42rem; }
+.reveal .flaglist { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem 1.2rem; width: 100%; }
+.reveal .fopt { animation: none; display: flex; align-items: center; gap: .8rem; min-width: 0; }
+.reveal .fpic { position: relative; flex: none; }
+.reveal .fpic img { display: block; width: 4.6rem; aspect-ratio: 3 / 2; object-fit: cover; background: #fff; border-radius: .4rem; border: .2rem solid #fff; box-shadow: 0 0 0 .15rem rgba(38, 52, 80, .35); }
+.reveal .fopt.right .fpic img { box-shadow: 0 0 0 .4rem #22c55e; }
+.reveal .fopt:not(.right) { opacity: .8; }
+.reveal .fpic .letter { position: absolute; left: -.8rem; top: -.8rem; width: 2rem; height: 2rem; font-size: 1.1rem; }
+.reveal .tick { position: absolute; right: -.8rem; top: -.9rem; width: 2.3rem; height: 2.3rem; border-radius: 50%; display: grid; place-items: center; background: #22c55e; color: #fff; border: .25rem solid var(--ink); font: 900 1.5rem/1 var(--font); }
+.reveal .fwho { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.reveal .fname { font: 800 1.35rem/1.1 var(--font); overflow-wrap: normal; word-break: normal; hyphens: auto; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.reveal .dots { display: flex; flex-wrap: wrap; gap: .2rem; }
+.pdot { --c: #7c8696; display: inline-grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--c); color: #fff; font: 900 1.2rem/1 var(--font); border: .2rem solid #fff; box-shadow: 0 0 0 .15rem var(--ink); }
+.reveal .ranked { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: .6rem; }
+.reveal .ranked li { display: flex; align-items: center; gap: 1rem; background: #fff; border-radius: 1rem; padding: .4rem 1rem .4rem .5rem; font-size: 2rem; font-weight: 800; box-shadow: 0 .25rem 0 #e8dcc0; }
+.reveal .ranked li.right { background: #e6fbe9; box-shadow: 0 0 0 .3rem #22c55e; }
+.reveal .ranked img { width: 5rem; height: 3.3rem; object-fit: cover; border-radius: .4rem; border: .2rem solid var(--ink); flex: none; }
+.reveal .ranked .letter { width: 2.6rem; height: 2.6rem; font-size: 1.4rem; }
+.reveal .ranked .oname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reveal .ranked .oname small { display: block; font: 600 1.3rem/1.1 var(--font); opacity: .75; }
+.reveal .ranked .dots { min-height: 0; }
+.reveal .ranked .oval { font-weight: 900; white-space: nowrap; }
+.guessline { gap: .4rem; }
+.guessline .gvalue { font: 900 4.4rem/1 var(--font); color: var(--hot); -webkit-text-stroke: .25rem var(--ink); paint-order: stroke fill; }
+.gline { position: relative; width: 100%; height: 3rem; margin: 3.2rem 0 .4rem; border-radius: 1.5rem; background: #fff; border: .3rem solid var(--ink); }
+.gband { position: absolute; top: 0; bottom: 0; background: #bdf0c8; border-radius: 1.2rem; }
+.gmark.answer { position: absolute; top: 50%; width: .9rem; height: 4.6rem; margin: -2.3rem 0 0 -.45rem; border-radius: .45rem; background: #22c55e; border: .25rem solid var(--ink); }
+.gline .pdot { --k: 0; position: absolute; top: calc(-2.8rem - var(--k) * 1.2rem); margin-left: -1.1rem; animation: pop .4s cubic-bezier(.3, 1.6, .5, 1) both; }
+.gends { display: flex; justify-content: space-between; width: 100%; font: 700 1.4rem/1 var(--font); opacity: .75; }
+.nhead { font: 900 2rem/1 var(--font); margin-bottom: .8rem; }
+.nlist { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; }
+.nchip { display: inline-flex; align-items: center; gap: .6rem; background: #fff; border-radius: 3rem; padding: .3rem 1rem .3rem .3rem; font: 800 1.8rem/1 var(--font); box-shadow: 0 .2rem 0 #e8dcc0; }
+.nchip img { width: 3.6rem; height: 2.4rem; object-fit: cover; border-radius: .3rem; border: .15rem solid var(--ink); }
+
 .nobody { position: absolute; left: calc(50% - 2rem); top: 42%; transform: translate(-50%, -50%); text-align: center; }
 .stampbig { font: 900 6rem/1 var(--font); color: #ef4444; border: .8rem solid #ef4444; border-radius: 1.6rem; padding: 1rem 2.4rem; transform: rotate(-8deg); background: rgba(255, 255, 255, .85); animation: slam2 .5s .3s cubic-bezier(.3, 1.7, .5, 1) both; }
 @keyframes slam2 { from { transform: rotate(-20deg) scale(2.5); opacity: 0; } }

@@ -34,6 +34,9 @@ the camera flies over, cards like postcards, chunky toy buttons.
 
 - **Players: 2–10.** **Rounds: 15, 30 or 45** (§2.4).
 - **Difficulty**: easy, normal (default), hard (§6).
+- **Countries asked**: the 80 or 150 (default) best known, or all
+  (§6); separate from the difficulty. Hands are always the whole deck.
+- **Kinds of challenge**: which are in the mix, all by default (§4.11).
 - **Map**: flat (Mercator) or globe; each phone switches for itself, the
   host page sets the TV's.
 - **Disputed states** (off by default): adds Kosovo, Palestine, Taiwan
@@ -148,7 +151,7 @@ checked-in files differ from what it would write (as landgrab's
 | What | Source | Licence | Notes |
 |---|---|---|---|
 | names, capitals (en, de), aliases | Wikidata | CC0 | labels are often formal ("People's Republic of China"): short names are curated |
-| flags | Wikimedia Commons SVG (Wikidata P41) | 193 public domain, Oman OGL-om (attribution) | 2.7 MB as SVG; 169 are under 20 KB, the big ones (coats of arms: Ecuador, El Salvador, Oman, Spain …) rasterised |
+| flags | Wikimedia Commons SVG (Wikidata P41) | 193 public domain, Oman OGL-om (attribution) | 2.7 MB as SVG; 169 are under 20 KB, the big ones (coats of arms: Ecuador, El Salvador, Oman, Spain …) rasterised; a `viewBox` added where a file has none (some browsers draw such an SVG unscaled and cut: a TV showed only Austria's top stripe, all red) |
 | shapes | Natural Earth admin 0, 1:50m | public domain | every UN member is in it; already split at the antimeridian |
 | neighbours | computed from Natural Earth 1:10m, checked against Wikipedia's *List of countries and territories by number of land borders* | facts | §3.2 |
 | highest point | Wikipedia's *List of elevation extremes by country*, checked against Wikidata P610/P2044 | facts | §3.3 |
@@ -345,6 +348,77 @@ Congo (ambiguous: wrong for both unless §10 says otherwise),
 Korea (ambiguous). The reveal shows how an answer was read ("Nigera →
 Nigeria ✓").
 
+### 4.5 Pick the flag
+
+The country's name; pick its flag among 6 (9 on hard), a 3×2 (3×3)
+grid of flags on the TV (lettered A–F/I) and big tappable flags on the
+phone. A tap picks (it can change until the deadline; what is picked
+counts, Done ends early). Everyone who picked right steps. The wrong
+flags: easy, random countries far away (over 3,000 km); normal, the
+nearest countries by centre; hard, the flags of most similar colours
+(the colours read from the flag files' fills by area, hand-rolled, with
+known-answer tests), never two identical-looking ones the data says are
+the same (Chad/Romania are both shown: that is the fun). The phone gets
+only the flag files, shuffled. The reveal: the right flag ticked, each
+player's dot on the flag they picked, then the card and map as usual.
+
+### 4.6 Name the shape
+
+The country alone on the sea, in the hot colour: no other land, no
+names, no graticule (its neighbours or the lines of latitude would give
+it away); type the country. The reveal shows it on the map as usual. The question sends the
+country's outline (its rings) and the view, not its id; the TV and the
+phone draw the outline over the map. Judged as the flag challenge
+(§4.4). Countries smaller than about 20 km across are never asked.
+
+### 4.7 Which is bigger?
+
+Four countries (name and flag) and one of the numbers (population,
+area, highest point, GDP per person); pick the one with the most. The
+four are distinct in it, the largest at least 10 % above the second.
+Easy: the four spread widely (each at least twice the next); normal:
+random; hard: close (the largest within 50 % of the smallest). The
+reveal shows all four numbers in order. Everyone who picked the largest
+steps.
+
+### 4.8 Guess the number
+
+A country (name and flag) and one number (population, area, highest
+point); everyone sets a guess on a logarithmic slider (population 1k–2
+billion, area 1–20 million km², height 10–9,000 m) with the value
+shown as it would be on a card. The closest by ratio wins (|log
+guess/answer|), with everyone within 10 % of the best ratio; a guess
+off by more than the level's factor never wins (easy ×3, normal ×2,
+hard ×1.5). The reveal: a number line (log) with every guess as a dot
+in the player's colour and the answer, then the card.
+
+### 4.9 Name a neighbour
+
+A country with land neighbours (§3.2; with the disputed states as set);
+type any one of them. Every right neighbour counts (judged as §4.4,
+against every country; the answer must be one of the neighbours). The
+reveal: the country and all its neighbours highlighted on the map, the
+neighbours listed, each player's answer read back.
+
+### 4.10 Odd one out
+
+A country X with at least three neighbours, and four countries (name
+and flag): three border X, one does not; pick the one that does not.
+The odd one is always from the same part of the world (one from far
+away would give itself away): easy, 800 to 2,500 km away (clearly not
+touching); normal, within 1,500 km; hard, the nearest country that is
+not a neighbour. The reveal: X and
+the four on the map, the odd one marked.
+
+### 4.11 Which kinds
+
+A setting (`kinds`, the host page and the lobby): which kinds are in
+the mix, all by default, at least one. A challenge picks a kind at
+random among those some country of the pool can be asked in (odd one
+out needs three neighbours, name a neighbour one, a shape 20 km), then
+a country that fits; when none of the kinds can be made, a pin. The
+tie-break is always the pin (§2.4).
+
 ## 5. Who sees what
 
 The host page is the only authority (as in every game here). A phone
@@ -359,13 +433,21 @@ shuffled per game, so the file name gives nothing away).
 | | easy | normal | hard |
 |---|---|---|---|
 | answer time | 90 s | 60 s | 30 s |
-| challenge countries | the ~80 best known | the ~150 best known | all |
 | location: max distance | 3,000 km | 1,500 km | 800 km |
 | location: borders shown | yes | yes | coastlines only |
+| pick the flag: flags | 6, the others far away | 6, the nearest | 9, the most alike colours |
+| which is bigger: the four | each twice the next | any | within ×1.5 |
+| guess the number: never wins beyond | ×3 | ×2 | ×1.5 |
+| odd one out: the odd one | 800–2,500 km away | within 1,500 km | the nearest non-neighbour |
 
-"Best known" is ranked by Wikipedia page views (both languages, the median month of a year, so that one big event does not count),
-fetched with the rest and checked in. Hands in compete rounds always
-come from the whole deck: learning a little country is the point.
+**Countries asked** is its own setting (`countries`): the 80 best
+known, the 150 best known (default), or all, whatever the difficulty.
+The options shown with a question (wrong flags, the four, the odd one)
+come from the same countries. "Best known" is ranked by Wikipedia page
+views (both languages, the median month of a year, so that one big
+event does not count), fetched with the rest and checked in. Hands in
+compete rounds always come from the whole deck: learning a little
+country is the point.
 
 ## 7. Looks
 
@@ -421,12 +503,15 @@ pure and tested), `host/`, `screen/` (TV), `phone/`, `scripts/data.ts`
 invariants: every country has every field, the neighbour relation is
 symmetric, the table in §3.2, answer pairs in §4.4, distance against
 known pairs of cities), `test/live/play.ts` (a game in headless Chrome
-with screenshots).
+with screenshots). `game/flagcolours.ts` draws a flag's SVG on a grid
+(our own small rasteriser: shapes, paths with curves and arcs,
+transforms, `use`, strokes, clip paths, gradients as the mean of their
+stops) for its colours' shares; `scripts/colours.ts` writes them to
+`data/colours.json`, compared by ΔE (CIE Lab) weighted by share.
 
 ## 9. Not now
 
-More challenge kinds (outline only, capital → country, which is bigger),
-continents as a filter, team play.
+Capital → country, continents as a filter, team play.
 
 ## 10. Decisions
 

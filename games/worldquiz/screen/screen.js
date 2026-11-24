@@ -14,10 +14,10 @@
  */
 
 import { joinText, PartyClient, qrSvg } from "/_tvpipe/lib/client.js";
-import { cardEl, FACTS, flagSrc, GLOBE, h, ICONS, LABELS, numbers, STRONG } from "../phone/cards.js";
+import { cardEl, FACTS, flagSrc, GLOBE, h, ICONS, KIND_ICONS_MORE, LABELS, numbers, STRONG } from "../phone/cards.js";
 import { watchFit } from "../phone/fit.js";
 import { pickLang } from "../phone/i18n.js";
-import { decodeShapes, WorldMap } from "./map.js";
+import { decodeRings, decodeShapes, WorldMap } from "./map.js";
 import { strings } from "./strings.js";
 
 const params = new URLSearchParams(location.hash.slice(1));
@@ -54,11 +54,11 @@ function fitMap() {
 }
 addEventListener("resize", fitMap);
 
-/** Points the map at a country (or the world). @param {any} c @param {number} [ms] @param {number} [fill] */
-function look(c, ms = 1700, fill) {
+/** Points the map at a country (or the world). @param {any} c @param {number} [ms] @param {number} [fill] @param {number} [maxZoom] */
+function look(c, ms = 1700, fill, maxZoom) {
   if (!map) return;
   if (!c?.box) map.flyWorld(ms);
-  else map.flyTo(c.box, c.at, ms, fill);
+  else map.flyTo(c.box, c.at, ms, fill, maxZoom);
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +255,8 @@ client.on("status", (st) => {
 /** @param {any} sc */
 function keyOf(sc) {
   if (sc.phase !== "round") return String(sc.phase ?? "");
-  return `${sc.round}:${sc.stage}:${sc.try ?? ""}:${sc.kind ?? ""}:${sc.question?.flag ?? sc.question?.name ?? ""}:${sc.solution?.id ?? ""}`;
+  const q = sc.question ?? {};
+  return `${sc.round}:${sc.stage}:${sc.try ?? ""}:${sc.kind ?? ""}:${q.flag ?? q.name ?? q.box?.join(",") ?? ""}:${sc.solution?.id ?? ""}`;
 }
 
 /** @param {any} view */
@@ -300,12 +301,17 @@ function render(view) {
 function build(sc, key) {
   if (map) {
     map.hot = new Set();
+    map.warm = new Set();
+    map.outline = null;
+    map.lone = false;
     map.marks = [];
     map.lines = [];
     map.goal = null;
     map.circle = null;
     map.right = 0;
     map.left = 0;
+    map.bottom = 0;
+    map.top = 0;
     map.out = new Set();
     map.spin = sc.phase === "lobby" || sc.phase === "final" || sc.stage === "draw" ? 4 : 0;
   }
@@ -515,7 +521,16 @@ const KIND_ICONS = {
   capital: '<svg viewBox="0 0 40 40"><path d="M20 4l3.5 8 8.5.8-6.4 5.6 1.9 8.4L20 22.4l-7.5 4.4 1.9-8.4L8 12.8l8.5-.8z" fill="#ffcf4a" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M9 33h22" stroke="#263450" stroke-width="3" stroke-linecap="round"/></svg>',
   flag: '<svg viewBox="0 0 40 40"><path d="M9 36V5" stroke="#263450" stroke-width="3.5" stroke-linecap="round"/><path d="M10 6c6-3 10 3 16 0s6 0 6 0v15s-2-3-6 0-10-3-16 0z" fill="#ef4444" stroke="#263450" stroke-width="3" stroke-linejoin="round"/></svg>',
   where: '<svg viewBox="0 0 40 40"><path d="M20 37c-2-8-12-13-12-21a12 12 0 0124 0c0 8-10 13-12 21z" fill="#ff7a45" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="16" r="4.5" fill="#fff" stroke="#263450" stroke-width="2.5"/></svg>',
+  ...KIND_ICONS_MORE,
 };
+const LETTERS = "ABCDEFGHI";
+/** How each kind is answered (game/rules.ts ANSWERS). */
+const HOW = /** @type {Record<string, "text" | "pin" | "choice" | "number">} */ ({ capital: "text", flag: "text", where: "pin", pickflag: "choice", shape: "text", bigger: "choice", guess: "number", neighbour: "text", odd: "choice" });
+
+/** Options as cards in a row: a letter, the flag, the name. @param {any[]} options */
+function optionRow(options) {
+  return h("div", { class: "options" }, ...options.map((o, i) => h("div", { class: "option", style: { "--i": String(i) } }, h("b", { class: "letter" }, LETTERS[i] ?? ""), h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), h("span", { class: "oname", "data-fit": "1" }, o.name ?? ""))));
+}
 
 /** @param {any} sc */
 function announceScene(sc) {
@@ -552,6 +567,43 @@ function challengeScene(sc) {
   } else if (kind === "flag") {
     ask = h("div", { class: "ask flag-ask" }, h("img", { class: "huge-flag", src: flagSrc(q.flag), alt: "" }), h("div", { class: "ask-text" }, t.whichFlag));
     look(null);
+  } else if (kind === "pickflag") {
+    const flags = /** @type {string[]} */ (q.flags ?? []);
+    ask = h(
+      "div",
+      { class: "pick-ask" },
+      h("div", { class: "ask static" }, h("span", { class: "ask-pin", html: KIND_ICONS.pickflag }), h("div", { class: "ask-text" }, t.kindLines.pickflag, h("b", { "data-fit": "1" }, q.name ?? ""))),
+      h("div", { class: `flaggrid n${flags.length}` }, ...flags.map((f, i) => h("div", { class: "fopt", style: { "--i": String(i) } }, h("img", { src: flagSrc(f), alt: "" }), h("b", { class: "letter" }, LETTERS[i] ?? "")))),
+    );
+    look(null);
+  } else if (kind === "shape") {
+    // A slim banner: the shape takes the screen between it and the players.
+    ask = h("div", { class: "banner" }, h("span", { class: "fi", html: KIND_ICONS.shape }), t.whichShape);
+    if (map) {
+      // The country alone on the sea: no neighbours, no grid to tell where.
+      map.outline = decodeRings(q.shape ?? []);
+      map.lone = true;
+      map.top = 16 * rem();
+      map.bottom = 20 * rem();
+    }
+    // Close enough to see the shape of a small one too.
+    look({ box: q.box }, 1700, 0.85, 60);
+  } else if (kind === "bigger" || kind === "odd") {
+    const fact = /** @type {keyof typeof ICONS} */ (q.fact);
+    const head =
+      kind === "bigger"
+        ? h("div", { class: "ask static" }, h("span", { class: "ask-pin", html: ICONS[fact] ?? "" }), h("div", { class: "ask-text" }, LABELS[lang][fact] ?? "", h("b", { "data-fit": "1" }, t.biggerQ[/** @type {"area"} */ (fact)] ?? "")))
+        : h("div", { class: "ask static" }, h("img", { class: "ask-flag", src: flagSrc(q.flag), alt: "" }), h("div", { class: "ask-text" }, t.kinds.odd, h("b", { "data-fit": "1" }, t.oddOf(q.name ?? ""))));
+    ask = h("div", { class: "pick-ask" }, head, optionRow(q.options ?? []));
+    look(null);
+  } else if (kind === "guess") {
+    const fact = /** @type {"population" | "area" | "highest"} */ (q.fact);
+    ask = h("div", { class: "ask" }, h("img", { class: "ask-flag", src: flagSrc(q.flag), alt: "" }), h("div", { class: "ask-text" }, t.kinds.guess, h("b", { "data-fit": "1" }, t.guessQ[fact]?.(q.name ?? "") ?? "")));
+    look(null);
+  } else if (kind === "neighbour") {
+    ask = h("div", { class: "ask" }, h("img", { class: "ask-flag", src: flagSrc(q.flag), alt: "" }), h("div", { class: "ask-text" }, t.kindLines.neighbour, h("b", { "data-fit": "1" }, `${t.neighbourOf(q.name ?? "")}`)));
+    if (map) map.hot = new Set([q.id]);
+    look(q, 1700, 0.22);
   } else {
     ask = h("div", { class: "ask" }, h("span", { class: "ask-pin", html: KIND_ICONS.where }), h("div", { class: "ask-text" }, t.whereIs, h("b", { "data-fit": "1" }, `${q.name}?`)));
     look(null);
@@ -577,6 +629,7 @@ function challengeScene(sc) {
  */
 function answerScene(sc) {
   const sol = sc.solution ?? {};
+  const rv = sc.reveal ?? {};
   const winners = /** @type {string[]} */ (sc.winners ?? []);
   const answers = /** @type {any[]} */ (sc.answers ?? []);
   shownSteps = Object.fromEntries((sc.players ?? []).map((/** @type {any} */ p) => [p.id, p.steps - (winners.includes(p.id) && !sc.tiebreak ? 1 : 0)]));
@@ -588,8 +641,20 @@ function answerScene(sc) {
       const right = winners.includes(a.pid);
       /** @type {Node[]} */
       const what = [];
+      const how = HOW[sc.kind] ?? "text";
       if (sc.kind === "where") what.push(h("span", { class: "said" }, a.km === null ? t.noAnswer : a.km === 0 ? t.hit : t.away(f.km(a.km))));
-      else {
+      else if (how === "choice") {
+        const o = typeof a.choice === "number" ? rv.options?.[a.choice] : null;
+        if (!o) what.push(h("span", { class: "said" }, t.noAnswer));
+        else {
+          what.push(h("b", { class: "letter" }, LETTERS[a.choice] ?? ""));
+          if (sc.kind === "pickflag") what.push(h("img", { class: "aflag", src: flagSrc(o.flag ?? ""), alt: "" }));
+          what.push(h("span", { class: "said" }, o.name ?? ""));
+        }
+      } else if (how === "number") {
+        if (typeof a.value !== "number") what.push(h("span", { class: "said" }, t.noAnswer));
+        else what.push(h("span", { class: "said" }, f.fact(rv.fact, a.value)), typeof a.off === "number" ? h("span", { class: "as" }, a.off < 1.005 ? "✓" : t.offBy(times(a.off))) : h("span"));
+      } else {
         what.push(h("span", { class: "said" }, a.text || t.noAnswer));
         if (a.text && a.as && a.as !== a.text) what.push(h("span", { class: "as" }, `→ ${a.as}`));
       }
@@ -605,7 +670,20 @@ function answerScene(sc) {
     flag.src = flagSrc(sol.flag);
     map.goal = { lon: at[0], lat: at[1], name: sol.name ?? "", flag };
   }
-  look(sol, 1500, 0.35);
+  // Several countries: the neighbours, the four, the odd one among X's neighbours; then the camera takes them all in.
+  const placed = /** @type {any[]} */ (sc.kind === "neighbour" ? (rv.neighbours ?? []) : sc.kind === "bigger" || sc.kind === "odd" ? (rv.options ?? []) : []);
+  if (map && placed.length) {
+    const odd = sc.kind === "odd" ? rv.options?.[rv.right] : null;
+    if (sc.kind === "odd" && rv.of) map.hot = new Set([rv.of.id]);
+    map.warm = new Set(placed.map((o) => o.id).filter((id) => !map?.hot.has(id) && id !== odd?.id));
+    if (odd?.at) map.marks = [{ lon: odd.at[0], lat: odd.at[1], color: "#ef4444", label: "✗", big: true }];
+    const box = unionBox([sol.box, ...placed.map((o) => o.box)].filter((b) => Array.isArray(b) && b.length === 4));
+    later(() => map?.flyTo(box, [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2], 1300, map.mode === "globe" ? 0.45 : 0.6), 1700);
+  }
+  const extra = revealPanel(sc);
+  // The panel at the bottom: the camera keeps the country above it.
+  if (map && extra) map.bottom = (13 + (sc.kind === "pickflag" ? 3 + 5 * Math.ceil((rv.options ?? []).length / 3) : (REVEAL_REM[sc.kind] ?? 16))) * rem();
+  look(sol, 1500, 0.35, sc.kind === "shape" ? 60 : undefined);
   if (sc.kind === "where") {
     const pins = answers.filter((a) => a.lon !== null && a.lat !== null);
     if (map) {
@@ -629,7 +707,7 @@ function answerScene(sc) {
     // The globe shows less of the world than the flat map does at the same fill.
     if (pins.length) later(() => map?.flyTo([w, so, e, n], [(w + e) / 2, (so + n) / 2], 1300, map.mode === "globe" ? 0.45 : 0.7), 1700);
   }
-  const el = h("div", { class: `scene answer k-${sc.kind}` }, h("div", { class: "side" }, card), list);
+  const el = h("div", { class: `scene answer k-${sc.kind}` }, h("div", { class: "side" }, card), list, extra);
   if (!winners.length) {
     el.append(h("div", { class: "nobody" }, h("div", { class: "stampbig" }, t.nobody), sc.again ? h("div", { class: "another" }, t.another) : null));
     later(() => sfx.buzz(), 400);
@@ -639,6 +717,111 @@ function answerScene(sc) {
     drawRace(client.view?.screen?.players ?? []);
   }, 1500);
   return { el };
+}
+
+/** About how tall the reveal panel is (rem), for the map's bottom inset. @type {Record<string, number>} */
+const REVEAL_REM = { bigger: 23, odd: 23, guess: 16, neighbour: 12 };
+
+/** A ratio as "1.4" or "12". @param {number} x */
+function times(x) {
+  return new Intl.NumberFormat(lang, { maximumFractionDigits: x < 10 ? 1 : 0 }).format(x);
+}
+
+/**
+ * Boxes [w, s, e, n] as one (across the date line the short way round).
+ * @param {number[][]} boxes @returns {[number, number, number, number]}
+ */
+function unionBox(boxes) {
+  let [w, s, e, n] = /** @type {[number, number, number, number]} */ (boxes[0] ?? [-10, -10, 10, 10]);
+  if (e < w) e += 360;
+  const mid = (w + e) / 2;
+  for (const b of boxes.slice(1)) {
+    let [bw, bs, be, bn] = /** @type {[number, number, number, number]} */ (b);
+    if (be < bw) be += 360;
+    const bm = (bw + be) / 2;
+    let shift = 0;
+    while (bm + shift - mid > 180) shift -= 360;
+    while (mid - (bm + shift) > 180) shift += 360;
+    w = Math.min(w, bw + shift);
+    e = Math.max(e, be + shift);
+    s = Math.min(s, bs);
+    n = Math.max(n, bn);
+  }
+  return [w, s, e, n];
+}
+
+/**
+ * What the answer shows beyond the card and the list, at the bottom
+ * between them: the flags (the right one ticked, everyone's dot on their
+ * pick), the four numbers in order, the odd one among the neighbours,
+ * the guesses on a number line, the neighbours.
+ * @param {any} sc
+ */
+function revealPanel(sc) {
+  const rv = sc.reveal;
+  if (!rv) return null;
+  const answers = /** @type {any[]} */ (sc.answers ?? []);
+  const dots = (/** @type {number} */ i) => h("span", { class: "dots" }, ...answers.filter((a) => a.choice === i).map((a) => h("b", { class: "pdot", style: { "--c": colorOf(a.pid) } }, initial(nameOf(a.pid)))));
+  if (sc.kind === "pickflag") {
+    return h(
+      "div",
+      { class: "panel reveal" },
+      h(
+        "div",
+        { class: "flaglist" },
+        ...(rv.options ?? []).map((/** @type {any} */ o, /** @type {number} */ i) =>
+          h("div", { class: `fopt${i === rv.right ? " right" : ""}` }, h("span", { class: "fpic" }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), h("b", { class: "letter" }, LETTERS[i] ?? ""), i === rv.right ? h("b", { class: "tick" }, "✓") : null), h("span", { class: "fwho" }, h("span", { class: "fname" }, o.name ?? ""), dots(i))),
+        ),
+      ),
+    );
+  }
+  if (sc.kind === "bigger" || sc.kind === "odd") {
+    const rows = (rv.options ?? []).map((/** @type {any} */ o, /** @type {number} */ i) => ({ o, i }));
+    if (sc.kind === "bigger") rows.sort((/** @type {any} */ a, /** @type {any} */ b) => b.o.value - a.o.value);
+    return h(
+      "div",
+      { class: "panel reveal" },
+      h(
+        "ol",
+        { class: "ranked" },
+        ...rows.map((/** @type {any} */ r) =>
+          h(
+            "li",
+            { class: r.i === rv.right ? "right" : "" },
+            h("b", { class: "letter" }, LETTERS[r.i] ?? ""),
+            h("img", { src: flagSrc(r.o.flag ?? ""), alt: "" }),
+            h("span", { class: "oname" }, r.o.name ?? "", sc.kind === "odd" ? h("small", {}, `${r.i === rv.right ? t.notBorders : t.borders} ${rv.of?.name ?? ""}`) : null),
+            dots(r.i),
+            sc.kind === "bigger" ? h("b", { class: "oval" }, f.fact(rv.fact, r.o.value)) : null,
+          ),
+        ),
+      ),
+    );
+  }
+  if (sc.kind === "guess") {
+    const guesses = answers.filter((a) => typeof a.value === "number");
+    const all = [rv.value, rv.value / (rv.factor ?? 1), rv.value * (rv.factor ?? 1), ...guesses.map((a) => a.value)].filter((v) => v > 0);
+    const from = Math.max(rv.min || 1, Math.min(...all) / 3);
+    const to = Math.min(rv.max || 10, Math.max(...all) * 3);
+    const x = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, (Math.log(v) - Math.log(from)) / (Math.log(to) - Math.log(from)))) * 100).toFixed(1)}%`;
+    return h(
+      "div",
+      { class: "panel reveal guessline" },
+      h("div", { class: "gvalue" }, f.fact(rv.fact, rv.value)),
+      h(
+        "div",
+        { class: "gline" },
+        rv.factor ? h("i", { class: "gband", style: { left: x(rv.value / rv.factor), width: `calc(${x(rv.value * rv.factor)} - ${x(rv.value / rv.factor)})` } }) : null,
+        h("i", { class: "gmark answer", style: { left: x(rv.value) } }),
+        ...guesses.map((a, i) => h("b", { class: "pdot", style: { left: x(a.value), "--c": colorOf(a.pid), "--k": String(i % 3) } }, initial(nameOf(a.pid)))),
+      ),
+      h("div", { class: "gends" }, h("span", {}, f.fact(rv.fact, from)), h("span", {}, f.fact(rv.fact, to))),
+    );
+  }
+  if (sc.kind === "neighbour") {
+    return h("div", { class: "panel reveal" }, h("div", { class: "nhead" }, t.neighbours), h("div", { class: "nlist" }, ...(rv.neighbours ?? []).map((/** @type {any} */ o) => h("span", { class: "nchip" }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), o.name ?? ""))));
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

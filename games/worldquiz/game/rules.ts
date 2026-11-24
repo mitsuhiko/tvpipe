@@ -6,6 +6,8 @@
  */
 
 import type { Country, Lang } from "./data.ts";
+import { colourDistance, type FlagColours } from "./flagcolours.ts";
+import { km } from "./geo.ts";
 
 export type { Lang };
 
@@ -33,25 +35,50 @@ export type Mode = (typeof MODES)[number];
 export const FACTS = ["population", "area", "neighbours", "highest", "gdp"] as const;
 export type Fact = (typeof FACTS)[number];
 
-export const KINDS = ["capital", "flag", "where"] as const;
+/**
+ * The kinds of challenge (§4): type the capital, name the flag's
+ * country, pin it on the map, pick its flag among several, name the
+ * shape, pick the biggest of four, guess a number, name a neighbour,
+ * pick the one of four that is no neighbour.
+ */
+export const KINDS = ["capital", "flag", "where", "pickflag", "shape", "bigger", "guess", "neighbour", "odd"] as const;
 export type Kind = (typeof KINDS)[number];
+/** How a kind is answered: typed, a pin, one of the shown options, a number. */
+export const ANSWERS: Record<Kind, "text" | "pin" | "choice" | "number"> = {
+  capital: "text",
+  flag: "text",
+  where: "pin",
+  pickflag: "choice",
+  shape: "text",
+  bigger: "choice",
+  guess: "number",
+  neighbour: "text",
+  odd: "choice",
+};
+
+/** Which countries challenges ask about (§6): the best known 80, 150, or all. */
+export const POOLS = ["famous", "known", "all"] as const;
+export type Pool = (typeof POOLS)[number];
+export const POOL_SIZE: Record<Pool, number> = { famous: 80, known: 150, all: Infinity };
 
 /** What a difficulty changes (§6). */
 export interface Level {
   /** Seconds to answer a challenge. */
   answer: number;
-  /** Challenges come from this many best-known countries of the deck (Infinity: all). */
-  known: number;
   /** A pin further than this (km) never wins. */
   maxKm: number;
   /** The phone's map draws borders (else only coastlines). */
   borders: boolean;
+  /** Flags to pick from (§4.5). */
+  flags: number;
+  /** A guess off by more than this factor never wins (§4.8). */
+  factor: number;
 }
 
 export const LEVELS: Record<Difficulty, Level> = {
-  easy: { answer: 90, known: 80, maxKm: 3000, borders: true },
-  normal: { answer: 60, known: 150, maxKm: 1500, borders: true },
-  hard: { answer: 30, known: Infinity, maxKm: 800, borders: false },
+  easy: { answer: 90, maxKm: 3000, borders: true, flags: 6, factor: 3 },
+  normal: { answer: 60, maxKm: 1500, borders: true, flags: 6, factor: 2 },
+  hard: { answer: 30, maxKm: 800, borders: false, flags: 9, factor: 1.5 },
 };
 
 /** A strong number: in the top this many of the deck. */
@@ -254,11 +281,11 @@ export function compete(hands: ReadonlyMap<string, Country>, fact: Fact, ids: Re
   return { order, winners: order.filter((p) => values.get(p) === best), values };
 }
 
-/** The countries a challenge may ask about: the deck's best-known (§6). */
-export function knownEnough(deck: readonly Country[], level: Level): (c: Country) => boolean {
-  if (!Number.isFinite(level.known)) return () => true;
+/** The countries a challenge may ask about: the deck's best-known `size` (§6; Infinity: all). */
+export function knownEnough(deck: readonly Country[], size: number): (c: Country) => boolean {
+  if (!Number.isFinite(size)) return () => true;
   const fames = deck.map((c) => c.fame).sort((a, b) => a - b);
-  const limit = fames[Math.min(fames.length, level.known) - 1] ?? Infinity;
+  const limit = fames[Math.min(fames.length, size) - 1] ?? Infinity;
   return (c) => c.fame <= limit;
 }
 
@@ -290,4 +317,160 @@ export function captainFor(round: number, seats: readonly string[], here: (id: s
     if (here(id)) return id;
   }
   return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// The new kinds' choices and judging (§4.5–4.10)
+
+/** Far away (easy's wrong flags and odd ones), km between centres. */
+export const FAR_KM = 3000;
+/** Easy's odd one: not touching, but in the same part of the world (km between centres). */
+export const ODD_EASY_KM: [number, number] = [800, 2500];
+/** Normal's odd one: within this (km between centres). */
+export const NEAR_KM = 1500;
+/** A country smaller than this across (km) is never a shape to name (§4.6). */
+export const SHAPE_KM = 20;
+
+/** Km between two countries' centres (where their names go). */
+export function apart(a: Country, b: Country): number {
+  return km(a.at, b.at);
+}
+
+/** The first `n` of `items` that `ok` takes, in a random order. */
+function sample<T>(items: readonly T[], n: number, rng: () => number, ok: (x: T) => boolean = () => true): T[] {
+  return shuffle(items.filter(ok), rng).slice(0, n);
+}
+
+/**
+ * The wrong flags for "pick the flag" (§4.5): `n` of `pool`, never the
+ * country itself nor a flag that looks the same (an equal `look`).
+ * Easy: random ones far away; normal: the nearest by centre; hard: those
+ * of the most similar colours (nearest by centre without the colours).
+ * Fewer when the pool has fewer.
+ */
+export function wrongFlags(c: Country, pool: readonly Country[], difficulty: Difficulty, n: number, rng: () => number, colours?: ReadonlyMap<string, FlagColours>): Country[] {
+  const mine = colours?.get(c.flag);
+  const others = pool.filter((x) => x.id !== c.id && x.flag !== c.flag && !(mine && colours?.get(x.flag)?.look === mine.look));
+  const nearest = () => [...others].sort((a, b) => apart(c, a) - apart(c, b) || a.id.localeCompare(b.id)).slice(0, n);
+  if (difficulty === "easy") {
+    const far = sample(others, n, rng, (x) => apart(c, x) > FAR_KM);
+    return far.length >= n ? far : [...far, ...sample(others, n - far.length, rng, (x) => !far.includes(x))];
+  }
+  if (difficulty === "hard" && mine) {
+    const d = (x: Country) => {
+      const k = colours?.get(x.flag);
+      return k ? colourDistance(mine, k) : Infinity;
+    };
+    return [...others].sort((a, b) => d(a) - d(b) || a.id.localeCompare(b.id)).slice(0, n);
+  }
+  return nearest();
+}
+
+/** The numbers "which is bigger" asks about (§4.7), and those to guess (§4.8). */
+export const BIGGER_FACTS = ["population", "area", "highest", "gdp"] as const satisfies readonly Fact[];
+export type BiggerFact = (typeof BIGGER_FACTS)[number];
+export const GUESS_FACTS = ["population", "area", "highest"] as const satisfies readonly Fact[];
+export type GuessFact = (typeof GUESS_FACTS)[number];
+/** The guess slider's ends per number (§4.8). */
+export const GUESS_RANGE: Record<GuessFact, [number, number]> = { population: [1000, 2e9], area: [1, 2e7], highest: [10, 9000] };
+
+/** Whether four numbers (largest first) make a fair "which is bigger" at a difficulty (§4.7). */
+export function fairBigger(desc: readonly number[], difficulty: Difficulty): boolean {
+  if (desc.length !== 4 || desc.some((v) => !(v > 0))) return false;
+  for (let i = 1; i < 4; i++) if (!(desc[i - 1]! > desc[i]!)) return false;
+  if (desc[0]! < desc[1]! * 1.1) return false;
+  if (difficulty === "easy") return desc.every((v, i) => i === 0 || desc[i - 1]! >= v * 2);
+  if (difficulty === "hard") return desc[0]! <= desc[3]! * 1.5;
+  return true;
+}
+
+/**
+ * "Which is bigger" around a country (§4.7): a number and four countries
+ * with `c` among them, fair at the difficulty, in a random order, and
+ * which one is the biggest; null when no number makes it fair.
+ */
+export function biggerOf(c: Country, pool: readonly Country[], difficulty: Difficulty, rng: () => number): { fact: BiggerFact; options: Country[]; right: number } | null {
+  const others = pool.filter((x) => x.id !== c.id);
+  for (const fact of shuffle(BIGGER_FACTS, rng)) {
+    const v = (x: Country) => factOf(x, fact, new Set());
+    const mine = v(c);
+    if (!(mine > 0)) continue;
+    // Only those that can stand with c: a different number, and on hard within ×1.5 of it.
+    const fit = others.filter((x) => {
+      const w = v(x);
+      if (!(w > 0) || w === mine) return false;
+      if (difficulty === "hard") return Math.max(w, mine) <= Math.min(w, mine) * 1.5;
+      if (difficulty === "easy") return Math.max(w, mine) >= Math.min(w, mine) * 2;
+      return true;
+    });
+    for (let tries = 0; tries < 300 && fit.length >= 3; tries++) {
+      const four = [c, ...sample(fit, 3, rng)];
+      const desc = four.map(v).sort((a, b) => b - a);
+      if (!fairBigger(desc, difficulty)) continue;
+      const options = shuffle(four, rng);
+      const best = Math.max(...options.map(v));
+      return { fact, options, right: options.findIndex((x) => v(x) === best) };
+    }
+  }
+  return null;
+}
+
+/** A number to guess about a country (§4.8): one whose value is on the slider, or null. */
+export function guessOf(c: Country, rng: () => number): { fact: GuessFact; value: number } | null {
+  for (const fact of shuffle(GUESS_FACTS, rng)) {
+    const value = factOf(c, fact, new Set());
+    const [lo, hi] = GUESS_RANGE[fact];
+    if (value >= lo && value <= hi) return { fact, value };
+  }
+  return null;
+}
+
+/**
+ * Who wins "guess the number" (§4.8): the closest by ratio (|log
+ * guess/answer|) and everyone within 10 % of that ratio; a guess off by
+ * more than `factor` never wins. Also how far off each is (the ratio, ≥ 1).
+ */
+export function judgeGuesses(guesses: ReadonlyMap<string, number>, answer: number, factor: number): { winners: string[]; off: Map<string, number> } {
+  const off = new Map<string, number>();
+  for (const [p, g] of guesses) if (g > 0 && Number.isFinite(g) && answer > 0) off.set(p, Math.exp(Math.abs(Math.log(g / answer))));
+  if (off.size === 0) return { winners: [], off };
+  const best = Math.min(...off.values());
+  if (best > factor) return { winners: [], off };
+  const band = Math.min(factor, best * (1 + TIE_SHARE));
+  return { winners: [...off].filter(([, r]) => r <= band + 1e-12).map(([p]) => p), off };
+}
+
+/**
+ * Whether a typed neighbour is right (§4.9): it reads as one of the
+ * neighbours and not as the country asked. A name both share ("Congo"
+ * for either Congo, "Korea" for either Korea) is the country itself too:
+ * wrong, or naming the country would count as its neighbour.
+ */
+export function rightNeighbour(read: readonly string[], asked: string, neighbours: readonly string[]): boolean {
+  return read.length > 0 && !read.includes(asked) && read.some((id) => neighbours.includes(id));
+}
+
+/**
+ * "Odd one out" around X (§4.10): three of X's neighbours in the deck and
+ * one country that is not, in a random order, and which is the odd one.
+ * The odd one is always in the same part of the world (never one from
+ * the other side, which would give it away): easy {@link ODD_EASY_KM}
+ * away, normal within {@link NEAR_KM}, hard the nearest that is no
+ * neighbour (by centre); the nearest when there is none so placed. Null with fewer than three
+ * neighbours.
+ */
+export function oddOf(x: Country, deck: readonly Country[], pool: readonly Country[], difficulty: Difficulty, rng: () => number): { options: Country[]; right: number } | null {
+  const ids = new Set(deck.map((c) => c.id));
+  const near = neighboursIn(x, ids);
+  if (near.length < 3) return null;
+  const three = sample(deck.filter((c) => near.includes(c.id)), 3, rng);
+  // The odd one is no neighbour of X, and of none of the three either would be too hard to tell: only X counts.
+  const not = pool.filter((c) => c.id !== x.id && !near.includes(c.id));
+  if (!not.length) return null;
+  let odd: Country | undefined;
+  if (difficulty === "easy") odd = sample(not, 1, rng, (c) => apart(x, c) >= ODD_EASY_KM[0] && apart(x, c) <= ODD_EASY_KM[1])[0];
+  else if (difficulty === "normal") odd = sample(not, 1, rng, (c) => apart(x, c) <= NEAR_KM)[0];
+  odd ??= [...not].sort((a, b) => apart(x, a) - apart(x, b) || a.id.localeCompare(b.id))[0]!;
+  const options = shuffle([...three, odd], rng);
+  return { options, right: options.indexOf(odd) };
 }

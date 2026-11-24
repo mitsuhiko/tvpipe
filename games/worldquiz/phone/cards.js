@@ -36,6 +36,21 @@ export const ICONS = {
   gdp: '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="15" fill="#ffcf4a" stroke="#263450" stroke-width="3"/><path d="M24 14c-1-2-8-2-8 2s8 2 8 6-7 4-8 2M20 10v20" fill="none" stroke="#263450" stroke-width="2.6" stroke-linecap="round"/></svg>',
 };
 
+/** The icons of the newer kinds of challenge (§4.5–4.10), for the phone and the TV. */
+export const KIND_ICONS_MORE = {
+  pickflag:
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="5" width="15" height="11" rx="2" fill="#ef4444" stroke="#263450" stroke-width="2.5"/><rect x="22" y="5" width="15" height="11" rx="2" fill="#3b82f6" stroke="#263450" stroke-width="2.5"/><rect x="3" y="22" width="15" height="11" rx="2" fill="#22c55e" stroke="#263450" stroke-width="2.5"/><rect x="22" y="22" width="15" height="11" rx="2" fill="#ffcf4a" stroke="#263450" stroke-width="3.5"/><path d="M26 28l3 3 6-7" fill="none" stroke="#263450" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  shape:
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 10l9-4 6 5 9-1 2 9-5 5 2 8-9 2-5-5-7 2-3-9 4-5z" fill="#ff7a45" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><text x="20" y="25" text-anchor="middle" font-size="13" font-weight="900" fill="#fff" font-family="sans-serif">?</text></svg>',
+  bigger:
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="24" width="7" height="12" rx="1.5" fill="#a8dd8c" stroke="#263450" stroke-width="2.5"/><rect x="12" y="16" width="7" height="20" rx="1.5" fill="#f6d97b" stroke="#263450" stroke-width="2.5"/><rect x="21" y="6" width="7" height="30" rx="1.5" fill="#ff7a45" stroke="#263450" stroke-width="2.5"/><rect x="30" y="20" width="7" height="16" rx="1.5" fill="#c8b4ea" stroke="#263450" stroke-width="2.5"/></svg>',
+  guess:
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M4 26h32" stroke="#263450" stroke-width="4" stroke-linecap="round"/><path d="M4 26h18" stroke="#ff7a45" stroke-width="4" stroke-linecap="round"/><circle cx="22" cy="26" r="6" fill="#fff" stroke="#263450" stroke-width="3"/><path d="M15 6h14l-7 8z" fill="#ffcf4a" stroke="#263450" stroke-width="2.5" stroke-linejoin="round"/></svg>',
+  neighbour:
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M4 8h14l-2 10 3 14H4z" fill="#ff7a45" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M18 8h18v24H19l-3-14z" fill="#ffcf4a" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M24 16l4 4-4 4" fill="none" stroke="#263450" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  odd:
+    '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="11" cy="12" r="7" fill="#a8dd8c" stroke="#263450" stroke-width="2.5"/><circle cx="29" cy="12" r="7" fill="#a8dd8c" stroke="#263450" stroke-width="2.5"/><circle cx="11" cy="29" r="7" fill="#a8dd8c" stroke="#263450" stroke-width="2.5"/><rect x="22" y="22" width="14" height="14" rx="2" fill="#ef4444" stroke="#263450" stroke-width="2.5" transform="rotate(12 29 29)"/></svg>',
+};
 /** A little globe for the logo. */
 export const GLOBE =
   '<svg class="globe" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="#6cc7e8" stroke="#263450" stroke-width="4"/><path d="M9 12c5 0 6 4 10 4s3 5 0 7-1 6-4 9M26 6c-2 3 1 5 4 5s4 4 7 4M27 25c3 0 5 2 4 6" fill="none" stroke="#263450" stroke-width="3" stroke-linecap="round"/><path d="M9 12c5 0 6 4 10 4s3 5 0 7-1 6-4 9-8-6-9-10 0-8 3-10z" fill="#a8dd8c"/></svg>';

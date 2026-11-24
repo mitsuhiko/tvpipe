@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { test } from "node:test";
 
 import { landOf, type Countries, type Country, type Shapes } from "../game/data.ts";
+import { withViewBox } from "../scripts/flags.ts";
 
 const DATA = new URL("../data/", import.meta.url);
 const countries = (JSON.parse(readFileSync(new URL("countries.json", DATA), "utf8")) as Countries).countries;
@@ -154,6 +155,18 @@ test("names, capitals and answers (§3.4, §4.1)", () => {
   assert.ok(country("CI").aliases.en.includes("Côte d'Ivoire"));
   assert.ok(country("UA").capitalAliases.en.includes("Kiev"));
   assert.ok(country("UA").capitalAliases.de.includes("Kyjiw") || country("UA").capitals.de.includes("Kiew"));
+});
+
+test("a viewBox goes on flags without one (some browsers do not scale them)", () => {
+  assert.equal(withViewBox(`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect/></svg>`), `<svg viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect/></svg>`);
+  assert.equal(withViewBox(`<svg width="1e3px"\n height="500px" stroke-width="2">`), `<svg viewBox="0 0 1000 500" width="1e3px"\n height="500px" stroke-width="2">`);
+  const has = `<svg width="5" height="3" viewBox="0 0 5 3">`;
+  assert.equal(withViewBox(has), has);
+  assert.equal(withViewBox(`<svg width="100%">`), `<svg width="100%">`);
+});
+
+test("every flag has a viewBox", () => {
+  for (const c of countries) assert.match(readFileSync(new URL(`flags/${c.flag}`, DATA), "utf8"), /<svg\b[^>]*\sviewBox=/, c.id);
 });
 
 test("every flag file exists", () => {

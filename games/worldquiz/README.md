@@ -15,10 +15,15 @@ highest point, GDP per person).
   out, so everyone knows what is gone), then a random new country with a
   random kind of challenge for everyone, against the clock: type its
   **capital**, name the country from its **flag** (spelling forgiven,
-  but only toward one country), or **pin it** on the map (the closest
+  but only toward one country), **pin it** on the map (the closest
   wins; pins that are nearly as close tie; the answer shows the
-  country, every pin and a line from each to it). Nobody right: another
-  challenge, up to three.
+  country, every pin and a line from each to it), **pick its flag**
+  among 6 (9 on hard), **name the shape** (its outline on the map, no
+  names), pick **which is bigger** of four (people, area, height, GDP
+  per person), **guess a number** on a slider (closest by ratio),
+  **name a neighbour**, or pick the **odd one out** (of four, the one
+  that does not border a country). Nobody right: another challenge, up
+  to three.
 - **Next**: compared cards, the hands before a challenge and a
   challenge's answer stay on the TV until everyone has pressed Next on
   their phone, so there is time to learn; once someone has, the others
@@ -41,11 +46,11 @@ phones join with the QR code.
 | | | |
 |---|---|---|
 | `tvpipe.json` | the manifest | pages, 2–10 players, the TV's size; `root: dist` |
-| `game/` | the rules (`rules.ts`: the deck and its pile, ranks, comparing, pins), reading answers (`answer.ts`), distances on the globe (`geo.ts`), the data's types (`data.ts`), the game (`game.ts`), bots (`bots.ts`) | TypeScript on `@tvpipe/party`, tested in Node |
+| `game/` | the rules (`rules.ts`: the deck and its pile, ranks, comparing, pins), reading answers (`answer.ts`), distances on the globe (`geo.ts`), a flag's colours (`flagcolours.ts`: its SVG drawn on a grid, for look-alike flags), the data's types (`data.ts`), the game (`game.ts`), bots (`bots.ts`) | TypeScript on `@tvpipe/party`, tested in Node |
 | `host/` | the host page | tvpipe's standard host page (`HostPage`) with Worldquiz's settings |
 | `screen/` | the TV page | the map (`map.js`: a cartoon world on a canvas, flat Mercator or globe, shared with the phones), the stages, the planes' trip, sounds; `strings.js` |
 | `phone/` | the phone page | joining, the lobby (the VIP's settings), one's card, the captain's choice, answers (a field, or the map to pin on), results; the shared look (`toy.css`, `cards.js`) |
-| `data/` | the cards (`countries.json`), the land (`shapes.json`), the flags | written by `node scripts/data.ts` from Wikidata, the World Bank, Natural Earth and Wikipedia with the decisions in `data/decisions.txt`; see `CREDITS.md` |
+| `data/` | the cards (`countries.json`), the land (`shapes.json`), the flags, their colours (`colours.json`) | written by `node scripts/data.ts` from Wikidata, the World Bank, Natural Earth and Wikipedia with the decisions in `data/decisions.txt` (see `CREDITS.md`); `colours.json` by `node scripts/colours.ts` from the flags |
 
 ## Running it
 
@@ -61,9 +66,12 @@ first player is the VIP and starts the game from their phone once two
 are in (or the host page's Start). Settings (the host page, or the VIP's
 phone in the lobby): the game (with cards, or questions only: a
 challenge for everyone every round, no cards), rounds (15, 30, 45),
-difficulty (easy, normal, hard: 90, 60 or 30 s to answer, how well known the challenges'
-countries are, how close a pin must be, borders on the phone's map or
-only coasts), the TV's map (flat or globe; every phone picks its own),
+difficulty (easy, normal, hard: 90, 60 or 30 s to answer, how close a
+pin or a guess must be, 6 or 9 flags to pick from, how alike the wrong
+choices are, borders on the phone's map or only coasts), the countries
+asked (the 80 or 150 best known, or all; the cards are always all),
+the kinds of challenge in the mix (all by default, at least one), the
+TV's map (flat or globe; every phone picks its own),
 and the disputed states (Kosovo, Palestine, Taiwan and Western Sahara as
 cards; off, their land is nobody's and they are nobody's neighbours);
 on the host page only, the language and latecomers.
@@ -73,8 +81,10 @@ on the host page only, the language and latecomers.
 ```sh
 npm run check && npm test          # types; the rules, answers, distances, the data, whole games with bots in Node
 node scripts/data.ts --check       # the data is what the sources and decisions make (needs .cache/, from a run)
+node scripts/colours.ts --check    # data/colours.json is what the flags give (npm test checks it too)
 node test/live/play.ts             # a live game: tvpipe, headless Chrome, a phone, bots; screenshots in /tmp/worldquiz-play
 node test/live/play.ts --lang de --map globe --bots 6
+node test/live/play.ts --mode quiz --difficulty hard --kinds pickflag,shape,bigger,guess,neighbour,odd
 node test/live/play.ts --bots 3 --shots ../../site/static/games/worldquiz   # the games list's pictures
 ```
 
@@ -83,7 +93,8 @@ in its URL or with `tvpipe game play --dev` (`?fast` there shortens
 every timer), and the live check adds them through `worldquiz.addBots`.
 As captain they compete with their best number or challenge; they
 answer right some of the time (the host page knows the answer), with a
-typo now and then, and drop pins near the country or anywhere.
+typo now and then, drop pins near the country or anywhere, pick an
+option, and guess near the number or anywhere on the slider.
 
 ## Languages
 
