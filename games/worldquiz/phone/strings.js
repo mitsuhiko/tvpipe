@@ -43,9 +43,9 @@ export function strings(lang) {
       difficultyLabel: "Schwierigkeit",
       levels: { easy: "leicht", normal: "normal", hard: "schwer" },
       levelLine: {
-        easy: "25 s pro Frage, nur bekannte Länder, Grenzen auf der Karte.",
-        normal: "15 s pro Frage, die 150 bekanntesten Länder.",
-        hard: "10 s pro Frage, alle Länder, nur Küsten auf der Karte.",
+        easy: "90 s pro Frage, nur bekannte Länder, Grenzen auf der Karte.",
+        normal: "60 s pro Frage, die 150 bekanntesten Länder.",
+        hard: "30 s pro Frage, alle Länder, nur Küsten auf der Karte.",
       },
       disputedLabel: "Umstrittene Staaten",
       off: "aus",
@@ -98,8 +98,10 @@ export function strings(lang) {
       whichCountry: "Welches Land?",
       whereIs: "Wo liegt",
       tapMap: "Tippe auf die Karte für deine Nadel.",
-      lock: "Abgeben",
-      locked: "Abgegeben ✓",
+      lock: "Fertig",
+      locked: "Fertig ✓",
+      pinCounts: "Deine Nadel zählt, wenn die Zeit um ist. Fertig? Dann tippe auf „Fertig“.",
+      textCounts: "Deine Antwort zählt, wenn die Zeit um ist.",
       lockedWait: "Warte auf die anderen …",
       zoomIn: "Hineinzoomen",
       zoomOut: "Herauszoomen",
@@ -122,6 +124,8 @@ export function strings(lang) {
       next: "Weiter",
       /** @param {string[]} names */
       nextWait: (names) => (names.length ? `Warte auf ${names.join(", ")} …` : "Gleich geht's weiter …"),
+      /** @param {number} s */
+      nextIn: (s) => `Weiter in ${s} s`,
       errors: /** @type {Record<string, string>} */ ({
         "not-vip": "Das darf nur der VIP.",
         running: "Das Spiel läuft gerade.",
@@ -165,9 +169,9 @@ export function strings(lang) {
     difficultyLabel: "Difficulty",
     levels: { easy: "easy", normal: "normal", hard: "hard" },
     levelLine: {
-      easy: "25 s per question, well-known countries only, borders on the map.",
-      normal: "15 s per question, the 150 best-known countries.",
-      hard: "10 s per question, every country, only coastlines on the map.",
+      easy: "90 s per question, well-known countries only, borders on the map.",
+      normal: "60 s per question, the 150 best-known countries.",
+      hard: "30 s per question, every country, only coastlines on the map.",
     },
     disputedLabel: "Disputed states",
     off: "off",
@@ -220,8 +224,10 @@ export function strings(lang) {
     whichCountry: "Which country?",
     whereIs: "Where is",
     tapMap: "Tap the map to drop your pin.",
-    lock: "Lock in",
-    locked: "Locked in ✓",
+    lock: "Done",
+    locked: "Done ✓",
+    pinCounts: "Your pin counts when time is up. Sure? Tap Done.",
+    textCounts: "Your answer counts when time is up.",
     lockedWait: "Waiting for the others …",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
@@ -244,6 +250,8 @@ export function strings(lang) {
     next: "Next",
     /** @param {string[]} names */
     nextWait: (names) => (names.length ? `Waiting for ${names.join(", ")} …` : "Here we go …"),
+    /** @param {number} s */
+    nextIn: (s) => `Going on in ${s} s`,
     errors: /** @type {Record<string, string>} */ ({
       "not-vip": "Only the VIP can do that.",
       running: "The game is on.",

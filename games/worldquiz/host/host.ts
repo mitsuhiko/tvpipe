@@ -37,7 +37,7 @@ function settings(game: Worldquiz): Field[] {
       key: "difficulty",
       type: "buttons",
       label: { en: "Difficulty", de: "Schwierigkeit" },
-      hint: { en: "Time to answer (25, 15, 10 s), how well known the challenges' countries are, how close a pin must be.", de: "Zeit zum Antworten (25, 15, 10 s), wie bekannt die Länder der Herausforderungen sind, wie nah eine Nadel sein muss." },
+      hint: { en: "Time to answer (90, 60, 30 s), how well known the challenges' countries are, how close a pin must be.", de: "Zeit zum Antworten (90, 60, 30 s), wie bekannt die Länder der Herausforderungen sind, wie nah eine Nadel sein muss." },
       choices: [
         { value: "easy", label: { en: "easy", de: "leicht" } },
         { value: "normal", label: { en: "normal", de: "normal" } },

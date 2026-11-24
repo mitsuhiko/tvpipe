@@ -9,7 +9,7 @@ import { Worldquiz, type Settings, type Timings } from "../game/game.ts";
 import { seeded } from "../game/rules.ts";
 import { COUNTRIES, LAND } from "./world.ts";
 
-const fast: Timings = { choose: 300, competeIntro: 5, competeCard: 5, competeEnd: 5, discard: 5, announce: 5, reveal: 5, revealWhere: 5, next: 10_000, answer: 0.4 };
+const fast: Timings = { choose: 300, competeIntro: 5, competeCard: 5, competeEnd: 5, discard: 5, announce: 5, reveal: 5, revealWhere: 5, next: 10_000, nextCountdown: 2000, answer: 0.4 };
 
 interface Opts {
   settings?: Partial<Settings>;
@@ -170,15 +170,17 @@ test("the disputed option puts the disputed states in the deck and counts them a
 });
 
 test("nobody answers: three challenges, then the round ends without steps", async () => {
-  const { g, players, screens, close } = await game(2, { silent: 2, timings: { choose: 30, answer: 0.05, next: 5 }, settings: { rounds: 15 } });
+  const { g, players, screens, close } = await game(2, { silent: 2, timings: { choose: 30, answer: 0.05, next: 5, nextCountdown: 1 }, settings: { rounds: 15 } });
   try {
     await new Promise((r) => setTimeout(r, 20));
     const end = new Promise((r) => g.once("end", r));
     void g.play();
     await end;
-    const answers = screens.filter((s) => s["stage"] === "answer" && !s["tiebreak"]);
+    // One per answer shown (its countdown changes the screen again).
+    const shown = [...new Map(screens.filter((s) => s["stage"] === "answer").map((s) => [s["next"], s])).values()];
+    const answers = shown.filter((s) => !s["tiebreak"]);
     // Both at 0 at the end: a tie-break of up to three pins, which nobody drops either.
-    assert.equal(screens.filter((s) => s["stage"] === "answer" && s["tiebreak"]).length, 3);
+    assert.equal(shown.filter((s) => s["tiebreak"]).length, 3);
     // Every round: three tries, each with no winner.
     assert.equal(answers.length, 16 * 3);
     assert.ok(answers.every((s) => s["winners"].length === 0));
@@ -223,7 +225,7 @@ test("German: the cards and the questions are German only", async () => {
 });
 
 test("phones that drop out and come back while a game runs", async () => {
-  const { g, players, close } = await game(4, { timings: { next: 300 } });
+  const { g, players, close } = await game(4, { timings: { next: 300, nextCountdown: 100 } });
   try {
     const end = new Promise((r) => g.once("end", r));
     const chaos = dropOuts(players.map((b) => b.client), { rng: seeded(5), every: 50, away: [0, 200] });
@@ -280,6 +282,78 @@ test("cards and answers stay until everyone has pressed Next", async () => {
       await lazy.client.act("next", { key: me.next });
       await until(() => party.room.peek()["next"] !== room["next"]);
     }
+    g.close();
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("someone pressed Next: the others get a countdown, then the game goes on", async () => {
+  const { g, party, players, close } = await game(3, { lazy: 1, competes: 0.5, timings: { next: 60_000, nextCountdown: 150 } });
+  const until = async (what: () => boolean, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (!what()) {
+      if (Date.now() > end) throw new Error("timed out");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  };
+  try {
+    await players[0]!.client.act("start");
+    for (let i = 0; i < 3; i++) {
+      await until(() => typeof party.room.peek()["next"] === "string" && g.stage !== "draw");
+      const room = party.room.peek() as Record<string, any>;
+      await until(() => typeof party.room.peek()["nextBy"] === "number");
+      const by = party.room.peek()["nextBy"] as number;
+      assert.ok(by > party.now() - 50);
+      assert.equal(party.screen.peek()["nextBy"], by);
+      // The lazy one never presses: the stage ends with the countdown.
+      await until(() => party.room.peek()["next"] !== room["next"]);
+      assert.ok(party.now() >= by - 20);
+    }
+    g.close();
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("nobody presses Next: the countdown starts by itself", async () => {
+  const { g, party, players, close } = await game(2, { lazy: 2, competes: 0.5, timings: { next: 200, nextCountdown: 100 } });
+  try {
+    void g.play();
+    const end = Date.now() + 3000;
+    while (!(typeof party.room.peek()["next"] === "string" && typeof party.room.peek()["nextBy"] === "number")) {
+      if (Date.now() > end) throw new Error("timed out");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    g.close();
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("the captain's choice has no time limit; a captain who leaves makes it a challenge", async () => {
+  const { g, party, players, close } = await game(3, { silent: 1, timings: { choose: null, nextCountdown: 20 } });
+  const until = async (what: () => boolean, ms = 5000) => {
+    const end = Date.now() + ms;
+    while (!what()) {
+      if (Date.now() > end) throw new Error("timed out");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  };
+  try {
+    const mute = players[2]!;
+    const muteId = mute.client.you!.id;
+    await players[0]!.client.act("start");
+    await until(() => g.stage === "draw" && party.room.peek()["captain"] === muteId);
+    assert.equal(party.room.peek()["deadline"], null);
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal(g.stage, "draw");
+    party.kick(party.player(muteId)!);
+    await until(() => g.stage !== "draw");
+    assert.ok(["discard", "challenge"].includes(g.stage ?? ""), String(g.stage));
     g.close();
   } finally {
     for (const b of players) b.close();

@@ -74,12 +74,13 @@ import {
  * The game's clock (ms). What shows cards or an answer (a compete, the
  * hands before a challenge, a challenge's answer) waits for every player
  * to press Next, so there is time to learn; its timing is only how long
- * before Next counts (the TV's animation), and `next` how long a game
- * waits at most for a phone that never presses.
+ * before Next counts (the TV's animation). Once someone has pressed, the
+ * others get a countdown (`nextCountdown`); nobody pressing, it starts
+ * anyway so that the wait ends `next` after the stage opened.
  */
 export interface Timings {
-  /** The captain's choice. */
-  choose: number;
+  /** The captain's choice (null: no limit, the room waits; the captain leaving is a challenge). */
+  choose: number | null;
   /** Compete: before the first card. */
   competeIntro: number;
   /** Compete: each card. */
@@ -94,14 +95,16 @@ export interface Timings {
   reveal: number;
   /** The answer, at least (where: the lines to the country are drawn). */
   revealWhere: number;
-  /** The longest wait for everyone's Next. */
+  /** The longest wait for everyone's Next, the countdown included. */
   next: number;
+  /** The countdown for those who have not pressed Next yet. */
+  nextCountdown: number;
   /** Seconds to answer, by difficulty (null: the level's). */
   answer: number | null;
 }
 
 export const DEFAULT_TIMINGS: Timings = {
-  choose: 20_000,
+  choose: null,
   competeIntro: 2500,
   competeCard: 1700,
   competeEnd: 2000,
@@ -109,13 +112,14 @@ export const DEFAULT_TIMINGS: Timings = {
   announce: 2500,
   reveal: 1500,
   revealWhere: 3500,
-  next: 180_000,
+  next: 90_000,
+  nextCountdown: 15_000,
   answer: null,
 };
 
 /** For trying the game: everything short. */
 export const FAST_TIMINGS: Timings = {
-  choose: 8000,
+  choose: null,
   competeIntro: 1200,
   competeCard: 700,
   competeEnd: 1000,
@@ -123,7 +127,8 @@ export const FAST_TIMINGS: Timings = {
   announce: 1200,
   reveal: 800,
   revealWhere: 1500,
-  next: 60_000,
+  next: 20_000,
+  nextCountdown: 5000,
   answer: 8,
 };
 
@@ -195,6 +200,8 @@ interface NextWait {
   key: string;
   who: string[];
   ready: Set<string>;
+  /** When the countdown ends (the party's clock), once it runs. */
+  by: number | null;
   wake: () => void;
 }
 
@@ -348,6 +355,8 @@ export class Worldquiz extends Emitter<GameEvents> {
       else p.state.replace({ task: "wait", color: this.colorOf(p.id) });
     });
     party.on("leave", (p) => {
+      // A captain who left cannot choose: a challenge.
+      if (this.#choice && this.#stage === "draw" && p.id === this.#captain) this.#choice({ challenge: true });
       this.#colors.delete(p.id);
       this.#colorsChanged();
       this.#challenge?.wake();
@@ -576,7 +585,7 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#hands = new Map(players.map((p) => [p.id, deck.draw()]));
     this.#captain = captainFor(n, this.#seats, (id) => !!party.player(id)?.connected && this.#hands.has(id));
     const captain = this.#captain!;
-    const deadline = party.deadline(this.timings.choose);
+    const deadline = this.timings.choose === null ? null : party.deadline(this.timings.choose);
     this.#chooseKey = `${this.#game}:${n}`;
     const choice = new Promise<{ fact?: Fact; challenge?: boolean }>((resolve) => {
       this.#choice = resolve;
@@ -591,8 +600,12 @@ export class Worldquiz extends Emitter<GameEvents> {
         else p.state.replace({ task: "wait", color: this.colorOf(p.id) });
       }
     });
-    const timeout = this.#sleep(Math.max(0, deadline - party.now()) + 300, signal).then((): { fact?: Fact; challenge?: boolean } => ({ challenge: true }));
-    const chosen = await Promise.race([choice, timeout]);
+    // No choice in time (with a limit), or the game ends: a challenge (unplayed when it ended).
+    const timeout =
+      deadline === null
+        ? new Promise<void>((resolve) => (signal.aborted ? resolve() : signal.addEventListener("abort", () => resolve(), { once: true })))
+        : this.#sleep(Math.max(0, deadline - party.now()) + 300, signal);
+    const chosen = await Promise.race([choice, timeout.then((): { fact?: Fact; challenge?: boolean } => ({ challenge: true }))]);
     this.#choice = undefined;
     if (signal.aborted) return;
     if (chosen.fact) await this.#compete(chosen.fact, signal);
@@ -832,14 +845,14 @@ export class Worldquiz extends Emitter<GameEvents> {
 
   /** Asks `who` for Next (their views carry its key). */
   #openNext(who: string[]): NextWait {
-    const nx: NextWait = { key: `${this.#game}:${this.#roundNo}:next${++this.#nextNo}`, who, ready: new Set(), wake: () => {} };
+    const nx: NextWait = { key: `${this.#game}:${this.#roundNo}:next${++this.#nextNo}`, who, ready: new Set(), by: null, wake: () => {} };
     this.#next = nx;
     return nx;
   }
 
-  /** What the room and the TV show of a wait for Next: its key, who was asked, who pressed. */
+  /** What the room and the TV show of a wait for Next: its key, who was asked, who pressed, the countdown's end. */
   #nextView(nx: NextWait): Record<string, unknown> {
-    return { next: nx.key, nextFor: nx.who, ready: nx.who.filter((id) => nx.ready.has(id)) };
+    return { next: nx.key, nextFor: nx.who, ready: nx.who.filter((id) => nx.ready.has(id)), nextBy: nx.by };
   }
 
   /** Those asked who are still there and have not pressed. */
@@ -847,25 +860,43 @@ export class Worldquiz extends Emitter<GameEvents> {
     return nx.who.filter((id) => !nx.ready.has(id) && !!this.party.player(id)?.connected);
   }
 
-  /** Waits at least `minMs` (the TV's animation), then until everyone asked who is there pressed Next (at most `timings.next`). */
+  /**
+   * Waits at least `minMs` (the TV's animation), then until everyone asked
+   * who is there pressed Next, or until the countdown ends: it starts when
+   * the first one presses (for the others), or else `timings.next` after
+   * the stage opened, less the countdown.
+   */
   async #awaitNext(nx: NextWait, minMs: number, signal: AbortSignal): Promise<void> {
+    const party = this.party;
+    const shownAt = party.now() + minMs;
     await new Promise<void>((resolve) => {
       let shown = false;
+      let end: ReturnType<typeof setTimeout> | undefined;
       const done = () => {
         clearTimeout(min);
-        clearTimeout(max);
+        clearTimeout(late);
+        clearTimeout(end);
         signal.removeEventListener("abort", done);
         nx.wake = () => {};
         resolve();
       };
+      const countdown = () => {
+        if (nx.by !== null) return;
+        const ms = this.timings.nextCountdown;
+        nx.by = party.deadline(Math.max(0, shownAt - party.now()) + ms);
+        party.room.set({ nextBy: nx.by });
+        party.screen.set({ nextBy: nx.by });
+        end = setTimeout(done, Math.max(0, nx.by - party.now()));
+      };
       nx.wake = () => {
+        if (nx.ready.size > 0) countdown();
         if (shown && this.#notReady(nx).length === 0) done();
       };
       const min = setTimeout(() => {
         shown = true;
         nx.wake();
       }, minMs);
-      const max = setTimeout(done, Math.max(minMs, this.timings.next));
+      const late = setTimeout(countdown, Math.max(minMs, this.timings.next - this.timings.nextCountdown));
       if (signal.aborted) done();
       else signal.addEventListener("abort", done, { once: true });
     });

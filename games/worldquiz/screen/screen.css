@@ -32,6 +32,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 #hud .clock.low { background: #ef4444; color: #fff; box-shadow: 0 .5rem 0 #b83030, 0 .8rem 1.4rem rgba(10, 20, 50, .3); animation: throb .5s ease-in-out infinite alternate; }
 @keyframes throb { to { transform: scale(1.08); } }
 #hud .nextbar { margin-left: auto; display: flex; align-items: center; gap: 1.2rem; background: #fff; border-radius: 3rem; padding: .6rem .8rem .6rem 1.8rem; box-shadow: 0 .5rem 0 #d3dae6, 0 .8rem 1.4rem rgba(10, 20, 50, .3); animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both; }
+#hud .nextbar + .clock { margin-left: 0; }
 #hud .nextbar .nl { font: 900 2rem/1 var(--font); white-space: nowrap; }
 #hud .nextbar .nl small { font: 2rem/1 var(--hand); margin-left: .8rem; opacity: .8; }
 #hud .nextbar .nd { display: flex; gap: .4rem; }

@@ -21,7 +21,8 @@ highest point, GDP per person).
   challenge, up to three.
 - **Next**: compared cards, the hands before a challenge and a
   challenge's answer stay on the TV until everyone has pressed Next on
-  their phone, so there is time to learn.
+  their phone, so there is time to learn; once someone has, the others
+  get a 15 s countdown (shown on the TV and the phones).
 - **Ranks are secret** until a card is shown: a hand has its numbers,
   not how they rank; compared and discarded cards show "#3", and a gold
   badge in the top ten.
@@ -59,7 +60,7 @@ Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once two
 are in (or the host page's Start). Settings (the host page, or the VIP's
 phone in the lobby): rounds (15, 30, 45), difficulty (easy, normal,
-hard: 25, 15 or 10 s to answer, how well known the challenges'
+hard: 90, 60 or 30 s to answer, how well known the challenges'
 countries are, how close a pin must be, borders on the phone's map or
 only coasts), the TV's map (flat or globe; every phone picks its own),
 and the disputed states (Kosovo, Palestine, Taiwan and Western Sahara as

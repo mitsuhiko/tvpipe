@@ -47,8 +47,8 @@ the camera flies over, cards like postcards, chunky toy buttons.
 
 ```
 draw ─▶ captain chooses ─▶ compete:   reveal ─▶ steps ─▶ Next
-         ≤ 20 s            challenge: hands shown ─▶ Next ─▶ question ─▶ answers ─▶ reveal ─▶ steps ─▶ Next
-                                                              15 s (normal)
+         no limit          challenge: hands shown ─▶ Next ─▶ question ─▶ answers ─▶ reveal ─▶ steps ─▶ Next
+                                                              60 s (normal)
 ```
 
 **Next.** What shows cards or an answer (a compete, the hands before a
@@ -57,8 +57,10 @@ Next on the phone, not for a fixed time: the point of the game is
 learning where countries are and how big, and people read at their own
 pace. Next counts once the TV's animation has played; the TV shows who
 is still reading (their dots, top right), the phone whom it waits for.
-A phone that drops out is not waited for; a phone left in a pocket is,
-for at most three minutes.
+Once someone has pressed Next, the others get a 15 s countdown (the TV's
+clock and the phones), then the game goes on by itself; nobody pressing,
+the countdown starts 75 s after the stage opened. A phone that drops out
+is not waited for.
 
 1. **Draw.** Everyone draws a card at the same time, the captain and
    everyone else, and everyone sees their own card at once. The phone
@@ -70,7 +72,8 @@ for at most three minutes.
 2. **The captain** (in turn, one player a round) chooses on the phone:
    - **Compete** with one of the five numbers, or
    - **Challenge**.
-   After 20 s without a choice it is a challenge.
+   There is no time limit: the room waits (talking it over is part of
+   the game). A captain who leaves the game makes it a challenge.
 3. **Compete.** Only now does every card turn over, the captain's too:
    the TV shows them all, sorted by the number, and flies the map from
    country to country. The highest number wins one step; equal highest
@@ -257,8 +260,10 @@ in a German game is knowing it).
 
 ## 4. Challenges
 
-Time: 25 s easy, 15 s normal, 10 s hard. A phone can lock its answer in
-early; the challenge ends when everyone has, or at the deadline.
+Time: 90 s easy, 60 s normal, 30 s hard. What a phone has typed or
+pinned counts at the deadline without being sent; Done locks it in
+early, and the challenge ends when everyone has (the phone says so once
+there is an answer, so nobody thinks they must press).
 
 ### 4.1 Capital
 
@@ -341,7 +346,7 @@ shuffled per game, so the file name gives nothing away).
 
 | | easy | normal | hard |
 |---|---|---|---|
-| answer time | 25 s | 15 s | 10 s |
+| answer time | 90 s | 60 s | 30 s |
 | challenge countries | the ~80 best known | the ~150 best known | all |
 | location: max distance | 3,000 km | 1,500 km | 800 km |
 | location: borders shown | yes | yes | coastlines only |

@@ -198,7 +198,8 @@ setInterval(tickClock, 200);
 // ---------------------------------------------------------------------------
 // The trip: every player's plane on a dotted route along the bottom.
 
-const PLANE = "M2 13l7-1 6-9h3l-3 9 6-.5 2-3h2l-1 4.5 1 4.5h-2l-2-3-6-.5 3 9h-3l-6-9-7-1z";
+/** A plane flying right, along the route. */
+const PLANE = "M24 13l-7-1-6-9h-3l3 9-6-.5-2-3h-2l1 4.5-1 4.5h2l2-3 6-.5-3 9h3l6-9 7-1z";
 /** @type {Map<string, HTMLElement>} */
 const planes = new Map();
 const route = h("div", { class: "route" });
@@ -272,6 +273,8 @@ function render(view) {
   document.body.dataset["map"] = sc.map === "globe" ? "globe" : "flat";
   roundLabel.textContent = sc.phase === "round" ? t.round(sc.round ?? 1, sc.rounds ?? 1) : "";
   deadline = typeof sc.deadline === "number" && (sc.stage === "draw" || sc.stage === "challenge") ? sc.deadline : null;
+  // The countdown of a wait for Next (game/game.ts): it goes on by itself.
+  if (sc.phase === "round" && sc.next && typeof sc.nextBy === "number") deadline = sc.nextBy;
   tickClock();
   const key = keyOf(sc);
   if (!scene || key !== scene.key || relang) {

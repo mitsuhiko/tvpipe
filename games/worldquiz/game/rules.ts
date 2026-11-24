@@ -46,9 +46,9 @@ export interface Level {
 }
 
 export const LEVELS: Record<Difficulty, Level> = {
-  easy: { answer: 25, known: 80, maxKm: 3000, borders: true },
-  normal: { answer: 15, known: 150, maxKm: 1500, borders: true },
-  hard: { answer: 10, known: Infinity, maxKm: 800, borders: false },
+  easy: { answer: 90, known: 80, maxKm: 3000, borders: true },
+  normal: { answer: 60, known: 150, maxKm: 1500, borders: true },
+  hard: { answer: 30, known: Infinity, maxKm: 800, borders: false },
 };
 
 /** A strong number: in the top this many of the deck. */

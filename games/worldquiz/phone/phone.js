@@ -638,7 +638,7 @@ function cardScreen(me, room) {
     el.querySelector(".facts")?.replaceWith(h("div", { class: "choices" }, ...buttons));
   }
   const top = me.captain
-    ? h("section", { class: "panel pop captain" }, h("h1", { "data-fit": "1" }, t.captainTitle), clock(me.deadline ?? 0), err)
+    ? h("section", { class: "panel pop captain" }, h("h1", { "data-fit": "1" }, t.captainTitle), me.deadline ? clock(me.deadline) : null, err)
     : h("section", { class: "panel pop waiting" }, h("p", { class: "big", "data-fit": "2" }, t.chooses(nameOf(room.captain))), h("p", { class: "note" }, t.choosesHint), me.deadline ? clock(me.deadline) : null);
   const cardPane = h("div", { class: "pane" }, map.el, h("div", { class: `cardwrap${me.captain ? " choosing" : ""}` }, el));
   const gonePane = h("div", { class: "pane" });
@@ -751,7 +751,20 @@ function nextRow(me) {
       h("span", { html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4l9 8-9 8z"/></svg>' }),
     )
   );
-  const row = h("div", { class: "nextrow" }, status, btn, err);
+  const count = h("p", { class: "count" });
+  const row = h("div", { class: "nextrow" }, status, count, btn, err);
+  // The countdown (once someone pressed, or the wait is long): the stage goes on by itself.
+  const tick = () => {
+    const by = V().room?.nextBy;
+    const s = typeof by === "number" ? Math.max(0, Math.ceil((by - client.now()) / 1000)) : null;
+    count.hidden = s === null;
+    if (s !== null) {
+      count.textContent = t.nextIn(s);
+      count.classList.toggle("low", s <= 5);
+    }
+  };
+  const timer = setInterval(tick, 250);
+  cleanups.push(() => clearInterval(timer));
   refresh = () => {
     const v = V();
     const done = !!v.me?.ready || v.me?.next !== key;
@@ -763,6 +776,7 @@ function nextRow(me) {
     const waiting = (room.nextFor ?? []).filter((/** @type {string} */ id) => !ready.has(id) && connected.has(id) && id !== myId()).map(nameOf);
     status.textContent = done ? t.nextWait(waiting) : "";
     status.hidden = !done;
+    tick();
   };
   return row;
 }
@@ -905,6 +919,7 @@ function answerScreen(me, room) {
       draft.text = field.value.slice(0, MAX_ANSWER);
       err.textContent = "";
       sendDraft();
+      refresh?.();
     });
     const head =
       kind === "capital"
@@ -926,7 +941,9 @@ function answerScreen(me, room) {
     lock.classList.toggle("done", done);
     if (input) input.disabled = done;
     if (done && input && document.activeElement === input) input.blur();
-    status.textContent = done ? t.lockedWait : kind === "where" && draft.lon === undefined ? t.tapMap : "";
+    // A pin or a typed answer counts at the deadline; Done only ends it early.
+    const has = kind === "where" ? draft.lon !== undefined : !!(draft.text ?? "").trim();
+    status.textContent = done ? t.lockedWait : !has ? (kind === "where" ? t.tapMap : "") : kind === "where" ? t.pinCounts : t.textCounts;
     document.body.classList.toggle("locked", done);
   };
   void room;
@@ -1067,11 +1084,11 @@ function fakeView(name) {
   const views = {
     lobby: () => ({ room: { ...room, phase: "lobby", round: 0, rounds: 15 }, me: { task: "lobby", steps: 0 } }),
     wait: () => ({ me: { task: "wait" } }),
-    card: () => ({ room: { ...room, stage: "draw", deadline: now + 18000, gone }, me: { task: "card", steps: 2, card: germany, captain: false, deadline: now + 18000, key: "1:3" } }),
-    captain: () => ({ room: { ...room, captain: "me", stage: "draw", deadline: now + 18000, gone }, me: { task: "card", steps: 2, card: germany, captain: true, deadline: now + 18000, key: "1:3" } }),
+    card: () => ({ room: { ...room, stage: "draw", gone }, me: { task: "card", steps: 2, card: germany, captain: false, key: "1:3" } }),
+    captain: () => ({ room: { ...room, captain: "me", stage: "draw", gone }, me: { task: "card", steps: 2, card: germany, captain: true, key: "1:3" } }),
     gone: () => {
       tab = { key: "1:3", gone: true };
-      return { room: { ...room, stage: "draw", deadline: now + 18000, gone }, me: { task: "card", steps: 2, card: germany, captain: false, deadline: now + 18000, key: "1:3" } };
+      return { room: { ...room, stage: "draw", gone }, me: { task: "card", steps: 2, card: germany, captain: false, key: "1:3" } };
     },
     compete: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "compete", fact: "neighbours" }, me: { task: "compete", steps: 3, card: ranked, fact: "neighbours", place: 1, of: 4, won: true, winners: ["Phil"], next: "k" } }),
     discard: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "discard" }, me: { task: "watch", what: "discard", steps: 2, card: ranked, next: "k" } }),
@@ -1084,7 +1101,7 @@ function fakeView(name) {
       drafts.set("c4", { lon: 17.5, lat: 44.2 });
       return { room: { ...room, stage: "challenge", kind: "where", deadline: now + 9000 }, me: { task: "answer", key: "c4", kind: "where", question: { name: "Nigeria" }, deadline: now + 9000, borders: true, locked: true, steps: 2 } };
     },
-    right: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "capital" }, me: { task: "result", kind: "capital", right: true, solution: nigeria, mine: { pid: "me", text: "abuya", as: "Abuja", right: true }, winners: ["Phil", "Ada"], steps: 3, again: false, next: "k" } }),
+    right: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], nextBy: now + 12000, stage: "answer", kind: "capital" }, me: { task: "result", kind: "capital", right: true, solution: nigeria, mine: { pid: "me", text: "abuya", as: "Abuja", right: true }, winners: ["Phil", "Ada"], steps: 3, again: false, next: "k" } }),
     wrong: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "flag" }, me: { task: "result", kind: "flag", right: false, solution: nigeria, mine: { pid: "me", text: "Niger", as: "Niger", right: false }, winners: [], steps: 2, again: true, next: "k" } }),
     "result-where": () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: { pid: "me", lon: 1.5, lat: 12.4, km: 310, to: [3.6, 11.7], right: false }, winners: ["Bartholomew"], steps: 2, again: false, next: "k" } }),
     again: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: null, winners: [], steps: 2, again: true, next: "k" } }),
