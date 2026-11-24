@@ -16,8 +16,12 @@ highest point, GDP per person).
   random kind of challenge for everyone, against the clock: type its
   **capital**, name the country from its **flag** (spelling forgiven,
   but only toward one country), or **pin it** on the map (the closest
-  wins; pins that are nearly as close tie). Nobody right: another
+  wins; pins that are nearly as close tie; the answer shows the
+  country, every pin and a line from each to it). Nobody right: another
   challenge, up to three.
+- **Next**: compared cards, the hands before a challenge and a
+  challenge's answer stay on the TV until everyone has pressed Next on
+  their phone, so there is time to learn.
 - **Ranks are secret** until a card is shown: a hand has its numbers,
   not how they rank; compared and discarded cards show "#3", and a gold
   badge in the top ten.

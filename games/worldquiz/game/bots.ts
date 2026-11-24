@@ -6,7 +6,7 @@
  *
  * As captain a bot competes with its card's best-ranked number or calls
  * a challenge; in a challenge it types an answer (sometimes with a typo)
- * or drops a pin. With an `oracle` (the host's: the challenge's country)
+ * or drops a pin; it presses Next after a think. With an `oracle` (the host's: the challenge's country)
  * it knows the answer `sharp` of the time; without one it guesses.
  */
 
@@ -145,6 +145,12 @@ export class Bot {
             ["not-now", "too-late", "locked"],
           );
         }
+        return;
+      case "compete":
+      case "watch":
+      case "result":
+        // Next, once it has had a look.
+        if (me.next && !me.ready) this.#once(`next:${me.next}`, () => c.act("next", { key: me.next }), ["not-now"]);
         return;
     }
   }

@@ -19,11 +19,14 @@
  * - `player.state` (one phone): `{ task, color, steps, … }`; `task` one of `lobby`, `wait` (a late joiner),
  *   `card` (one's card (`card`), `captain`, `deadline`, `chose`), `compete` (`card`, `fact`, `place`, `won`),
  *   `watch` (the TV has the stage: `what`, `card`), `answer` (`kind`, `question`, `deadline`, `locked`,
- *   `draft`, `borders`), `result` (`kind`, `right`, `solution`, `mine`), `final` (`place`, `of`, `won`).
+ *   `draft`, `borders`), `result` (`kind`, `right`, `solution`, `mine`), `final` (`place`, `of`, `won`);
+ *   `compete`, `watch` (the discard) and `result` carry `next` (the key to press Next with) and `ready`.
  * - `party.screen` (the TV): `{ phase, lang, colors, round, rounds, map, players, gone, left, stage?, … }`:
  *   `draw` (`captain`, `hands`: who holds a card, never which), `compete` (`fact`, `cards` with their
  *   values, `order`, `winners`), `discard` (`cards`), `challenge` (`kind`, `try`, `question`, `deadline`,
- *   `locked`), `answer` (`kind`, `solution`, `answers`, `winners`, `band`), `final` (`places`).
+ *   `locked`), `answer` (`kind`, `solution`, `answers` (pins with `to`, the country's nearest point),
+ *   `winners`, `band`), `final` (`places`); `compete`, `discard` and `answer` stay until everyone asked
+ *   (`nextFor`) has pressed Next (`ready`), and the room has these too.
  *
  * A card reaches only its holder's phone until the captain competes or
  * the hands are discarded; a challenge's answer reaches nobody until the
@@ -36,7 +39,7 @@ import { Emitter, PartyError, type Json, type Party, type Player, type Sender } 
 
 import { Matcher, type Candidate } from "./answer.ts";
 import type { Country, Lang, Ring } from "./data.ts";
-import { kmToCountry } from "./geo.ts";
+import { nearestOfCountry } from "./geo.ts";
 import {
   captainFor,
   compete,
@@ -67,6 +70,13 @@ import {
   type Ranks,
 } from "./rules.ts";
 
+/**
+ * The game's clock (ms). What shows cards or an answer (a compete, the
+ * hands before a challenge, a challenge's answer) waits for every player
+ * to press Next, so there is time to learn; its timing is only how long
+ * before Next counts (the TV's animation), and `next` how long a game
+ * waits at most for a phone that never presses.
+ */
 export interface Timings {
   /** The captain's choice. */
   choose: number;
@@ -74,20 +84,18 @@ export interface Timings {
   competeIntro: number;
   /** Compete: each card. */
   competeCard: number;
-  /** Compete: the winners. */
+  /** Compete: the winners, at least, before Next counts. */
   competeEnd: number;
-  /** The hands shown before a challenge. */
+  /** The hands shown before a challenge, at least. */
   discard: number;
-  /** …a little longer with a strong card among them. */
-  discardStrong: number;
   /** A challenge announced, before the question. */
   announce: number;
-  /** The answer (text challenges). */
+  /** The answer, at least (text challenges). */
   reveal: number;
-  /** The answer (where). */
+  /** The answer, at least (where: the lines to the country are drawn). */
   revealWhere: number;
-  /** "Nobody knew", before the next try. */
-  nobody: number;
+  /** The longest wait for everyone's Next. */
+  next: number;
   /** Seconds to answer, by difficulty (null: the level's). */
   answer: number | null;
 }
@@ -96,13 +104,12 @@ export const DEFAULT_TIMINGS: Timings = {
   choose: 20_000,
   competeIntro: 2500,
   competeCard: 1700,
-  competeEnd: 4500,
-  discard: 6000,
-  discardStrong: 2000,
+  competeEnd: 2000,
+  discard: 2000,
   announce: 2500,
-  reveal: 7000,
-  revealWhere: 9000,
-  nobody: 2500,
+  reveal: 1500,
+  revealWhere: 3500,
+  next: 180_000,
   answer: null,
 };
 
@@ -111,13 +118,12 @@ export const FAST_TIMINGS: Timings = {
   choose: 8000,
   competeIntro: 1200,
   competeCard: 700,
-  competeEnd: 2000,
-  discard: 2500,
-  discardStrong: 800,
+  competeEnd: 1000,
+  discard: 800,
   announce: 1200,
-  reveal: 3000,
-  revealWhere: 3500,
-  nobody: 1200,
+  reveal: 800,
+  revealWhere: 1500,
+  next: 60_000,
   answer: 8,
 };
 
@@ -184,6 +190,14 @@ interface Answer {
   locked: boolean;
 }
 
+/** A wait for everyone's Next: who was asked, who pressed. */
+interface NextWait {
+  key: string;
+  who: string[];
+  ready: Set<string>;
+  wake: () => void;
+}
+
 /** A challenge being played. */
 interface Challenge {
   key: string;
@@ -232,6 +246,8 @@ export class Worldquiz extends Emitter<GameEvents> {
   #chooseKey = "";
   #challenge: Challenge | undefined;
   #challengeNo = 0;
+  #next: NextWait | undefined;
+  #nextNo = 0;
 
   constructor(party: Party, options: GameOptions) {
     super();
@@ -323,6 +339,7 @@ export class Worldquiz extends Emitter<GameEvents> {
     });
     party.handle("choose", (d, from) => this.#choose(d, from));
     party.handle("answer", (d, from) => this.#answer(d, from));
+    party.handle("next", (d, from) => this.#pressNext(d, from));
     party.on("join", (p) => {
       this.#names.set(p.id, p.name);
       this.#colors.set(p.id, this.#freeColor());
@@ -334,8 +351,12 @@ export class Worldquiz extends Emitter<GameEvents> {
       this.#colors.delete(p.id);
       this.#colorsChanged();
       this.#challenge?.wake();
+      this.#next?.wake();
     });
-    party.on("away", () => this.#challenge?.wake());
+    party.on("away", () => {
+      this.#challenge?.wake();
+      this.#next?.wake();
+    });
     this.#lobby();
   }
 
@@ -369,6 +390,7 @@ export class Worldquiz extends Emitter<GameEvents> {
   #stop(): void {
     this.#hands.clear();
     this.#challenge = undefined;
+    this.#next = undefined;
     this.#choice = undefined;
     this.#captain = undefined;
     this.#stage = null;
@@ -602,37 +624,37 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#deck!.discard(...this.#hands.values());
     const held = new Map(this.#hands);
     this.#hands.clear();
+    const nx = this.#openNext([...held.keys()]);
     party.withTv(() => {
       this.#setPhase("round", "compete");
-      this.#room({ phase: "round", stage: "compete", captain: this.#captain, fact });
-      this.#screen({ phase: "round", stage: "compete", captain: this.#captain, fact, cards, order, winners, ms });
+      this.#room({ phase: "round", stage: "compete", captain: this.#captain, fact, ...this.#nextView(nx) });
+      this.#screen({ phase: "round", stage: "compete", captain: this.#captain, fact, cards, order, winners, ms, intro: t.competeIntro, per: t.competeCard, ...this.#nextView(nx) });
       for (const p of party.players) {
         const c = held.get(p.id);
         if (!c) continue;
-        p.state.replace({ task: "compete", color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, card: this.card(c), fact, place: 1 + order.filter((o) => values.get(o)! > values.get(p.id)!).length, of: order.length, won: winners.includes(p.id), winners: winners.map((w) => this.#name(w)) });
+        p.state.replace({ task: "compete", color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, card: this.card(c), fact, place: 1 + order.filter((o) => values.get(o)! > values.get(p.id)!).length, of: order.length, won: winners.includes(p.id), winners: winners.map((w) => this.#name(w)), next: nx.key, ready: false });
       }
     });
-    await this.#sleep(ms, signal);
+    await this.#awaitNext(nx, ms, signal);
   }
 
   async #discardAndChallenge(signal: AbortSignal): Promise<void> {
     const party = this.party;
     const held = new Map(this.#hands);
     const cards = [...held].map(([pid, c]) => ({ pid, card: this.card(c) }));
-    const strong = cards.some((c) => (c.card.strong?.length ?? 0) > 0);
     this.#deck!.discard(...held.values());
     this.#hands.clear();
-    const ms = this.timings.discard + (strong ? this.timings.discardStrong : 0);
+    const nx = this.#openNext([...held.keys()]);
     party.withTv(() => {
       this.#setPhase("round", "discard");
-      this.#room({ phase: "round", stage: "discard", captain: this.#captain });
-      this.#screen({ phase: "round", stage: "discard", captain: this.#captain, cards, ms });
+      this.#room({ phase: "round", stage: "discard", captain: this.#captain, ...this.#nextView(nx) });
+      this.#screen({ phase: "round", stage: "discard", captain: this.#captain, cards, ...this.#nextView(nx) });
       for (const p of party.players) {
         const c = held.get(p.id);
-        if (c) p.state.replace({ task: "watch", what: "discard", color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, card: this.card(c) });
+        if (c) p.state.replace({ task: "watch", what: "discard", color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, card: this.card(c), next: nx.key, ready: false });
       }
     });
-    await this.#sleep(ms, signal);
+    await this.#awaitNext(nx, this.timings.discard, signal);
     for (let k = 1; k <= MAX_TRIES && !signal.aborted; k++) {
       const won = await this.#challengeOnce(k, signal);
       if (won.length) break;
@@ -757,10 +779,13 @@ export class Worldquiz extends Emitter<GameEvents> {
     let band: number | null = null;
     if (ch.kind === "where") {
       const dists = new Map<string, number>();
+      const nearest = new Map<string, [number, number]>();
       for (const id of ch.players) {
         const a = ch.answers.get(id);
         if (a?.lon === undefined || a.lat === undefined) continue;
-        dists.set(id, Math.round(kmToCountry(this.#land, c.id, a.lon, a.lat)));
+        const n = nearestOfCountry(this.#land, c.id, a.lon, a.lat);
+        dists.set(id, Math.round(n.km));
+        nearest.set(id, [Math.round(n.at[0] * 1000) / 1000, Math.round(n.at[1] * 1000) / 1000]);
       }
       if (only) {
         // The tie-break: the closest alone wins; still equal, nobody (the next pin decides).
@@ -770,7 +795,8 @@ export class Worldquiz extends Emitter<GameEvents> {
       } else ({ winners, band } = judgePins(dists, level.maxKm));
       for (const id of ch.players) {
         const a = ch.answers.get(id);
-        answers.push({ pid: id, lon: a?.lon ?? null, lat: a?.lat ?? null, km: dists.get(id) ?? null, right: winners.includes(id) });
+        // `to`: the country's nearest point, where the TV's line from the pin ends.
+        answers.push({ pid: id, lon: a?.lon ?? null, lat: a?.lat ?? null, km: dists.get(id) ?? null, to: nearest.get(id) ?? null, right: winners.includes(id) });
       }
     } else {
       const m = ch.kind === "capital" ? this.#names2.capital : this.#names2.country;
@@ -787,20 +813,81 @@ export class Worldquiz extends Emitter<GameEvents> {
     if (!only) for (const w of winners) this.steps.set(w, (this.steps.get(w) ?? 0) + 1);
     const solution = { ...this.card(c) };
     const last = !winners.length && attempt < MAX_TRIES && !only;
+    const nx = this.#openNext(party.players.filter((p) => this.steps.has(p.id)).map((p) => p.id));
     party.withTv(() => {
-      this.#room({ phase: "round", stage: "answer", kind: ch.kind, solution, winners, band, captain: this.#captain, again: last, tiebreak: !!only });
-      this.#screen({ phase: "round", stage: "answer", kind: ch.kind, solution, answers, winners, band, captain: this.#captain, again: last, tiebreak: only ?? null, try: attempt });
+      this.#room({ phase: "round", stage: "answer", kind: ch.kind, solution, winners, band, captain: this.#captain, again: last, tiebreak: !!only, ...this.#nextView(nx) });
+      this.#screen({ phase: "round", stage: "answer", kind: ch.kind, solution, answers, winners, band, captain: this.#captain, again: last, tiebreak: only ?? null, try: attempt, ...this.#nextView(nx) });
       for (const p of party.players) {
         if (!this.steps.has(p.id)) continue;
         const mine = answers.find((a) => a["pid"] === p.id) ?? null;
-        p.state.replace({ task: "result", kind: ch.kind, right: winners.includes(p.id), solution, mine, winners: winners.map((w) => this.#name(w)), color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, again: last });
+        p.state.replace({ task: "result", kind: ch.kind, right: winners.includes(p.id), solution, mine, winners: winners.map((w) => this.#name(w)), color: this.colorOf(p.id), steps: this.steps.get(p.id) ?? 0, again: last, next: nx.key, ready: false });
       }
     });
-    await this.#sleep(ch.kind === "where" ? this.timings.revealWhere : this.timings.reveal, signal);
-    if (!winners.length && !signal.aborted && last) {
-      await this.#sleep(this.timings.nobody, signal);
-    }
+    await this.#awaitNext(nx, ch.kind === "where" ? this.timings.revealWhere : this.timings.reveal, signal);
     return winners;
+  }
+
+  // -------------------------------------------------------------------------
+  // Next: what shows cards or an answer stays until everyone has pressed it.
+
+  /** Asks `who` for Next (their views carry its key). */
+  #openNext(who: string[]): NextWait {
+    const nx: NextWait = { key: `${this.#game}:${this.#roundNo}:next${++this.#nextNo}`, who, ready: new Set(), wake: () => {} };
+    this.#next = nx;
+    return nx;
+  }
+
+  /** What the room and the TV show of a wait for Next: its key, who was asked, who pressed. */
+  #nextView(nx: NextWait): Record<string, unknown> {
+    return { next: nx.key, nextFor: nx.who, ready: nx.who.filter((id) => nx.ready.has(id)) };
+  }
+
+  /** Those asked who are still there and have not pressed. */
+  #notReady(nx: NextWait): string[] {
+    return nx.who.filter((id) => !nx.ready.has(id) && !!this.party.player(id)?.connected);
+  }
+
+  /** Waits at least `minMs` (the TV's animation), then until everyone asked who is there pressed Next (at most `timings.next`). */
+  async #awaitNext(nx: NextWait, minMs: number, signal: AbortSignal): Promise<void> {
+    await new Promise<void>((resolve) => {
+      let shown = false;
+      const done = () => {
+        clearTimeout(min);
+        clearTimeout(max);
+        signal.removeEventListener("abort", done);
+        nx.wake = () => {};
+        resolve();
+      };
+      nx.wake = () => {
+        if (shown && this.#notReady(nx).length === 0) done();
+      };
+      const min = setTimeout(() => {
+        shown = true;
+        nx.wake();
+      }, minMs);
+      const max = setTimeout(done, Math.max(minMs, this.timings.next));
+      if (signal.aborted) done();
+      else signal.addEventListener("abort", done, { once: true });
+    });
+    if (this.#next === nx) this.#next = undefined;
+  }
+
+  #pressNext(d: Json, from: Sender): null {
+    if (from.role !== "player") throw new PartyError("not-player", "Only players go on");
+    const nx = this.#next;
+    if (!nx) throw new PartyError("not-now", "Nothing to go on from");
+    const v = (typeof d === "object" && d !== null && !Array.isArray(d) ? d : {}) as Record<string, Json>;
+    if (v["key"] !== undefined && v["key"] !== nx.key) throw new PartyError("not-now", "That is over");
+    if (!nx.who.includes(from.id)) throw new PartyError("not-yours", "Not your turn to go on");
+    if (!nx.ready.has(from.id)) {
+      nx.ready.add(from.id);
+      const ready = nx.who.filter((id) => nx.ready.has(id));
+      this.party.room.set({ ready });
+      this.party.screen.set({ ready });
+      this.party.player(from.id)?.state.set({ ready: true });
+    }
+    nx.wake();
+    return null;
   }
 
   /** How a capital answer reads back: the name typed toward, in the room's language when it is one of the capitals. */

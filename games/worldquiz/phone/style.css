@@ -126,7 +126,8 @@ input:disabled { background: #f1ead8; }
 .map.nomap::after { content: "🗺"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 32px; opacity: .4; }
 .cardmap { height: clamp(120px, 24vh, 190px); }
 .qmap { height: clamp(130px, 26vh, 210px); }
-.solmap { height: clamp(130px, 26vh, 210px); margin-top: 12px; }
+.solmap { height: clamp(150px, 30vh, 240px); }
+.solution { padding: 10px; }
 .maptools { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 1; }
 .maptools .btn { width: 46px; height: 46px; padding: 0; font-size: 22px; }
 .maptools .btn b { font-weight: 900; font-size: 26px; line-height: 1; }
@@ -174,11 +175,12 @@ input:disabled { background: #f1ead8; }
 .verdict .label { margin: 8px 0 0; font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .6; }
 .mine { margin: 0; font-size: 22px; font-weight: 900; overflow-wrap: anywhere; }
 .mine .typed { font: 26px/1 var(--hand); }
+/* Next: at the bottom, under the thumb, the whole time. */
+.nextrow { position: sticky; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 3; display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 4px; }
+.nextrow .btn { display: flex; width: 100%; justify-content: center; box-shadow: inset 0 .1em 0 rgba(255,255,255,.4), 0 .4em 0 var(--d), 0 .7em 1.4em rgba(20,30,60,.35); }
+.nextrow .status { margin: 0; text-align: center; background: var(--paper); border-radius: 14px; padding: 10px 12px; font: 21px/1.15 var(--hand); box-shadow: 0 4px 0 var(--paper-lip), 0 8px 16px rgba(10,20,50,.2); }
+.nextrow .error:empty { display: none; }
 .again { margin: 0; text-align: center; font: 26px/1.1 var(--hand); color: #fff; text-shadow: 0 2px 0 rgba(38,52,80,.5); }
-.solution .qrow { align-items: center; }
-.solname { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; opacity: 1; }
-.solution .cap { margin: 2px 0 0; font-weight: 700; }
-.solution .star { color: var(--hot); }
 .final .trophy svg { width: 96px; height: 96px; display: block; }
 .final.won h1 { color: var(--hot); font-size: 40px; }
 .final .place { margin: 0; font-weight: 900; font-size: 24px; }

@@ -84,7 +84,7 @@ test("a whole game on the real data, every card shown in the game's language", a
     land,
     lang: "de",
     settings: { rounds: 15, disputed: true },
-    timings: { choose: 200, competeIntro: 2, competeCard: 2, competeEnd: 2, discard: 2, discardStrong: 2, announce: 2, reveal: 2, revealWhere: 2, nobody: 2, answer: 0.3 },
+    timings: { choose: 200, competeIntro: 2, competeCard: 2, competeEnd: 2, discard: 2, announce: 2, reveal: 2, revealWhere: 2, next: 10_000, answer: 0.3 },
     rng: seeded(11),
   });
   g.open();

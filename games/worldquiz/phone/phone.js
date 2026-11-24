@@ -24,6 +24,7 @@ import { strings } from "./strings.js";
 /** @typedef {import("./cards.js").Fact} Fact */
 /** @typedef {import("../screen/map.js").Unit} Unit */
 /** @typedef {import("../screen/map.js").Mark} Mark */
+/** @typedef {import("../screen/map.js").Line} Line */
 /** @typedef {[number, number]} LonLat */
 
 const MAX_ANSWER = 40;
@@ -202,7 +203,7 @@ function mapMode() {
  * A map on the screen: not interactive, flown to `box` with `hot` popping
  * up; or interactive (drag, pinch, tap). A flat/globe toggle in the corner
  * (and zoom buttons when interactive).
- * @param {{ hot?: string | null, box?: number[] | null, at?: LonLat | null, interactive?: boolean, borders?: boolean, marks?: Mark[], onTap?: (ll: LonLat) => void, cls?: string, id?: string, fill?: number, onMap?: (m: WorldMap) => void }} o
+ * @param {{ hot?: string | null, box?: number[] | null, at?: LonLat | null, interactive?: boolean, borders?: boolean, marks?: Mark[], lines?: Line[], onTap?: (ll: LonLat) => void, cls?: string, id?: string, fill?: number, onMap?: (m: WorldMap) => void }} o
  */
 function mapView(o) {
   const canvas = /** @type {HTMLCanvasElement} */ (h("canvas", { id: o.id ?? null }));
@@ -258,6 +259,7 @@ function mapView(o) {
       map = new WorldMap(canvas, units, { mode: mapMode(), borders: o.borders ?? true, interactive: !!o.interactive, ...(o.onTap ? { onTap: o.onTap } : {}) });
       if (o.hot) map.hot.add(o.hot);
       map.marks = o.marks ?? [];
+      map.lines = o.lines ?? [];
       if (wrap.clientWidth && wrap.clientHeight) {
         map.resize(wrap.clientWidth, wrap.clientHeight);
         place();
@@ -709,7 +711,60 @@ function competeScreen(me, room) {
       h("p", { class: "note" }, t.winners(me.winners ?? [])),
     ),
     h("div", { class: "cardwrap" }, cardEl(me.card ?? {}, lang, { pick: me.fact ?? null, stamp: t.stamp })),
+    nextRow(me),
   );
+}
+
+/**
+ * Next: what shows cards or an answer stays until everyone pressed it
+ * (game/game.ts); pressed, who the game still waits for.
+ * @param {any} me
+ */
+function nextRow(me) {
+  if (!me.next) return null;
+  const key = String(me.next);
+  const err = h("p", { class: "error" });
+  const status = h("p", { class: "status" });
+  let sending = false;
+  const btn = /** @type {HTMLButtonElement} */ (
+    h(
+      "button",
+      {
+        type: "button",
+        id: "next",
+        class: "btn big green",
+        onclick: async () => {
+          if (sending || V().me?.ready) return;
+          sending = true;
+          btn.disabled = true;
+          buzz(15);
+          try {
+            await act("next", { key }, err);
+          } catch {
+          } finally {
+            sending = false;
+            refresh?.();
+          }
+        },
+      },
+      t.next,
+      h("span", { html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4l9 8-9 8z"/></svg>' }),
+    )
+  );
+  const row = h("div", { class: "nextrow" }, status, btn, err);
+  refresh = () => {
+    const v = V();
+    const done = !!v.me?.ready || v.me?.next !== key;
+    btn.disabled = done || sending;
+    btn.hidden = done;
+    const room = v.room ?? {};
+    const ready = new Set(room.ready ?? []);
+    const connected = new Set((v.roster ?? []).filter((/** @type {any} */ r) => r.connected).map((/** @type {any} */ r) => r.id));
+    const waiting = (room.nextFor ?? []).filter((/** @type {string} */ id) => !ready.has(id) && connected.has(id) && id !== myId()).map(nameOf);
+    status.textContent = done ? t.nextWait(waiting) : "";
+    status.hidden = !done;
+  };
+  return row;
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +777,7 @@ function watching(me, room) {
       roundLine(room),
       h("section", { class: "panel pop center" }, h("div", { class: "tvicon", html: TV_ICON }), h("h1", {}, t.discardTitle), h("p", { class: "note" }, t.discardHint)),
       h("div", { class: "cardwrap small" }, cardEl(me.card ?? {}, lang, { stamp: t.stamp })),
+      nextRow(me),
     );
   }
   if (me.what === "announce") {
@@ -896,8 +952,25 @@ function result(me, room) {
       ? h("p", { class: "mine" }, h("span", { class: "typed" }, `“${text}”`), mine?.as && mine.as !== text ? h("span", {}, ` → ${mine.as}`) : null, " ", right ? "✓" : "✗")
       : h("p", { class: "mine" }, t.noAnswer);
   }
-  const pins = me.kind === "where" && mine && typeof mine.lon === "number" ? [{ lon: mine.lon, lat: mine.lat, color: colorOf(myId()), big: true }] : [];
-  const map = mapView({ hot: sol.id ?? null, box: sol.box ?? null, at: sol.at ?? null, cls: "solmap", fill: 0.35, marks: pins });
+  const pinned = me.kind === "where" && mine && typeof mine.lon === "number" && typeof mine.lat === "number";
+  const pins = pinned ? [{ lon: mine.lon, lat: mine.lat, color: colorOf(myId()), big: true }] : [];
+  // One's pin with its line to the country, and both in view.
+  const lines = pinned && mine.km > 0 && Array.isArray(mine.to) ? [{ from: /** @type {LonLat} */ ([mine.lon, mine.lat]), to: mine.to, color: colorOf(myId()), label: f.km(mine.km), at: performance.now() + 600 }] : [];
+  let box = sol.box ?? null;
+  let at = sol.at ?? null;
+  let fill = 0.35;
+  if (pinned && box) {
+    let [w, so, e, n] = box;
+    if (e < w) e += 360;
+    let lon = mine.lon;
+    const mid = (w + e) / 2;
+    while (lon - mid > 180) lon -= 360;
+    while (mid - lon > 180) lon += 360;
+    box = [Math.min(w, lon), Math.min(so, mine.lat), Math.max(e, lon), Math.max(n, mine.lat)];
+    at = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
+    fill = 0.7;
+  }
+  const map = mapView({ hot: sol.id ?? null, box, at, cls: "solmap", fill, marks: pins, lines });
   show(
     h(
       "section",
@@ -910,12 +983,10 @@ function result(me, room) {
       (me.winners ?? []).length ? h("p", { class: "note" }, t.winners(me.winners)) : me.again ? null : h("p", { class: "note" }, t.nobody),
     ),
     me.again ? h("p", { class: "again pop" }, t.again) : null,
-    h(
-      "section",
-      { class: "panel solution" },
-      h("div", { class: "qrow" }, h("img", { class: "qflag", src: flagSrc(sol.flag ?? ""), alt: "" }), h("div", {}, h("h2", { class: "solname", "data-fit": "1" }, sol.name ?? ""), h("p", { class: "cap" }, h("span", { class: "star" }, "★ "), (sol.capitals ?? []).join(" · ")))),
-      map.el,
-    ),
+    // Where it is, then its whole card.
+    h("section", { class: "panel solution" }, map.el),
+    h("div", { class: "cardwrap small" }, cardEl(sol, lang)),
+    nextRow(me),
   );
 }
 
@@ -944,6 +1015,11 @@ function demoAct(type, data) {
   }
   if (type === "settings") {
     v["room"] = { ...v["room"], ...data };
+    render(v);
+  }
+  if (type === "next") {
+    v["me"] = { ...v["me"], ready: true };
+    v["room"] = { ...v["room"], ready: [...(v["room"]?.ready ?? []), "me"] };
     render(v);
   }
   return Promise.resolve(null);
@@ -997,8 +1073,8 @@ function fakeView(name) {
       tab = { key: "1:3", gone: true };
       return { room: { ...room, stage: "draw", deadline: now + 18000, gone }, me: { task: "card", steps: 2, card: germany, captain: false, deadline: now + 18000, key: "1:3" } };
     },
-    compete: () => ({ room: { ...room, stage: "compete", fact: "neighbours" }, me: { task: "compete", steps: 3, card: ranked, fact: "neighbours", place: 1, of: 4, won: true, winners: ["Phil"] } }),
-    discard: () => ({ room: { ...room, stage: "discard" }, me: { task: "watch", what: "discard", steps: 2, card: ranked } }),
+    compete: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "compete", fact: "neighbours" }, me: { task: "compete", steps: 3, card: ranked, fact: "neighbours", place: 1, of: 4, won: true, winners: ["Phil"], next: "k" } }),
+    discard: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "discard" }, me: { task: "watch", what: "discard", steps: 2, card: ranked, next: "k" } }),
     announce: () => ({ room: { ...room, stage: "announce", kind: "capital", try: 2 }, me: { task: "watch", what: "announce", kind: "capital", steps: 2 } }),
     tiebreak: () => ({ room: { ...room, stage: "challenge", kind: "where", tiebreak: true }, me: { task: "watch", what: "tiebreak", steps: 2 } }),
     capital: () => ({ room: { ...room, stage: "challenge", kind: "capital", deadline: now + 15000 }, me: { task: "answer", key: "c1", kind: "capital", question: { name: "Nigeria", flag: "ng.svg", at: nigeria.at, box: nigeria.box, id: "ng" }, deadline: now + 15000, borders: true, locked: false, steps: 2 } }),
@@ -1008,10 +1084,10 @@ function fakeView(name) {
       drafts.set("c4", { lon: 17.5, lat: 44.2 });
       return { room: { ...room, stage: "challenge", kind: "where", deadline: now + 9000 }, me: { task: "answer", key: "c4", kind: "where", question: { name: "Nigeria" }, deadline: now + 9000, borders: true, locked: true, steps: 2 } };
     },
-    right: () => ({ room: { ...room, stage: "answer", kind: "capital" }, me: { task: "result", kind: "capital", right: true, solution: nigeria, mine: { pid: "me", text: "abuya", as: "Abuja", right: true }, winners: ["Phil", "Ada"], steps: 3, again: false } }),
-    wrong: () => ({ room: { ...room, stage: "answer", kind: "flag" }, me: { task: "result", kind: "flag", right: false, solution: nigeria, mine: { pid: "me", text: "Niger", as: "Niger", right: false }, winners: [], steps: 2, again: true } }),
-    "result-where": () => ({ room: { ...room, stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: { pid: "me", lon: 1.5, lat: 12.4, km: 310, right: false }, winners: ["Bartholomew"], steps: 2, again: false } }),
-    again: () => ({ room: { ...room, stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: null, winners: [], steps: 2, again: true } }),
+    right: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "capital" }, me: { task: "result", kind: "capital", right: true, solution: nigeria, mine: { pid: "me", text: "abuya", as: "Abuja", right: true }, winners: ["Phil", "Ada"], steps: 3, again: false, next: "k" } }),
+    wrong: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "flag" }, me: { task: "result", kind: "flag", right: false, solution: nigeria, mine: { pid: "me", text: "Niger", as: "Niger", right: false }, winners: [], steps: 2, again: true, next: "k" } }),
+    "result-where": () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: { pid: "me", lon: 1.5, lat: 12.4, km: 310, to: [3.6, 11.7], right: false }, winners: ["Bartholomew"], steps: 2, again: false, next: "k" } }),
+    again: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: null, winners: [], steps: 2, again: true, next: "k" } }),
     final: () => ({ room: { ...room, phase: "final", rounds: 15 }, me: { task: "final", steps: 9, place: 1, of: 4, won: true } }),
   };
   const v = (views[name] ?? views["card"] ?? (() => ({ me: {} })))();

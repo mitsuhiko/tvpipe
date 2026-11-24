@@ -7,9 +7,10 @@
  * code; a round's card backs while the captain chooses; compared cards
  * one by one with the camera flying to each country; discarded hands
  * with their strong numbers called out; challenges and their answers
- * (typed answers read back, pins on the map); the planes' trip along the
- * bottom the whole game; the final podium. Players' texts are always
- * text.
+ * (the whole card, typed answers read back, a flag planted on the
+ * country and a line from every pin to it); who still has to press Next;
+ * the planes' trip along the bottom the whole game; the final podium.
+ * Players' texts are always text.
  */
 
 import { joinText, PartyClient, qrSvg } from "/_tvpipe/lib/client.js";
@@ -155,7 +156,23 @@ function later(fn, ms) {
 
 const clock = h("div", { class: "clock", hidden: true });
 const roundLabel = h("div", { class: "round" });
-hud.append(h("div", { class: "brand" }, logo()), roundLabel, clock);
+const nextBar = h("div", { class: "nextbar", hidden: true });
+hud.append(h("div", { class: "brand" }, logo()), roundLabel, nextBar, clock);
+
+/** Who still has to press Next on their phone (the stages that wait for it). @param {any} sc */
+function drawNext(sc) {
+  const who = /** @type {string[]} */ (sc.phase === "round" && sc.next ? (sc.nextFor ?? []) : []);
+  const there = new Set((sc.players ?? []).filter((/** @type {any} */ p) => !p.away).map((/** @type {any} */ p) => p.id));
+  const asked = who.filter((id) => there.has(id));
+  nextBar.hidden = asked.length === 0;
+  if (nextBar.hidden) return;
+  const ready = new Set(sc.ready ?? []);
+  const left = asked.filter((id) => !ready.has(id)).length;
+  nextBar.replaceChildren(
+    h("span", { class: "nl" }, t.next, h("small", {}, left ? t.nextWaiting(left) : "✓")),
+    h("span", { class: "nd" }, ...asked.map((id) => h("b", { class: `nw${ready.has(id) ? " ok" : ""}`, style: { "--c": colorOf(id) }, title: nameOf(id) }, ready.has(id) ? "✓" : initial(nameOf(id))))),
+  );
+}
 /** @type {number | null} */
 let deadline = null;
 let lastTick = -1;
@@ -270,6 +287,7 @@ function render(view) {
     stage.append(scene.el);
   }
   scene.update?.(sc);
+  drawNext(sc);
   race.hidden = sc.phase !== "round" && sc.phase !== "final";
   drawRace(sc.players ?? [], shownSteps ?? undefined);
   client.joinVisible = sc.phase === "lobby" || !sc.phase;
@@ -280,8 +298,11 @@ function build(sc, key) {
   if (map) {
     map.hot = new Set();
     map.marks = [];
+    map.lines = [];
+    map.goal = null;
     map.circle = null;
     map.right = 0;
+    map.left = 0;
     map.out = new Set();
     map.spin = sc.phase === "lobby" || sc.phase === "final" || sc.stage === "draw" ? 4 : 0;
   }
@@ -355,7 +376,7 @@ function drawScene(sc) {
   const hands = /** @type {string[]} */ (sc.hands ?? []);
   const row = h(
     "div",
-    { class: "hands" },
+    { class: `hands${hands.length > 6 ? " many" : ""}` },
     ...hands.map((id, i) =>
       h(
         "div",
@@ -395,11 +416,14 @@ function competeScene(sc) {
   const fact = sc.fact;
   const cards = /** @type {any[]} */ (sc.cards ?? []);
   const winners = /** @type {string[]} */ (sc.winners ?? []);
-  const per = Math.max(500, (sc.ms - 2500 - 4500) / Math.max(1, cards.length)) || 1700;
+  const per = Math.max(500, sc.per ?? 1700);
+  const intro = Math.max(0, (sc.intro ?? 2500) - 300);
   // Hold the planes until the winners are called.
   shownSteps = Object.fromEntries((sc.players ?? []).map((/** @type {any} */ p) => [p.id, p.steps - (winners.includes(p.id) ? 1 : 0)]));
   const big = h("div", { class: "big-card" });
   const strip = h("div", { class: "strip" });
+  // Every card whole: in one row or two, as big as fits between the banner and the planes, left of the big card.
+  sizeMinis(strip, cards.length, innerWidth / rem() - joinW() - 3 - 41, 42);
   const head = h("div", { class: "banner" }, h("span", { class: "fi", html: ICONS[/** @type {keyof typeof ICONS} */ (fact)] }), `${t.compare}: ${LABELS[lang][/** @type {keyof typeof LABELS.en} */ (fact)]}`, h("small", {}, t.highestWins));
   const el = h("div", { class: "scene compete" }, head, big, strip);
   if (map) map.right = innerWidth * 0.36;
@@ -408,35 +432,55 @@ function competeScene(sc) {
   order.forEach((c, i) => {
     later(() => {
       sfx.flip();
-      big.replaceChildren(h("div", { class: "who-holds" }, chip(c.pid)), cardEl(c.card, lang, { pick: fact }));
+      big.replaceChildren(h("div", { class: "who-holds" }, chip(c.pid)), cardEl(c.card, lang, { pick: fact, dim: false }));
       big.classList.remove("pop");
       void big.offsetWidth;
       big.classList.add("pop");
-      strip.prepend(mini(c, fact, false));
+      strip.prepend(mini(c, fact, true));
       if (map) map.hot = new Set([c.card.id]);
       look(c.card, Math.min(1500, per * 0.8));
-    }, 2200 + i * per);
+    }, intro + i * per);
   });
   later(() => {
     for (const m of strip.querySelectorAll(".mini")) m.classList.toggle("won", winners.includes(/** @type {HTMLElement} */ (m).dataset["pid"] ?? ""));
     const best = cards.filter((c) => winners.includes(c.pid));
     if (map) map.hot = new Set(best.map((c) => c.card.id));
     if (best[0]) look(best[0].card, 1200);
-    big.replaceChildren(h("div", { class: "win-banner" }, winners.length > 1 ? t.tie : "", h("div", {}, t.wins(winners.map(nameOf)))), ...best.slice(0, 1).map((c) => cardEl(c.card, lang, { pick: fact })));
+    big.replaceChildren(h("div", { class: "win-banner" }, winners.length > 1 ? t.tie : "", h("div", {}, t.wins(winners.map(nameOf)))), ...best.slice(0, 1).map((c) => cardEl(c.card, lang, { pick: fact, dim: false })));
     sfx.fanfare();
     shownSteps = null;
     drawRace(client.view?.screen?.players ?? []);
-  }, 2200 + order.length * per + 300);
+  }, intro + order.length * per + 300);
   return { el };
 }
 
-/** A small card: flag, name, one number (or all). @param {any} c @param {string | null} fact @param {boolean} all */
+/** The TV's rem (a 72nd of its height), in px. */
+const rem = () => innerHeight / 72;
+/** The join badge's width (rem). */
+const joinW = () => (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tvpipe-join-w")) || 0) / rem();
+
+/**
+ * Sizes `n` small cards (`.mini`, 9.7em wide, about 1.9 times as tall)
+ * to fit a box (rem) in one row or two, at most their full size.
+ * @param {HTMLElement} el @param {number} n @param {number} width @param {number} height
+ */
+function sizeMinis(el, n, width, height) {
+  const gap = 1;
+  let w = 0;
+  for (const rows of [1, 2]) {
+    const per = Math.ceil(Math.max(1, n) / rows);
+    w = Math.max(w, Math.min(15.5, (width - (per - 1) * gap) / per, (height - (rows - 1) * gap) / rows / 1.9));
+  }
+  el.style.setProperty("--mf", `${(w / 9.7).toFixed(3)}rem`);
+}
+
+/** A small card: flag, name, its numbers (`fact` outlined), or only that one. @param {any} c @param {string | null} fact @param {boolean} all */
 function mini(c, fact, all) {
   const card = c.card;
   const rows = (all ? FACTS : [fact]).map((k) => {
     const key = /** @type {keyof typeof ICONS} */ (k);
     const rank = card.ranks?.[key] ?? 0;
-    return h("div", { class: `mrow${rank && rank <= STRONG ? " strong" : ""}` }, h("span", { class: "mi", html: ICONS[key] }), h("b", {}, f.fact(key, card.facts[key])), rank ? h("span", { class: `rank${rank <= STRONG ? " gold" : ""}` }, `#${rank}`) : null);
+    return h("div", { class: `mrow${rank && rank <= STRONG ? " strong" : ""}${all && k === fact ? " pick" : ""}` }, h("span", { class: "mi", html: ICONS[key] }), h("b", { "data-fit": "1" }, f.fact(key, card.facts[key])), rank ? h("span", { class: `rank${rank <= STRONG ? " gold" : ""}` }, `#${rank}`) : null);
   });
   return h("div", { class: "mini", "data-pid": c.pid, style: { "--c": colorOf(c.pid) } }, h("img", { class: "mflag", src: flagSrc(card.flag), alt: "" }), h("div", { class: "mname", "data-fit": "1" }, card.name), ...rows, h("div", { class: "mwho" }, nameOf(c.pid)));
 }
@@ -448,6 +492,7 @@ function mini(c, fact, all) {
 function discardScene(sc) {
   const cards = /** @type {any[]} */ (sc.cards ?? []);
   const row = h("div", { class: "discards" }, ...cards.map((c) => mini(c, null, true)));
+  sizeMinis(row, cards.length, innerWidth / rem() - 8, 30);
   const strongOnes = cards.filter((c) => (c.card.strong ?? []).length > 0);
   const callouts = h(
     "div",
@@ -457,7 +502,6 @@ function discardScene(sc) {
   if (map) map.hot = new Set(cards.map((c) => c.card.id));
   look(null);
   if (strongOnes.length) later(() => sfx.strong(), 600);
-  later(() => row.classList.add("to-pile"), Math.max(1000, (sc.ms ?? 6000) - 1100));
   return { el: h("div", { class: "scene discard" }, h("div", { class: "banner" }, t.discard), row, strongOnes.length ? callouts : null) };
 }
 
@@ -521,23 +565,22 @@ function challengeScene(sc) {
   };
 }
 
-/** @param {any} sc */
+/**
+ * The answer: the whole card on the right, everyone's answer on the left,
+ * the country popping up on the map with a flag planted on it; for a pin
+ * challenge the camera shows the country first, then pulls back to every
+ * pin, each with a line to the country's nearest point and how far it is.
+ * @param {any} sc
+ */
 function answerScene(sc) {
   const sol = sc.solution ?? {};
   const winners = /** @type {string[]} */ (sc.winners ?? []);
   const answers = /** @type {any[]} */ (sc.answers ?? []);
   shownSteps = Object.fromEntries((sc.players ?? []).map((/** @type {any} */ p) => [p.id, p.steps - (winners.includes(p.id) && !sc.tiebreak ? 1 : 0)]));
-  const solution = h(
-    "div",
-    { class: "solution" },
-    h("div", { class: "s-top" }, t.answer),
-    h("img", { class: "s-flag", src: flagSrc(sol.flag), alt: "" }),
-    h("div", { class: "s-name", "data-fit": "1" }, sol.name ?? ""),
-    h("div", { class: "s-cap" }, "★ ", (sol.capitals ?? []).join(" · ")),
-  );
+  const card = h("div", { class: "sol-card" }, h("div", { class: "s-top" }, t.answer), cardEl(sol, lang));
   const list = h(
     "div",
-    { class: "answers" },
+    { class: `answers${answers.length > 7 ? " many" : ""}` },
     ...answers.map((a) => {
       const right = winners.includes(a.pid);
       /** @type {Node[]} */
@@ -550,15 +593,25 @@ function answerScene(sc) {
       return h("div", { class: `ans${right ? " right" : ""}` }, chip(a.pid), ...what, h("span", { class: "mark" }, right ? "✓" : "✗"));
     }),
   );
+  const at = /** @type {[number, number]} */ (sol.at ?? [0, 0]);
   if (map) {
     map.hot = new Set([sol.id]);
-    map.right = innerWidth * 0.34;
-    if (sc.kind === "where") map.marks = answers.filter((a) => a.lon !== null).map((a) => ({ lon: a.lon, lat: a.lat, color: colorOf(a.pid), label: initial(nameOf(a.pid)), big: winners.includes(a.pid) }));
+    map.right = 42 * rem();
+    map.left = 38 * rem();
+    const flag = new Image();
+    flag.src = flagSrc(sol.flag);
+    map.goal = { lon: at[0], lat: at[1], name: sol.name ?? "", flag };
   }
+  look(sol, 1500, 0.35);
   if (sc.kind === "where") {
-    // The country and every pin in view (pins on the other side of the world count the short way round).
     const pins = answers.filter((a) => a.lon !== null && a.lat !== null);
-    let [w, so, e, n] = sol.box ?? [sol.at[0] - 1, sol.at[1] - 1, sol.at[0] + 1, sol.at[1] + 1];
+    if (map) {
+      map.marks = pins.map((a) => ({ lon: a.lon, lat: a.lat, color: colorOf(a.pid), label: initial(nameOf(a.pid)), big: winners.includes(a.pid) }));
+      const start = performance.now() + 2800;
+      map.lines = pins.filter((a) => a.km > 0 && Array.isArray(a.to)).map((a, i) => ({ from: /** @type {[number, number]} */ ([a.lon, a.lat]), to: a.to, color: colorOf(a.pid), label: f.km(a.km), at: start + i * 150 }));
+    }
+    // Then the country and every pin in view (pins on the other side of the world count the short way round).
+    let [w, so, e, n] = sol.box ?? [at[0] - 1, at[1] - 1, at[0] + 1, at[1] + 1];
     if (e < w) e += 360;
     const mid = (w + e) / 2;
     for (const p of pins) {
@@ -570,9 +623,10 @@ function answerScene(sc) {
       so = Math.min(so, p.lat);
       n = Math.max(n, p.lat);
     }
-    if (map) map.flyTo([w, so, e, n], [(w + e) / 2, (so + n) / 2], 1700, 0.75);
-  } else look(sol, 1700, 0.35);
-  const el = h("div", { class: `scene answer k-${sc.kind}` }, h("div", { class: "side" }, solution, list));
+    // The globe shows less of the world than the flat map does at the same fill.
+    if (pins.length) later(() => map?.flyTo([w, so, e, n], [(w + e) / 2, (so + n) / 2], 1300, map.mode === "globe" ? 0.45 : 0.7), 1700);
+  }
+  const el = h("div", { class: `scene answer k-${sc.kind}` }, h("div", { class: "side" }, card), list);
   if (!winners.length) {
     el.append(h("div", { class: "nobody" }, h("div", { class: "stampbig" }, t.nobody), sc.again ? h("div", { class: "another" }, t.another) : null));
     later(() => sfx.buzz(), 400);

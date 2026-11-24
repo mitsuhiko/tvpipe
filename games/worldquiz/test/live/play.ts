@@ -85,7 +85,7 @@ try {
   log("the host page runs the game");
   await win.eval(`(() => { worldquiz.page.set("lang", ${JSON.stringify(lang)}); worldquiz.page.set("map", ${JSON.stringify(args.map === "globe" ? "globe" : "flat")}); return true; })()`);
   await win.until(`worldquiz.game.lang === ${JSON.stringify(lang)}`, 5000);
-  const timings = { choose: 15_000, competeIntro: 2500, competeCard: 1700, competeEnd: 4500, discard: 6000, discardStrong: 2000, announce: 2500, reveal: 6000, revealWhere: 8000, nobody: 2500, answer: 15 };
+  const timings = { choose: 15_000, competeIntro: 2500, competeCard: 1700, competeEnd: 2000, discard: 2000, announce: 2500, reveal: 1500, revealWhere: 3500, next: 120_000, answer: 15 };
   await win.eval(`(() => { worldquiz.game.configure({ timings: ${JSON.stringify(timings)} }); return true; })()`);
   const links = await win.eval<{ join: string; watch: string }>(`({ join: worldquiz.party.links.join, watch: worldquiz.party.links.watch })`);
   const tv = await browser.open(`${links.watch}&mute=1`, { width: 1280, height: 720 });
@@ -134,7 +134,7 @@ try {
     const badge = document.querySelector("tvpipe-rejoin")?.shadowRoot?.querySelector(".mini.shown")?.getBoundingClientRect();
     for (const el of document.querySelectorAll("#stage .scene:not(.leaving) *, #race *")) {
       if (!el.checkVisibility || !el.checkVisibility()) continue;
-      if (["svg", "path", "g", "circle", "rect", "text", "canvas", "i"].includes(el.localName) || el.closest(".discards.to-pile")) continue;
+      if (["svg", "path", "g", "circle", "rect", "text", "canvas", "i"].includes(el.localName)) continue;
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       if (r.width > 0 && still(el) && (r.right > innerWidth + 2 || r.left < -2 || r.bottom > innerHeight + 2 || r.top < -2)) out.push("off the screen: " + el.localName + "." + el.className + " " + JSON.stringify((el.innerText || "").slice(0, 30)));
@@ -182,6 +182,15 @@ try {
       const phil = worldquiz.party.players.find((p) => p.name === "Phil");
       return { phase: g.phase, stage: s.stage ?? "", key: [g.phase, s.stage ?? "", s.round ?? "", s.try ?? "", s.kind ?? ""].join("|"), captain: s.captain === phil?.id, kind: s.kind ?? "", round: s.round ?? 0, truth: g.truth() ?? null };
     })()`);
+  // Phil presses Next (the bots press by themselves); the stage stays until he does.
+  const next = async (where: string) => {
+    await phone.until(`!!document.getElementById("next") && !document.getElementById("next").hidden`, 5000).catch(() => problem(`phone: no Next (${where})`));
+    const before = await state();
+    await sleep(400);
+    const still = await state();
+    if (still.key !== before.key) problem(`${where}: went on before Phil pressed Next`);
+    await phone.eval(`document.getElementById("next")?.click(); true`);
+  };
   const seen = new Set<string>();
   const rounds = Number(args.rounds);
   let choice = 0;
@@ -214,7 +223,13 @@ try {
       await tvShot(name);
       await pic(tv, "tv-compete", "tv", 200);
       await phoneShot(name);
-    } else if (s.stage === "discard" || s.stage === "announce") {
+      await next(name);
+    } else if (s.stage === "discard") {
+      await sleep(1500);
+      await tvShot(name);
+      await phoneShot(name);
+      await next(name);
+    } else if (s.stage === "announce") {
       await sleep(1500);
       await tvShot(name);
     } else if (s.stage === "challenge") {
@@ -239,10 +254,11 @@ try {
         await phone.eval(`document.getElementById("lock")?.click(); true`);
       }
     } else if (s.stage === "answer") {
-      await sleep(s.kind === "where" ? 2600 : 1600);
+      await sleep(s.kind === "where" ? 4200 : 1600);
       await tvShot(name);
       if (s.kind === "where") await pic(tv, "tv-where", "tv", 200);
       await phoneShot(name);
+      await next(name);
     }
   }
   if (!shots) {

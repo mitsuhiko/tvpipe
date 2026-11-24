@@ -46,10 +46,19 @@ the camera flies over, cards like postcards, chunky toy buttons.
 ### 2.1 A round
 
 ```
-draw ─▶ captain chooses ─▶ compete:   reveal ─▶ steps
-         ≤ 20 s            challenge: question ─▶ answers ─▶ reveal ─▶ steps
-                                       15 s (normal)
+draw ─▶ captain chooses ─▶ compete:   reveal ─▶ steps ─▶ Next
+         ≤ 20 s            challenge: hands shown ─▶ Next ─▶ question ─▶ answers ─▶ reveal ─▶ steps ─▶ Next
+                                                              15 s (normal)
 ```
+
+**Next.** What shows cards or an answer (a compete, the hands before a
+challenge, a challenge's answer) stays until every player has pressed
+Next on the phone, not for a fixed time: the point of the game is
+learning where countries are and how big, and people read at their own
+pace. Next counts once the TV's animation has played; the TV shows who
+is still reading (their dots, top right), the phone whom it waits for.
+A phone that drops out is not waited for; a phone left in a pocket is,
+for at most three minutes.
 
 1. **Draw.** Everyone draws a card at the same time, the captain and
    everyone else, and everyone sees their own card at once. The phone
@@ -80,12 +89,13 @@ Which strong cards have left the deck matters: with the United States
 gone, a high population is worth less. So every card that goes to the
 discard pile is seen, in compete rounds and before a challenge alike:
 
-- **The reveal before a challenge** (about 6 s) shows each hand face
-  up over its holder with all five numbers, and calls out the strong
-  ones: a card with any number in the top 10 gets a gold badge per such
-  number ("#3 population", "#1 area") and is shown a moment longer,
-  with a sound. Nothing is compared and nobody steps. Then the cards
-  slide onto the pile.
+- **The reveal before a challenge** shows each hand face up over its
+  holder with all five numbers, and calls out the strong ones: a card
+  with any number in the top 10 gets a gold badge per such number
+  ("#3 population", "#1 area"), with a sound. Nothing is compared and
+  nobody steps. It stays until Next (§2.1).
+- **A compete** shows every card whole too, the compared number
+  outlined, not only that number.
 - **The pile on the TV** shows, while the captain chooses, five rows
   (one per number) of the strong cards that are gone: their flags with
   their rank ("#1" population: China), and how many cards the deck
@@ -290,6 +300,13 @@ distances rounded the same way the tie is judged ("≈ 310 km", with the
 winners' band as a ring around the country), so a tie looks like one.
 The 10 % is a starting point to check in play tests.
 
+**The reveal shows where it is first.** The camera flies to the country
+alone (popping up, a little flag with its name planted on it), then
+pulls back until every pin is in view, and a line grows from each pin
+to the point of the country it was measured to, with the distance on
+it. The whole card is beside the map, everyone's distance in a list on
+the other side. The phone shows one's own pin and its line the same way.
+
 ### 4.4 Spell fixing
 
 Matching (`game/answer.ts`, pure, with known-answer tests):
@@ -358,7 +375,9 @@ come from the whole deck: learning a little country is the point.
   a tilted sticker, the name and capital in the game's language only,
   the five numbers as rows with icons and their rank (a gold badge in
   the top 10). The back of a card (TV, on reveal) lists the neighbours
-  by name with small flags.
+  by name with small flags. Whenever the TV shows a card it shows it
+  whole: the compared number is outlined, the others stay; small cards
+  are sized to fit how many there are.
 - **Buttons** are chunky toys: a bright fill, a darker lip under it
   (6 px), a soft shadow, uppercase heavy type with wide letter spacing,
   a white icon; pressed, they sink into the lip. Palette: blue, green,

@@ -119,6 +119,9 @@ export function strings(lang) {
       /** @param {number} n */
       stepsN: (n) => f.p(n, { one: "# Station", other: "# Stationen" }),
       playAgain: "Nochmal",
+      next: "Weiter",
+      /** @param {string[]} names */
+      nextWait: (names) => (names.length ? `Warte auf ${names.join(", ")} …` : "Gleich geht's weiter …"),
       errors: /** @type {Record<string, string>} */ ({
         "not-vip": "Das darf nur der VIP.",
         running: "Das Spiel läuft gerade.",
@@ -238,6 +241,9 @@ export function strings(lang) {
     /** @param {number} n */
     stepsN: (n) => f.p(n, { one: "# stop", other: "# stops" }),
     playAgain: "Play again",
+    next: "Next",
+    /** @param {string[]} names */
+    nextWait: (names) => (names.length ? `Waiting for ${names.join(", ")} …` : "Here we go …"),
     errors: /** @type {Record<string, string>} */ ({
       "not-vip": "Only the VIP can do that.",
       running: "The game is on.",

@@ -110,7 +110,7 @@ export function flagSrc(file) {
  * A card as a postcard.
  * @param {any} card the CardView
  * @param {Lang} lang
- * @param {{ stamp?: string, pick?: Fact | null, only?: Fact | null, hideRanks?: boolean, note?: string }} [o]
+ * @param {{ stamp?: string, pick?: Fact | null, dim?: boolean, only?: Fact | null, hideRanks?: boolean, note?: string }} [o] `pick` outlines a number and dims the others (not with `dim: false`)
  */
 export function cardEl(card, lang, o = {}) {
   const L = LABELS[lang];
@@ -120,7 +120,7 @@ export function cardEl(card, lang, o = {}) {
     const sub = k === "highest" ? card.highest : k === "gdp" && card.gdpYear ? String(card.gdpYear) : "";
     return h(
       "div",
-      { class: `fact${o.pick === k ? " pick" : o.pick ? " dim" : ""}`, "data-fact": k },
+      { class: `fact${o.pick === k ? " pick" : o.pick && o.dim !== false ? " dim" : ""}`, "data-fact": k },
       h("span", { html: ICONS[k] }),
       h("div", { class: "l" }, L[k], sub ? h("i", {}, sub) : null),
       h("div", { class: "v" }, f.fact(k, card.facts?.[k] ?? 0)),

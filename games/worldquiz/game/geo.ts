@@ -38,20 +38,30 @@ export function inRing(ring: Ring, lon: number, lat: number): boolean {
   return inside;
 }
 
-/** The angle from p to the arc a–b (radians). */
-function toArc(p: V3, a: V3, b: V3): number {
-  let d = Math.min(angle(p, a), angle(p, b));
+/** The nearest point to p on the arc a–b, and the angle to it (radians). */
+function toArc(p: V3, a: V3, b: V3): { d: number; q: V3 } {
+  const da = angle(p, a);
+  const db = angle(p, b);
+  let best = da <= db ? { d: da, q: a } : { d: db, q: b };
   const n = cross(a, b);
   const m = Math.hypot(...n);
-  if (m < 1e-12) return d;
+  if (m < 1e-12) return best;
   const u: V3 = [n[0] / m, n[1] / m, n[2] / m];
   const s = dot(p, u);
   const q: V3 = [p[0] - s * u[0], p[1] - s * u[1], p[2] - s * u[2]];
   const qm = Math.hypot(...q);
-  if (qm < 1e-12) return d;
+  if (qm < 1e-12) return best;
   const qq: V3 = [q[0] / qm, q[1] / qm, q[2] / qm];
-  if (dot(cross(a, qq), u) >= 0 && dot(cross(qq, b), u) >= 0) d = Math.min(d, angle(p, qq));
-  return d;
+  if (dot(cross(a, qq), u) >= 0 && dot(cross(qq, b), u) >= 0) {
+    const d = angle(p, qq);
+    if (d < best.d) best = { d, q: qq };
+  }
+  return best;
+}
+
+/** A unit vector back to [lon, lat] (degrees). */
+function lonLat(v: V3): [number, number] {
+  return [Math.atan2(v[1], v[0]) / D2R, Math.asin(Math.max(-1, Math.min(1, v[2]))) / D2R];
 }
 
 /** From a pin to the nearest point of the land (km): 0 inside any ring. */
@@ -93,22 +103,40 @@ export function ownerAt(land: ReadonlyMap<string | null, readonly Ring[]>, lon: 
  * of its border; a pin in an enclave is outside the country around it.
  */
 export function kmToCountry(land: ReadonlyMap<string | null, readonly Ring[]>, id: string, lon: number, lat: number): number {
+  return nearestOfCountry(land, id, lon, lat).km;
+}
+
+/**
+ * The point of a country nearest to a pin and how far it is (km): the
+ * pin itself on its land (0), else the nearest point of its border (what
+ * the reveal draws a line to).
+ */
+export function nearestOfCountry(land: ReadonlyMap<string | null, readonly Ring[]>, id: string, lon: number, lat: number): { km: number; at: [number, number] } {
   const rings = land.get(id) ?? [];
-  if (!rings.some((r) => inRing(r, lon, lat))) return kmToEdge(rings, lon, lat);
-  return ownerAt(land, lon, lat) === id ? 0 : kmToEdge(rings, lon, lat);
+  if (rings.some((r) => inRing(r, lon, lat)) && ownerAt(land, lon, lat) === id) return { km: 0, at: [lon, lat] };
+  return nearestOnEdge(rings, lon, lat);
 }
 
 /** From a pin to the nearest point of the rings' edges (km). */
 export function kmToEdge(rings: readonly Ring[], lon: number, lat: number): number {
+  return nearestOnEdge(rings, lon, lat).km;
+}
+
+/** The nearest point of the rings' edges to a pin, and how far it is (km); the pin itself without rings. */
+export function nearestOnEdge(rings: readonly Ring[], lon: number, lat: number): { km: number; at: [number, number] } {
   const p = vec(lon, lat);
   let best = Math.PI;
+  let at: V3 | null = null;
   for (const r of rings) {
     for (let i = 0; i < r.length; i++) {
       const a = r[i]!;
       const b = r[(i + 1) % r.length]!;
-      const d = toArc(p, vec(a[0], a[1]), vec(b[0], b[1]));
-      if (d < best) best = d;
+      const x = toArc(p, vec(a[0], a[1]), vec(b[0], b[1]));
+      if (x.d < best) {
+        best = x.d;
+        at = x.q;
+      }
     }
   }
-  return best * EARTH_KM;
+  return { km: best * EARTH_KM, at: at ? lonLat(at) : [lon, lat] };
 }

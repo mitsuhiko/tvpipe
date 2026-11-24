@@ -9,10 +9,12 @@ import { Worldquiz, type Settings, type Timings } from "../game/game.ts";
 import { seeded } from "../game/rules.ts";
 import { COUNTRIES, LAND } from "./world.ts";
 
-const fast: Timings = { choose: 300, competeIntro: 5, competeCard: 5, competeEnd: 5, discard: 5, discardStrong: 5, announce: 5, reveal: 5, revealWhere: 5, nobody: 5, answer: 0.4 };
+const fast: Timings = { choose: 300, competeIntro: 5, competeCard: 5, competeEnd: 5, discard: 5, announce: 5, reveal: 5, revealWhere: 5, next: 10_000, answer: 0.4 };
 
 interface Opts {
   settings?: Partial<Settings>;
+  /** The last this many bots never press Next (the test does). */
+  lazy?: number;
   silent?: number;
   sharp?: number;
   competes?: number;
@@ -38,7 +40,12 @@ async function game(n: number, o: Opts = {}) {
     sharp: o.sharp ?? 0.7,
     competes: o.competes,
   };
-  const players = await bots(n - (o.silent ?? 0), opts);
+  const players = await bots(n - (o.silent ?? 0) - (o.lazy ?? 0), opts);
+  for (let i = 0; i < (o.lazy ?? 0); i++) {
+    const b = new Bot({ ...opts, name: `Lazy${i + 1}`, skip: ["compete", "watch", "result"] });
+    await b.join();
+    players.push(b);
+  }
   for (let i = 0; i < (o.silent ?? 0); i++) {
     const b = new Bot({ ...opts, name: `Mute${i + 1}`, silent: true });
     await b.join();
@@ -162,7 +169,7 @@ test("the disputed option puts the disputed states in the deck and counts them a
 });
 
 test("nobody answers: three challenges, then the round ends without steps", async () => {
-  const { g, players, screens, close } = await game(2, { silent: 2, timings: { choose: 30, answer: 0.05 }, settings: { rounds: 15 } });
+  const { g, players, screens, close } = await game(2, { silent: 2, timings: { choose: 30, answer: 0.05, next: 5 }, settings: { rounds: 15 } });
   try {
     await new Promise((r) => setTimeout(r, 20));
     const end = new Promise((r) => g.once("end", r));
@@ -215,7 +222,7 @@ test("German: the cards and the questions are German only", async () => {
 });
 
 test("phones that drop out and come back while a game runs", async () => {
-  const { g, players, close } = await game(4);
+  const { g, players, close } = await game(4, { timings: { next: 300 } });
   try {
     const end = new Promise((r) => g.once("end", r));
     const chaos = dropOuts(players.map((b) => b.client), { rng: seeded(5), every: 50, away: [0, 200] });
@@ -238,6 +245,41 @@ test("settings: only the VIP, only known values, not during a game", async () =>
     await assert.rejects(players[0]!.client.act("settings", { colour: 1 }), /not a setting/);
     await players[0]!.client.act("settings", { rounds: 30, difficulty: "hard", disputed: true, map: "globe" });
     assert.deepEqual(g.settings, { rounds: 30, difficulty: "hard", disputed: true, map: "globe" });
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("cards and answers stay until everyone has pressed Next", async () => {
+  const { g, party, players, close } = await game(3, { lazy: 1, competes: 0.5, timings: { next: 60_000 } });
+  const until = async (what: () => boolean, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (!what()) {
+      if (Date.now() > end) throw new Error("timed out");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  };
+  try {
+    const lazy = players[2]!;
+    await players[0]!.client.act("start");
+    for (let i = 0; i < 4; i++) {
+      await until(() => typeof party.room.peek()["next"] === "string" && g.stage !== "draw");
+      const stage = g.stage;
+      const room = party.room.peek() as Record<string, any>;
+      assert.ok(["compete", "discard", "challenge", "tiebreak"].includes(stage ?? ""), String(stage));
+      assert.equal(room["nextFor"].length, 3);
+      // The two others press; the stage stays for the lazy one.
+      await until(() => (party.room.peek()["ready"] as string[]).length === 2);
+      await new Promise((r) => setTimeout(r, 60));
+      assert.equal(party.room.peek()["next"], room["next"]);
+      await assert.rejects(lazy.client.act("next", { key: "0:0:next0" }), /over/);
+      const me = (lazy.client.view as any)?.me ?? {};
+      assert.equal(me.next, room["next"]);
+      await lazy.client.act("next", { key: me.next });
+      await until(() => party.room.peek()["next"] !== room["next"]);
+    }
+    g.close();
   } finally {
     for (const b of players) b.close();
     close();

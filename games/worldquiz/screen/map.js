@@ -11,7 +11,8 @@
  *   atmosphere glow and soft shading.
  * - Highlighted countries pop up: lifted, bobbing, in a hot colour; a
  *   country too small to see gets a pulsing ring. Pins in players'
- *   colours.
+ *   colours; a pin's line to where it should have been, growing, with
+ *   its distance; a little flag planted where the answer is.
  * - Our own projections: Mercator (the world repeats left and right, so
  *   the Pacific is never cut) and an orthographic globe whose rings are
  *   clipped at the horizon (visible stretches joined along the rim in
@@ -34,6 +35,8 @@ const LAT_MIN = -60;
  * @typedef {[number, number]} LonLat
  * @typedef {{ id: string | null, rings: LonLat[][], v: [number, number, number][][], k: number, box: [number, number, number, number] }} Unit
  * @typedef {{ lon: number, lat: number, color: string, label?: string, big?: boolean }} Mark
+ * @typedef {{ from: LonLat, to: LonLat, color: string, label?: string, at?: number }} Line a pin's line to where it should have been (`at`: when it starts to grow, ms of performance.now())
+ * @typedef {{ lon: number, lat: number, name?: string, flag?: HTMLImageElement | null }} Goal
  * @typedef {{ lon: number, lat: number, zoom: number, R: number }} Cam
  */
 
@@ -146,6 +149,10 @@ export class WorldMap {
     this.out = new Set();
     /** @type {Mark[]} */
     this.marks = [];
+    /** @type {Line[]} */
+    this.lines = [];
+    /** Where the answer is: a flag on a pole with the name under it. @type {Goal | null} */
+    this.goal = null;
     /** A dashed circle (km) around a point, e.g. the winning band. @type {{ lon: number, lat: number, km: number } | null} */
     this.circle = null;
     this.w = 1;
@@ -161,8 +168,9 @@ export class WorldMap {
     this.spin = 0;
     /** @type {number | undefined} */
     this.last = undefined;
-    /** Inset on the right (px) the camera keeps clear, e.g. for a card. */
+    /** Insets on the right and the left (px) the camera keeps clear, e.g. for a card. */
     this.right = 0;
+    this.left = 0;
     this.waves = (() => { const r = rng(7), a = []; for (let i = 0; i < 90; i++) a.push([r() * 360 - 180, r() * 140 - 60]); return a; })();
     this.stars = (() => { const r = rng(3), a = []; for (let i = 0; i < 170; i++) a.push([r(), r(), r() * 1.6 + 0.4, r()]); return a; })();
     /** @type {Map<string, Path2D>} cached flat paths per unit index (Mercator units: radians and mercY) */
@@ -228,12 +236,12 @@ export class WorldMap {
     if (e < w) e += 360;
     const lon = at ? at[0] : (w + e) / 2;
     const lat = at ? at[1] : (s + n) / 2;
-    const free = this.w - this.right;
+    const free = this.w - this.right - this.left;
     const wRad = Math.max((e - w) * D2R, 0.03);
     const hMerc = Math.max(mercY(n) - mercY(s), 0.03);
     const base = this.w / (2 * Math.PI);
     const zoom = Math.max(this.minZoom, Math.min(14, Math.min((free * fill) / (wRad * base), (this.h * fill) / (hMerc * base))));
-    const shift = this.right / 2 / (base * zoom) / D2R;
+    const shift = (this.right - this.left) / 2 / (base * zoom) / D2R;
     const ext = Math.max((e - w) * Math.cos(lat * D2R), n - s, 1) * D2R;
     const R = Math.max(0.42, Math.min(1.2, (0.3 * fill) / 0.4 / Math.sin(Math.min(ext, 1.2) / 2 + 0.05)));
     return { lon: wrap(lon + shift), lat: Math.max(-60, Math.min(70, lat)), zoom, R, glon: lon, glat: Math.max(-55, Math.min(65, lat)) };
@@ -305,7 +313,7 @@ export class WorldMap {
 
   get globe() {
     const R = this.cam.R * this.h;
-    return { cx: (this.w - this.right) / 2, cy: this.h / 2, R };
+    return { cx: (this.w - this.right + this.left) / 2, cy: this.h / 2, R };
   }
 
   /** A point to pixels, or null behind the globe. @param {number} lon @param {number} lat @returns {[number, number] | null} */
@@ -706,11 +714,93 @@ export class WorldMap {
       ctx.stroke();
       ctx.restore();
     }
-    for (const m of this.marks) {
+    const now = performance.now();
+    /** @type {{ x: number, y: number, text: string, color: string }[]} */
+    const labels = [];
+    for (const l of this.lines) {
+      const k = Math.max(0, Math.min(1, (now - (l.at ?? 0)) / 900));
+      if (k <= 0) continue;
+      const pts = this.#arc(l.from, l.to, ease(k));
+      if (pts.length < 2) continue;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const [width, color] of /** @type {[number, string][]} */ ([[8, INK], [4.5, l.color]])) {
+        ctx.lineWidth = width;
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        let on = false;
+        for (const q of pts) {
+          if (!q) { on = false; continue; }
+          on ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+          on = true;
+        }
+        ctx.stroke();
+      }
+      const end = pts.at(-1);
+      if (k >= 1 && end) {
+        // Where the distance was measured to.
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(end[0], end[1], 6, 0, 7);
+        ctx.fill();
+        ctx.stroke();
+        const mid = pts[Math.floor(pts.length / 2)];
+        if (l.label && mid) labels.push({ x: mid[0], y: mid[1], text: l.label, color: l.color });
+      }
+      ctx.restore();
+    }
+    // Pins: the small ones first, the winners' on top.
+    for (const m of [...this.marks].sort((a, b) => Number(!!a.big) - Number(!!b.big))) {
       const q = this.project(m.lon, m.lat);
       if (!q) continue;
       pin(ctx, q[0], q[1], m.color, m.label ?? "", m.big ? 1.15 : 0.9);
     }
+    for (const l of labels) tag(ctx, l.x, l.y, l.text, l.color, "#fff", Math.max(13, this.h / 48));
+    if (this.goal) {
+      const q = this.project(this.goal.lon, this.goal.lat);
+      if (q) goalFlag(ctx, q[0], q[1], this.goal, Math.max(0.8, this.h / 720), t);
+    }
+  }
+
+  /**
+   * The great circle from `a` to `b`, as far as `k` (0–1) of the way, in
+   * pixels: null where it is behind the globe; on the flat map one
+   * unbroken line across the date line.
+   * @param {LonLat} a @param {LonLat} b @param {number} k
+   * @returns {([number, number] | null)[]}
+   */
+  #arc(a, b, k) {
+    const va = vec(a[0], a[1]);
+    const vb = vec(b[0], b[1]);
+    const om = Math.acos(Math.max(-1, Math.min(1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2])));
+    const n = Math.max(2, Math.ceil(48 * k));
+    /** @type {([number, number] | null)[]} */
+    const out = [];
+    const span = 2 * Math.PI * this.scale;
+    for (let i = 0; i <= n; i++) {
+      const u = (i / n) * k;
+      let v = va;
+      if (om > 1e-9) {
+        const s0 = Math.sin((1 - u) * om) / Math.sin(om);
+        const s1 = Math.sin(u * om) / Math.sin(om);
+        v = [s0 * va[0] + s1 * vb[0], s0 * va[1] + s1 * vb[1], s0 * va[2] + s1 * vb[2]];
+      }
+      const lon = Math.atan2(v[1], v[0]) / D2R;
+      const lat = Math.asin(Math.max(-1, Math.min(1, v[2]))) / D2R;
+      const q = this.project(lon, lat);
+      if (q && this.mode === "flat" && out.length && span > 1) {
+        const prev = out[out.length - 1];
+        if (prev) {
+          while (q[0] - prev[0] > span / 2) q[0] -= span;
+          while (prev[0] - q[0] > span / 2) q[0] += span;
+        }
+      }
+      out.push(q);
+    }
+    return out;
   }
 
   // -------------------------------------------------------------------------
@@ -820,6 +910,99 @@ function wave(ctx, x, y, s) {
   ctx.quadraticCurveTo(x - 4.5 * s, y - 6 * s, x, y);
   ctx.quadraticCurveTo(x + 4.5 * s, y + 6 * s, x + 9 * s, y);
   ctx.stroke();
+}
+
+/**
+ * A rounded label centred on (x, y).
+ * @param {CanvasRenderingContext2D} ctx @param {number} x @param {number} y @param {string} text @param {string} bg @param {string} fg @param {number} size font size (px)
+ */
+function tag(ctx, x, y, text, bg, fg, size) {
+  ctx.save();
+  ctx.font = `900 ${Math.round(size)}px Grandstander, system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const w = ctx.measureText(text).width + size * 1.1;
+  const hh = size * 1.6;
+  ctx.fillStyle = "rgba(20,30,60,.3)";
+  roundRect(ctx, x - w / 2 + 2, y - hh / 2 + 4, w, hh, hh / 2);
+  ctx.fill();
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3;
+  roundRect(ctx, x - w / 2, y - hh / 2, w, hh, hh / 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = fg;
+  ctx.fillText(text, x, y + 1);
+  ctx.restore();
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} x @param {number} y @param {number} w @param {number} h @param {number} r */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * Where the answer is: a pole planted on (x, y) with the country's flag
+ * waving on it and its name on a label at the foot.
+ * @param {CanvasRenderingContext2D} ctx @param {number} x @param {number} y @param {Goal} g @param {number} s @param {number} t
+ */
+function goalFlag(ctx, x, y, g, s, t) {
+  const pole = 62 * s;
+  const fw = 46 * s;
+  const fh = 31 * s;
+  ctx.save();
+  ctx.lineCap = "round";
+  // The foot: a little mound.
+  ctx.fillStyle = "rgba(20,30,60,.3)";
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 12 * s, 5 * s, 0, 0, 7);
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 7 * s;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - pole);
+  ctx.stroke();
+  ctx.strokeStyle = "#fff8e8";
+  ctx.lineWidth = 3 * s;
+  ctx.stroke();
+  // The cloth: the flag, a little wave in its top and bottom edges.
+  const top = y - pole + 2 * s;
+  const wave = Math.sin(t * 3) * 2.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(x, top);
+  ctx.quadraticCurveTo(x + fw / 2, top - wave, x + fw, top + wave * 0.5);
+  ctx.lineTo(x + fw, top + fh + wave * 0.5);
+  ctx.quadraticCurveTo(x + fw / 2, top + fh - wave, x, top + fh);
+  ctx.closePath();
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+  if (g.flag?.complete && g.flag.naturalWidth) {
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(g.flag, x, top - 3 * s, fw, fh + 6 * s);
+    ctx.restore();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3.5 * s;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  // The knob.
+  ctx.fillStyle = "#ffcf4a";
+  ctx.lineWidth = 2.5 * s;
+  ctx.beginPath();
+  ctx.arc(x, y - pole - 3 * s, 5 * s, 0, 7);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  if (g.name) tag(ctx, x, y + 16 * s, g.name, "#fff8e8", INK, 17 * s);
 }
 
 /**
