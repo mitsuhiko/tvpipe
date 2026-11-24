@@ -47,49 +47,27 @@ if (!demo) blockEmoji();
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 const toastEl = /** @type {HTMLElement} */ (document.getElementById("toast"));
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone (the host page or the
+// VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "pinch:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-  else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  }
-});
 
 // ---------------------------------------------------------------------------
 // Helpers: text always as text.
@@ -226,8 +204,6 @@ client.on("msg", (/** @type {string} */ type, /** @type {unknown} */ data) => {
 function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   let saved = "";
@@ -314,8 +290,6 @@ function render(view) {
     shown = k;
     leave();
     const phase = view.room.phase;
-    langButton.hidden = !(phase === "lobby" || phase === "final");
-    langButton.textContent = t.otherLang;
     document.body.classList.toggle("playing", phase === "heist" && view.me.role !== "wait");
     document.body.dataset["phase"] = String(phase);
     build(view);

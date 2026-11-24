@@ -20,7 +20,6 @@ export function browserLang() {
 }
 
 const EN = {
-  otherLang: "Deutsch",
   connecting: "Connecting…",
   reconnecting: "Reconnecting…",
   scanToJoin: "Scan the code on the TV to join.",
@@ -91,7 +90,6 @@ const EN = {
 
 /** @type {typeof EN} */
 const DE = {
-  otherLang: "English",
   connecting: "Verbinde…",
   reconnecting: "Verbindung weg, gleich wieder da…",
   scanToJoin: "Scanne den Code auf dem Fernseher.",

@@ -424,6 +424,10 @@ the end; late joining also during a game (the host page's live field;
 on the VIP's phone at the tape and the scores, beside Skip). The
 others are refused while a game runs (`running`).
 
+The language is the room's, the same on every phone and the TV; a
+phone has no language of its own (before joining it uses the
+browser's).
+
 ## 14. Code
 
 | | |

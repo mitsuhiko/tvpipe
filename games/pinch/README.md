@@ -76,9 +76,9 @@ heist). The live checks need Chrome and a built tvpipe
 
 ## Languages
 
-English and German, written separately. The language is the room's: a
-setting on the host page; a phone may switch for itself on the join
-screen.
+English and German, written separately. The language is the room's,
+the same on every phone and the TV (before joining, a phone uses the
+browser's): the host page or the VIP's phone sets it.
 
 ## The fonts
 

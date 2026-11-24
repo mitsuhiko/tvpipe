@@ -31,7 +31,6 @@ body.playing #bar, body.playing #banner:empty { display: none; }
 #who { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; overflow: hidden; font-size: 16px; }
 #who b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--c, var(--gold)); flex: none; border: 2px solid var(--ink); box-shadow: 0 0 0 1px rgba(241, 228, 196, 0.35); }
-#lang { font-family: var(--sans); font-size: 14px; font-weight: 600; letter-spacing: 0.08em; color: var(--gold-light); background: transparent; border: 1px solid var(--gold-dark); padding: 6px 12px 4px; min-height: 40px; }
 #banner { position: fixed; z-index: 60; top: env(safe-area-inset-top); left: 0; right: 0; background: var(--oxblood); color: var(--cream); text-align: center; padding: 8px; font-weight: 600; border-bottom: 2px solid var(--gold); }
 main { max-width: 520px; margin: 0 auto; padding: 12px 12px 24px; display: flex; flex-direction: column; gap: 14px; }
 body.playing main { max-width: none; padding: 0; margin: 0; }
