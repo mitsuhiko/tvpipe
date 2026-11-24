@@ -1,7 +1,7 @@
 {
   "name": "jinx",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "A word game for tvpipe (tvpipe game play): one word each, identical clues jinx, the guesser picks whose clue to turn",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,7 +1,7 @@
 {
   "name": "shifty",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A social deduction word game for tvpipe (tvpipe game play): everyone but the phony knows the secret word; one-word clues are typed while the TV shows the typing as a lie detector's needle, then the room accuses someone",
   "license": "Apache-2.0",
   "type": "module",

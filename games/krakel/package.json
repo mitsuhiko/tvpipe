@@ -1,7 +1,7 @@
 {
   "name": "krakel",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A drawing game for tvpipe (tvpipe game play): everyone draws a word from the same category, then the TV redraws each picture stroke by stroke and the fastest to name it scores",
   "license": "Apache-2.0",
   "type": "module",

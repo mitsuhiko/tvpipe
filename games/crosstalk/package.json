@@ -1,7 +1,7 @@
 {
   "name": "crosstalk",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A team word game for tvpipe (tvpipe game play): two spymasters send secret clues to their teams' phones, both teams guess at once on one board of 25 words, and the other team can hear every word you say",
   "license": "Apache-2.0",
   "type": "module",

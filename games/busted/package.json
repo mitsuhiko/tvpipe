@@ -1,7 +1,7 @@
 {
   "name": "busted",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A gossip-paper party game for tvpipe (tvpipe game play): rank who would most likely do it, guess who wrote which anonymous answer, and suggest your own questions",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,7 +1,7 @@
 {
   "name": "landgrab",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A world conquest game for tvpipe (tvpipe game play): everyone plans their moves on the phone at the same time, then the TV plays out the battles on a hex map of the world",
   "license": "Apache-2.0",
   "type": "module",

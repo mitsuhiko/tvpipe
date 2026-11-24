@@ -155,3 +155,10 @@ into a game, so a change to `npm/party` alone does not change a zip.
 0.4.1 released landgrab 0.2.0 (the phone plans on the map), pinch 0.1.3,
 snug 0.1.1 (the difficulty ladder) and worldquiz 0.1.0 (its first
 release).
+
+Games can also be released on their own, between tvpipe releases: their
+tags on a later commit of the same series, tvpipe unchanged. After
+0.4.1 all eleven were, for the VIP's phone having every setting and one
+language per room: busted, crosstalk, pinch, shifty, snug and worldquiz
+0.2.0, krakel and landgrab 0.3.0, garble and jinx 0.4.0, drawbluff
+0.5.0.

@@ -1,7 +1,7 @@
 {
   "name": "garble",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A drawing game for tvpipe (tvpipe game play): one picture each goes round the table, and everyone turns it into something else by drawing on top of it",
   "license": "Apache-2.0",
   "type": "module",
