@@ -6,7 +6,7 @@ import { estate as estateName, words } from "../game/words.ts";
 import { game, ROUND, until } from "./game-kit.ts";
 
 suite("lobby, actions, words", { concurrency: true }, () => {
-  test("the lobby: start needs the VIP and 3 connected; the settings are the VIP's, in the lobby", async () => {
+  test("the lobby: start needs the VIP and 3 connected; the settings are the VIP's, in the lobby (late joining also during a game)", async () => {
     const { g, party, phone, room, close } = await game(0);
     const ann = await phone("Ann");
     const ben = await phone("Ben");
@@ -32,6 +32,23 @@ suite("lobby, actions, words", { concurrency: true }, () => {
       await ann.act("start");
       await assert.rejects(ann.act("start"), { code: "running" });
       await assert.rejects(ann.act("settings", { length: 150 }), { code: "running" });
+      await assert.rejects(ann.act("settings", { rounds: 2 }), { code: "running" });
+      await assert.rejects(ann.act("settings", { lang: "en" }), { code: "running" });
+      await assert.rejects(ann.act("settings", { late: "closed", lang: "en" }), { code: "running" });
+      // Late joining is live, as on the host page: the VIP only, known modes, every phone sees it.
+      await assert.rejects(ben.act("settings", { late: "closed" }), { code: "not-vip" });
+      await assert.rejects(ann.act("settings", { late: "open" }), { code: "bad-settings" });
+      // The host page updates on the game's `settings` event.
+      const told: unknown[] = [];
+      g.on("settings", (x) => told.push(x));
+      await ann.act("settings", { late: "closed" });
+      assert.equal(party.lateJoin, "closed");
+      assert.equal(g.settings.late, "closed");
+      assert.equal(told.length, 1);
+      await until(() => ben.view["room"]?.settings?.late === "closed");
+      await ann.act("settings", { late: "wait" });
+      assert.equal(party.lateJoin, "wait");
+      await until(() => ben.view["room"]?.settings?.late === "wait");
       await until(() => g.phase === "briefing");
       assert.equal(room().length, 300);
       assert.equal(room().rounds, 3);

@@ -356,11 +356,16 @@ function waiting() {
 // ---------------------------------------------------------------------------
 // Lobby and final: players, the VIP's settings, start.
 
-/** @param {HTMLElement} err */
-function settings(err) {
+/**
+ * The VIP's settings: all of them in the lobby and at the end; `live`
+ * (between rounds, at the tape and the scores) only late joining, which
+ * the host page also changes during a game.
+ * @param {HTMLElement} err @param {{ live?: boolean }} [o]
+ */
+function settings(err, o = {}) {
   /** @type {{ buttons: HTMLButtonElement[], on: (r: RoomView, i: number) => boolean }[]} */
   const items = [];
-  const box = h("div", { class: "settings" }, h("h2", {}, t.settings));
+  const box = h("div", { class: "settings" }, o.live ? null : h("h2", {}, t.settings));
   /** @param {string} title @param {{ label: string, data: object }[]} choices @param {(r: RoomView, i: number) => boolean} on */
   const add = (title, choices, on) => {
     const buttons = choices.map((c) => /** @type {HTMLButtonElement} */ (h("button", { type: "button", onclick: () => act("settings", c.data, err) }, c.label)));
@@ -368,10 +373,10 @@ function settings(err) {
     items.push({ buttons, on });
   };
   const lengths = TIMES.lengths;
-  add(t.length, lengths.map((l) => ({ label: clock(l), data: { length: l } })), (r, i) => r.settings?.length === lengths[i]);
-  add(t.rounds, [{ label: t.roundsOnce, data: { rounds: 1 } }, { label: t.roundsTwice, data: { rounds: 2 } }], (r, i) => r.settings?.rounds === i + 1);
+  if (!o.live) add(t.length, lengths.map((l) => ({ label: clock(l), data: { length: l } })), (r, i) => r.settings?.length === lengths[i]);
+  if (!o.live) add(t.rounds, [{ label: t.roundsOnce, data: { rounds: 1 } }, { label: t.roundsTwice, data: { rounds: 2 } }], (r, i) => r.settings?.rounds === i + 1);
   add(t.late, [{ label: t.lateWait, data: { late: "wait" } }, { label: t.lateClosed, data: { late: "closed" } }], (r, i) => r.settings?.late === (i ? "closed" : "wait"));
-  add(t.language, [{ label: "English", data: { lang: "en" } }, { label: "Deutsch", data: { lang: "de" } }], (r, i) => r.lang === (i ? "de" : "en"));
+  if (!o.live) add(t.language, [{ label: "English", data: { lang: "en" } }, { label: "Deutsch", data: { lang: "de" } }], (r, i) => r.lang === (i ? "de" : "en"));
   const update = () => {
     const r = room();
     box.hidden = !isVip();
@@ -629,9 +634,12 @@ function outcomeCard() {
 function tape() {
   const w = words(lang);
   const skip = /** @type {HTMLButtonElement} */ (h("button", { class: "deco-btn wide", onclick: () => act("skip") }, w.buttons.skip));
-  show(h("section", { class: "card pop center tape" }, h("p", { class: "vhs" }, `${w.ui.play} ▶`), h("h1", { class: "deco-title" }, w.ui.tape), h("p", { class: "big" }, t.tapeOn), skip));
+  const err = h("p", { class: "error" });
+  const set = settings(err, { live: true });
+  show(h("section", { class: "card pop center tape" }, h("p", { class: "vhs" }, `${w.ui.play} ▶`), h("h1", { class: "deco-title" }, w.ui.tape), h("p", { class: "big" }, t.tapeOn), skip, err, set.box));
   refresh = () => {
     skip.hidden = !isVip();
+    set.update();
   };
 }
 
@@ -648,6 +656,8 @@ function scores() {
   const totals = h("ol", { class: "totals" });
   const next = h("p", { class: "muted center" });
   const skip = /** @type {HTMLButtonElement} */ (h("button", { class: "deco-btn wide", onclick: () => act("skip") }, w.buttons.skip));
+  const err = h("p", { class: "error" });
+  const set = settings(err, { live: true });
   show(
     h(
       "section",
@@ -663,6 +673,8 @@ function scores() {
       next,
       h("p", { class: "starts" }, countdown()),
       skip,
+      err,
+      set.box,
     ),
   );
   refresh = () => {
@@ -673,6 +685,7 @@ function scores() {
     const n = rr.next?.[0];
     next.textContent = n ? t.nextUp(nameOf(n)) : "";
     skip.hidden = !isVip();
+    set.update();
   };
 }
 

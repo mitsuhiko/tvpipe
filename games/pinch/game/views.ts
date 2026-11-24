@@ -16,10 +16,10 @@
  * `PartyActionError` `code`, `message`):
  * - `start` (the VIP, lobby or final, at least `minPlayers` connected):
  *   null. Refusals: `not-vip`, `running`, `too-few`.
- * - `settings` (the VIP, lobby or final): a partial
- *   `{ length?, rounds?, lang?, late? }` ({@link SettingsView}, `lang`
- *   "en" or "de", `late` "wait" or "closed"): null. Refusals: `not-vip`,
- *   `running`, `bad-settings`.
+ * - `settings` (the VIP, lobby or final; `late` alone also during a
+ *   game): a partial `{ length?, rounds?, lang?, late? }`
+ *   ({@link SettingsView}, `lang` "en" or "de", `late` "wait" or
+ *   "closed"): null. Refusals: `not-vip`, `running`, `bad-settings`.
  * - `skip` (the VIP, at the tape and the scores): null. `not-vip`, `not-now`.
  * - `h` (the heist): a protocol.ts `Action` (`{ a: "go", x, y }`, …),
  *   answered with null; refused with a PartyError whose code is the

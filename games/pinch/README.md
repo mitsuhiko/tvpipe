@@ -51,8 +51,10 @@ cd games/pinch && npm install && npm run build
 Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once three
 are in (or the host page's Start). Settings (the host page, or the VIP's
-phone in the lobby): the heist's length (2:30, 3:30, 5:00), turns as
-thief (once, twice), the language, late joining (wait, closed).
+phone in the lobby and at the end): the heist's length (2:30, 3:30,
+5:00), turns as thief (once, twice), the language, late joining (wait,
+closed). Late joining also changes during a game: the host page, or the
+VIP's phone at the tape and the scores.
 
 ## Checking it
 

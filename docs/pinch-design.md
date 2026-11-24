@@ -419,7 +419,10 @@ lines lifted from films or shows.
 
 The host page and the VIP's phone: **heist length** (2:30, 3:30, 5:00),
 **rounds** (everyone once, everyone twice), the language (English,
-German), late joining (wait, closed).
+German), late joining (wait, closed). All of them in the lobby and at
+the end; late joining also during a game (the host page's live field;
+on the VIP's phone at the tape and the scores, beside Skip). The
+others are refused while a game runs (`running`).
 
 ## 14. Code
 

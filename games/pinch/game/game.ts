@@ -294,9 +294,10 @@ export class Pinch extends Emitter<GameEvents> {
     });
     party.handle("settings", (d, from) => {
       vipOnly(from);
-      if (this.#running) throw new PartyError("running", "Not during a game");
       const v = obj(d);
       for (const k of Object.keys(v)) if (k !== "length" && k !== "rounds" && k !== "lang" && k !== "late") throw new PartyError("bad-settings", `${k}: not a setting`);
+      // Late joining is live (as on the host page): the others wait for the lobby.
+      if (this.#running && Object.keys(v).some((k) => k !== "late")) throw new PartyError("running", "Not during a game");
       const length = v["length"];
       const rounds = v["rounds"];
       const lang = v["lang"];
