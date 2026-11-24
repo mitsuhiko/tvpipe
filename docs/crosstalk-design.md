@@ -95,10 +95,14 @@ teams ─▶ round: clues (both at once) ─▶ steps (both at once, cards flip 
 - **The end** (§7): the key, then the clues, then the pads, then a new
   game with the next spymasters.
 - **Settings** (the host page, or the VIP's phone in the lobby and at
-  the end): time for the clues (60, 90, 120 s), time for each card (20,
-  30, 45 s), the board (tangled or mixed), the words (easy, normal,
-  hard), and on the host page the language and latecomers (from the
-  next round, or closed).
+  the end; the same choices on both, none during a game): the language
+  (one with words), time for the clues (60, 90, 120 s), time for each
+  card (20, 30, 45 s), the board (tangled or mixed), the words (easy,
+  normal, hard), and latecomers (from the next round, or closed: the
+  party's `lateJoin`). The room view carries them all (`lang`, `langs`,
+  `clueTime`, `stepTime`, `deal`, `difficulty`, `late`); a change on the
+  VIP's phone shows on the host page. The language is the room's: every
+  phone and the TV follow it (a phone before joining: the browser's).
 - **Length.** A round is about 2½–3 minutes (90 s of clues, 3–4 steps
   of about 25 s, the flips). A game is 3–5 rounds: about 10–15 minutes.
 

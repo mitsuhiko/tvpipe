@@ -15,7 +15,7 @@ import { format } from "./i18n.js";
 const en = (f) => ({
   /** A number as the language writes it. */
   n: f.n,
-  otherLang: "Deutsch",
+  langName: "English",
   connecting: "Connecting…",
   scanToJoin: "Scan the QR code on the TV to join.",
   joinTitle: "Plug in",
@@ -86,6 +86,14 @@ const en = (f) => ({
   dealLine: /** @type {Record<string, string>} */ ({
     tangled: "Words from a few topics, mixed between the teams: a topic clue is risky.",
     mixed: "Words from everywhere.",
+  }),
+  langLabel: "Language",
+  lateLabel: "Latecomers",
+  lateWait: "next round",
+  lateClosed: "closed",
+  lateLine: /** @type {Record<string, string>} */ ({
+    wait: "Someone who joins during a game plays from the next round.",
+    closed: "Nobody new joins during a game; those who left can come back.",
   }),
   difficultyLabel: "Words",
   difficulty: /** @type {Record<string, string>} */ ({ easy: "easy", normal: "normal", hard: "hard" }),
@@ -208,7 +216,7 @@ const en = (f) => ({
 /** @type {(f: import("./i18n.js").Format) => Strings} */
 const de = (f) => ({
   n: f.n,
-  otherLang: "English",
+  langName: "Deutsch",
   connecting: "Verbinde…",
   scanToJoin: "Scanne den QR-Code auf dem Fernseher, um mitzuspielen.",
   joinTitle: "Einstöpseln",
@@ -276,6 +284,14 @@ const de = (f) => ({
   dealLine: {
     tangled: "Wörter aus wenigen Themen, quer über die Teams verteilt: Ein Themen-Hinweis ist riskant.",
     mixed: "Wörter von überall.",
+  },
+  langLabel: "Sprache",
+  lateLabel: "Nachzügler",
+  lateWait: "nächste Runde",
+  lateClosed: "geschlossen",
+  lateLine: {
+    wait: "Wer während eines Spiels dazukommt, spielt ab der nächsten Runde mit.",
+    closed: "Während eines Spiels kommt niemand Neues dazu; wer gegangen ist, kann zurück.",
   },
   difficultyLabel: "Wörter",
   difficulty: { easy: "leicht", normal: "normal", hard: "schwer" },

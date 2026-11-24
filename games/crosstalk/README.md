@@ -51,7 +51,9 @@ end): language, time for the clues (60/90/120 s), time for each card
 each, so themes run into each other; or mixed), words (easy, normal,
 hard), latecomers (from the next round, or closed). The room deals no
 word twice until it dealt them all (kept per language in the host page's
-`localStorage`), and never two related words on one board.
+`localStorage`), and never two related words on one board. Every phone
+reads the room's language (before joining: the browser's); there is no
+language of its own per phone.
 
 ## Tests
 
@@ -65,8 +67,10 @@ refused and accepted; both teams' cards turning together; one card for
 both teams; time up with and without a majority; passing; the
 assassin; the last cards in one step; the pad (who sees it, one editor
 a line, released when the editor goes away, full); the lobby's teams;
-too few; a spymaster who leaves; closing a game; phones dropping out
-all game long; a late joiner; a German game.
+the VIP's settings (only the VIP, only the host page's choices, not
+during a game, every phone sees them); too few; a spymaster who
+leaves; closing a game; phones dropping out all game long; a late
+joiner; a German game.
 
 ## Checking it
 

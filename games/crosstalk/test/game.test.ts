@@ -406,6 +406,43 @@ test("lobby: teams balance as people join, switching, the spymaster, shuffle", a
   }
 });
 
+test("the VIP's settings: every one the host page has, checked, none during a game", async () => {
+  const { party, g, players, close } = await game(4, { manual: ["A", "B", "C", "D"].map((name) => ({ name, skip: ["lobby"] })) });
+  try {
+    const vip = players[0]!.client;
+    const room = (b: Bot) => b.client.view!["room"] as Record<string, any>;
+    await until(() => players.every((p) => room(p)?.["late"] === "wait"));
+    assert.deepEqual(room(players[1]!)["langs"], ["en", "de"]);
+    const told: unknown[] = [];
+    g.on("settings", (s) => told.push(s));
+    const all = { lang: "de", clueTime: 120, stepTime: 45, deal: "mixed", difficulty: "hard", late: "closed" };
+    const bad = { lang: "fr", clueTime: 75, stepTime: "30", deal: "random", difficulty: 3, late: "open" };
+    for (const [k, v] of Object.entries(all)) {
+      await assert.rejects(players[1]!.client.act("settings", { [k]: v }), { code: "not-vip" }, k);
+      await assert.rejects(vip.act("settings", { [k]: bad[k as keyof typeof bad] }), { code: "bad-settings" }, k);
+    }
+    await assert.rejects(vip.act("settings", { rounds: 3 }), { code: "bad-settings" });
+    assert.equal(told.length, 0, "nothing changed");
+    for (const [k, v] of Object.entries(all)) await vip.act("settings", { [k]: v });
+    assert.equal(g.lang, "de");
+    assert.equal(party.lateJoin, "closed");
+    assert.deepEqual(g.settings, { clueTime: 120, stepTime: 45, deal: "mixed", difficulty: "hard", late: "closed" });
+    // Every phone sees them (and follows the language); the host page was told each time.
+    await until(() => players.every((p) => Object.entries(all).every(([k, v]) => room(p)[k] === v)));
+    assert.equal(told.length, Object.keys(all).length);
+    // The host page's latecomers field (party.lateJoin, then configure) reaches the phones too.
+    party.lateJoin = "wait";
+    g.configure({ late: "wait" });
+    await until(() => room(players[1]!)["late"] === "wait");
+    await p0start(players[0]!, g);
+    await assert.rejects(vip.act("settings", { late: "closed" }), { code: "running" });
+    await assert.rejects(vip.act("settings", { lang: "en" }), { code: "running" });
+    assert.equal(party.lateJoin, "wait");
+  } finally {
+    close();
+  }
+});
+
 async function p0start(b: Bot, g: Crosstalk) {
   await b.client.act("start");
   await until(() => g.running);

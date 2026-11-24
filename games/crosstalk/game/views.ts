@@ -97,11 +97,15 @@ export interface Settings {
   /** How the board is dealt: categories tangled (the default), or any words. */
   deal: "tangled" | "mixed";
   difficulty: "easy" | "normal" | "hard";
+  /** Latecomers (the party's `lateJoin`): from the next round, or shut out. */
+  late: "wait" | "closed";
 }
 
 export interface RoomView extends Settings {
   phase: Phase;
   lang: "en" | "de";
+  /** The languages the room can play (those with words): the VIP's choices. */
+  langs: ("en" | "de")[];
   minPlayers: number;
   maxPlayers: number;
   /** Names by player id: everyone who played in this game, also those who left. */
@@ -172,8 +176,8 @@ export interface MeView {
 export interface Actions {
   /** VIP, lobby or end: start a game. */
   start: null;
-  /** VIP, lobby or end: the settings (`clueTime`, `stepTime` in seconds, `deal`, `difficulty`). */
-  settings: Partial<Settings>;
+  /** VIP, lobby or end: the settings (`lang`, `clueTime`, `stepTime` in seconds, `deal`, `difficulty`, `late`), the host page's choices. */
+  settings: Partial<Settings> & { lang?: "en" | "de" };
   /** VIP, lobby or end: remove a player. */
   kick: { id: string };
   /** Lobby or end: join a team. */

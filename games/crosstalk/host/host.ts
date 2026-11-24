@@ -5,7 +5,9 @@
  * and shows the room on tvpipe's standard host page (`HostPage` of
  * @tvpipe/party: the QR code, the TVs, the players with their team, a
  * muted preview of the TV) with Crosstalk's settings (`settings` below:
- * language, clue time, step time, the board, the words, latecomers).
+ * language, clue time, step time, the board, the words, latecomers; the
+ * VIP's phone offers the same in the lobby and at the end, and a change
+ * there comes back as the game's `settings` event).
  * Bots are for tests: their buttons show only in test mode (`tvpipe game
  * play --dev`) or with `?bots` in the page's URL. The room's dealt words
  * are kept in `localStorage` per language, so no word comes twice until
@@ -16,7 +18,7 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { bots, type Bot } from "../game/bots.ts";
-import { CLUE_TIMES, Crosstalk, FAST_TIMINGS, STEP_TIMES } from "../game/game.ts";
+import { CLUE_TIMES, Crosstalk, FAST_TIMINGS, LATE, STEP_TIMES } from "../game/game.ts";
 import { LANGS, matcher, type Lang, type MatchOptions, type WordEntry } from "../game/rules.ts";
 import type { Settings } from "../game/views.ts";
 import { status, strings } from "./strings.ts";
@@ -83,8 +85,9 @@ function settings(game: Crosstalk, words: Partial<Record<Lang, WordEntry[]>>): F
       get: () => s().difficulty,
       set: (difficulty: Settings["difficulty"]) => game.configure({ difficulty }),
     },
-    // Latecomers play from the next round, or the game is closed to them (they can still rejoin by name).
-    lateJoinField(game.party, ["wait", "closed"]),
+    // Latecomers play from the next round, or the game is closed to them (they can still rejoin by name);
+    // the phones' view carries it (the VIP's phone changes it too).
+    lateJoinField(game.party, LATE, (late) => game.configure({ late: late === "closed" ? "closed" : "wait" })),
   ];
 }
 

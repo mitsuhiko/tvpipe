@@ -22,9 +22,11 @@ import {
   afterCard,
   balance,
   BOARD,
+  BOARD_MODES,
   checkClue,
   cleanNote,
   dealBoard,
+  DIFFICULTIES,
   isTeam,
   majority,
   matcher,
@@ -73,6 +75,10 @@ export const FAST_TIMINGS: Timings = { intro: 3000, clue: 30_000, step: 15_000, 
 /** What the room can pick (seconds). */
 export const CLUE_TIMES = [60, 90, 120] as const;
 export const STEP_TIMES = [20, 30, 45] as const;
+/** Latecomers: from the next round, or shut out (they can still rejoin by name); never into a running round. */
+export const LATE = ["wait", "closed"] as const;
+/** What the VIP's `settings` action takes. */
+const SETTING_KEYS = ["lang", "clueTime", "stepTime", "deal", "difficulty", "late"];
 
 export interface GameOptions {
   /** The word lists per language (the matcher's `parseWordList` of `data/words*.txt`). */
@@ -205,7 +211,8 @@ export class Crosstalk extends Emitter<GameEvents> {
   }
 
   get settings(): Settings {
-    return { clueTime: this.timings.clue / 1000, stepTime: this.timings.step / 1000, deal: this.#board, difficulty: this.#difficulty };
+    const late = this.party.lateJoin === "closed" ? "closed" : "wait";
+    return { clueTime: this.timings.clue / 1000, stepTime: this.timings.step / 1000, deal: this.#board, difficulty: this.#difficulty, late };
   }
 
   get phase(): Phase {
@@ -280,24 +287,21 @@ export class Crosstalk extends Emitter<GameEvents> {
       vipOnly(from);
       between();
       const v = obj(d);
-      const o: Partial<Settings> = {};
-      if (v["clueTime"] !== undefined) {
-        if (!(CLUE_TIMES as readonly unknown[]).includes(v["clueTime"])) throw new PartyError("bad-settings", `clueTime: ${CLUE_TIMES.join(", ")}`);
-        o.clueTime = v["clueTime"] as number;
-      }
-      if (v["stepTime"] !== undefined) {
-        if (!(STEP_TIMES as readonly unknown[]).includes(v["stepTime"])) throw new PartyError("bad-settings", `stepTime: ${STEP_TIMES.join(", ")}`);
-        o.stepTime = v["stepTime"] as number;
-      }
-      if (v["deal"] !== undefined) {
-        if (v["deal"] !== "tangled" && v["deal"] !== "mixed") throw new PartyError("bad-settings", "deal: tangled, mixed");
-        o.deal = v["deal"];
-      }
-      if (v["difficulty"] !== undefined) {
-        if (v["difficulty"] !== "easy" && v["difficulty"] !== "normal" && v["difficulty"] !== "hard") throw new PartyError("bad-settings", "difficulty: easy, normal, hard");
-        o.difficulty = v["difficulty"];
-      }
-      this.configure(o);
+      for (const k of Object.keys(v)) if (!SETTING_KEYS.includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      const oneOf = <T extends Json>(key: string, list: readonly T[]): T | undefined => {
+        if (v[key] === undefined) return undefined;
+        if (!list.includes(v[key] as T)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
+        return v[key] as T;
+      };
+      // The same choices as the host page's (host/host.ts `settings`): a language with words, latecomers waiting or shut out.
+      this.configure({
+        lang: oneOf("lang", this.langs),
+        clueTime: oneOf("clueTime", CLUE_TIMES),
+        stepTime: oneOf("stepTime", STEP_TIMES),
+        deal: oneOf("deal", BOARD_MODES),
+        difficulty: oneOf("difficulty", DIFFICULTIES),
+        late: oneOf("late", LATE),
+      });
       return null;
     });
     party.handle("team", (d, from) => {
@@ -356,19 +360,23 @@ export class Crosstalk extends Emitter<GameEvents> {
     this.#sync();
   }
 
-  /** Changes the settings or the language before a game; every phone and the TV follow. */
-  configure(o: Partial<Settings> & { lang?: Lang | undefined; timings?: Partial<Timings> | undefined }): void {
+  /**
+   * Changes the settings or the language before a game (the host page,
+   * the VIP's phone); every phone, the TV and the host page follow.
+   */
+  configure(o: { [K in keyof Settings]?: Settings[K] | undefined } & { lang?: Lang | undefined; timings?: Partial<Timings> | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
     if (o.lang !== undefined && !this.langs.includes(o.lang)) throw new PartyError("bad-lang", `Nothing to play in ${o.lang}`);
-    const was = JSON.stringify(this.settings);
+    const was = JSON.stringify([this.#lang, this.settings]);
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
+    if (o.late !== undefined && (LATE as readonly string[]).includes(o.late)) this.party.lateJoin = o.late;
     if (o.lang !== undefined) this.#lang = o.lang;
     if (o.clueTime !== undefined && o.clueTime > 0) this.timings.clue = o.clueTime * 1000;
     if (o.stepTime !== undefined && o.stepTime > 0) this.timings.step = o.stepTime * 1000;
     if (o.deal !== undefined) this.#board = o.deal;
     if (o.difficulty !== undefined) this.#difficulty = o.difficulty;
     this.#sync();
-    if (JSON.stringify(this.settings) !== was) this.emit("settings", this.settings);
+    if (JSON.stringify([this.#lang, this.settings]) !== was) this.emit("settings", this.settings);
   }
 
   /**
@@ -488,6 +496,7 @@ export class Crosstalk extends Emitter<GameEvents> {
     return {
       phase: this.#phase,
       lang: this.#lang,
+      langs: this.langs,
       ...this.settings,
       minPlayers: this.minPlayers,
       maxPlayers: this.party.maxPlayers,
