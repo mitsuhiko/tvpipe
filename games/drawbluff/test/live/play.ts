@@ -307,14 +307,16 @@ try {
     log(`screenshots: ${name}`);
   };
   await shot("lobby");
-  // The phone's own language switch (in the lobby), there and back.
+  // Phil, the VIP, switches the room's language from the phone's rules and back: the host page and the phone follow.
   const other = lang === "de" ? "en" : "de";
-  await phone.eval(`document.getElementById("lang").click(); true`);
+  await phone.eval(`document.querySelector(".rules [data-key=lang] button[lang=${other}]").click(); true`);
+  await win.until(`drawbluff.game.lang === ${JSON.stringify(other)} && document.documentElement.lang === ${JSON.stringify(other)}`);
   await phone.until(`document.documentElement.lang === ${JSON.stringify(other)} && !!document.querySelector(".card.lobby")`);
   await phone.screenshot(`${out}/phone-lobby-switched.png`);
-  await phone.eval(`document.getElementById("lang").click(); true`);
-  await phone.until(`document.documentElement.lang === ${JSON.stringify(lang)} && localStorage.getItem("drawbluff:lang") === null`);
-  log(`phone: switched to ${other} and back to the room's ${lang}`);
+  await phone.eval(`document.querySelector(".rules [data-key=lang] button[lang=${lang}]").click(); true`);
+  await win.until(`drawbluff.game.lang === ${JSON.stringify(lang)} && document.documentElement.lang === ${JSON.stringify(lang)}`);
+  await phone.until(`document.documentElement.lang === ${JSON.stringify(lang)} && !!document.querySelector(".card.lobby")`);
+  log(`phone: the VIP switched the room to ${other} and back to ${lang}`);
   // Phil picks a free colour (the bots have some) and, as the VIP, turns undo on.
   const pick = await phone.eval<number>(`[...document.querySelectorAll(".colors button")].findIndex((b) => !b.classList.contains("taken") && !b.classList.contains("chosen"))`);
   await phone.eval(`document.querySelectorAll(".colors button")[${pick}].click(); true`);

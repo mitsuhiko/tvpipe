@@ -360,17 +360,18 @@ phones and `screen.lang` to the TV, so every screen follows it; the
 prompts, the decoys and the bots' lies are in it, and titles compare
 the German way (`titleKey(…, "de")`). Each page has its strings
 (`phone/strings.js`, `screen/strings.js`, `host/strings.ts`; numbers,
-plurals and lists with `Intl`: "1.000 Punkte", "Ada, Bo und Cy"). A
-phone may switch for itself (a button in the header, in the lobby and
-on the podium, kept on the phone); before it joined it speaks the
-browser's language. German is written for German speakers, not
+plurals and lists with `Intl`: "1.000 Punkte", "Ada, Bo und Cy"). Every
+phone speaks the room's language, like the TV (a phone cannot switch
+for itself: the whole table reads one language); before it joined it
+speaks the browser's language. German is written for German speakers, not
 translated: "du", „…“ quotes, "Platz 3 von 8", "Bester Bluff",
 "Adlerauge", and prompts of its own (idioms like "tomaten auf den
 augen", compounds taken literally like "ein glückspilz", "ein ritter
 beim tüv", "die bahn hat wieder verspätung").
 
 The live check plays it: `node test/live/play.ts --lang de` sets
-the host page to German, joins a German phone (`de-DE`) and checks every
+the host page to German, joins a German phone (`de-DE`), has it (the
+VIP) switch the room to English and back from its rules, and checks every
 shot for layout problems (the phone at 390 and 320 px wide, the TV page
 at 1280×720: text out of its box, boxes off the screen) and for English
 left on the screen. Run against a real `tvpipe game play

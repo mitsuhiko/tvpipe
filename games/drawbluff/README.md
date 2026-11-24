@@ -29,8 +29,8 @@ the game ends there, to its final screen. The design and the numbers:
 
 It speaks English and German: the room's language is a setting on the
 host page and the VIP's phone (the default: the host browser's
-language), and every phone (unless it switched for itself), the TV and
-the host page follow it, with prompts written for each
+language), and every phone, the TV and the host page follow it (one
+language for the whole table), with prompts written for each
 language (1993 in 17 structures in English, 2091 in 18 in German) in the
 forms players type their lies in (about a third with a leading article,
 short labels, sentences, telegraphic), so neither the truth nor the

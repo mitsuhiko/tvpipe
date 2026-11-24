@@ -3,8 +3,8 @@
  * Drawbluff's phone page: joining, the lobby, the drawing pad, lies,
  * votes, scores. Everything it shows comes from the party's view
  * (`{ roster, room, me }`); everything it does is an action. It speaks
- * the room's language (`room.lang`, the VIP's or the host page's), or the
- * one the player picked with the switch in the header (kept on this phone).
+ * the room's language (`room.lang`, the VIP's or the host page's), the
+ * same on every phone; before joining, the browser's.
  */
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
@@ -49,7 +49,6 @@ const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const timer = /** @type {HTMLElement} */ (document.getElementById("timer"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 const soundButton = /** @type {HTMLButtonElement} */ (document.getElementById("sound"));
 const header = /** @type {HTMLElement} */ (document.querySelector("header"));
 
@@ -103,30 +102,21 @@ function titled(text, title) {
 }
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone and the TV (the VIP
+// or the host page sets it); before joining, the browser's.
 
-const LANG_KEY = "drawbluff:lang";
-/** @returns {import("./i18n.js").Lang | null} */
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 /** @returns {import("./i18n.js").Lang} */
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 
-/** Follows the language; true when it changed (the screen has to be built again). */
+/** Follows the room's language; true when it changed (the screen has to be built again). */
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
@@ -134,28 +124,6 @@ function useLang() {
   showSound();
   return true;
 }
-
-/** The switch: only where rebuilding loses nothing (joining, the lobby, the end). */
-function showSwitch(on = false) {
-  langButton.hidden = !on;
-  langButton.textContent = t.otherLang;
-}
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    // Back to the room's language: follow the room again.
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") {
-    const typed = /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value;
-    joinForm("", typed);
-  } else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  } else showSwitch(true);
-});
 
 // ---------------------------------------------------------------------------
 // Sound and touch: quiet cues (the TV plays the show), a buzz where the
@@ -248,14 +216,10 @@ function setBanner(text) {
 // ---------------------------------------------------------------------------
 // Joining
 
-/**
- * @param {string} [error]
- * @param {string} [typed] the name typed so far (the language switched)
- */
-function joinForm(error = "", typed) {
+/** @param {string} [error] */
+function joinForm(error = "") {
   shown = "join";
   refresh = null;
-  showSwitch(true);
   const tpl = /** @type {HTMLTemplateElement} */ (document.getElementById("t-join"));
   show(tpl.content.cloneNode(true));
   const input = /** @type {HTMLInputElement} */ (document.getElementById("name"));
@@ -263,7 +227,7 @@ function joinForm(error = "", typed) {
   /** @type {HTMLElement} */ (app.querySelector("h1")).textContent = t.joinTitle;
   /** @type {HTMLElement} */ (app.querySelector("label")).textContent = t.yourName;
   /** @type {HTMLElement} */ (app.querySelector("#join-form button")).textContent = t.join;
-  input.value = typed ?? client.saved?.name ?? localStorage.getItem("drawbluff:name") ?? "";
+  input.value = client.saved?.name ?? localStorage.getItem("drawbluff:name") ?? "";
   err.textContent = error;
   /** @type {HTMLFormElement} */ (document.getElementById("join-form")).addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -314,7 +278,6 @@ client.on("bye", (reason) => {
   if (text) {
     shown = "bye";
     refresh = null;
-    showSwitch(false);
     setBanner(null);
     timer.hidden = true;
     show(h("section", { class: "card" }, h("p", { class: "big" }, text)));
@@ -342,7 +305,6 @@ function render(view) {
   );
   const key = screenKey(me, room);
   if (key !== shown) {
-    showSwitch(me.task === "lobby" || me.task === "final");
     shown = key;
     refresh = null;
     pad = null;
@@ -575,26 +537,14 @@ function rules(err) {
   /** @type {{ key: "animate" | "undo" | "colorMode" | "adult", row: HTMLElement, buttons: HTMLButtonElement[], line: HTMLElement }[]} */
   const items = [];
   const box = h("div", { class: "rules" }, h("h2", {}, t.rules));
-  // The language: the room's, every phone (that did not pick its own) and the TV follow it.
+  // The language: the room's, every phone and the TV follow it.
   const langButtons = LANGS.map((l) =>
     /** @type {HTMLButtonElement} */ (
       h(
         "button",
         {
           lang: l,
-          onclick: () => {
-            // The VIP follows the room again (their own switch is undone).
-            try {
-              localStorage.removeItem(LANG_KEY);
-            } catch {}
-            act("settings", { lang: l }, err)
-              .then(() => {
-                if (!useLang() || !client.view?.me) return;
-                shown = "";
-                render(client.view);
-              })
-              .catch(() => {});
-          },
+          onclick: () => act("settings", { lang: l }, err).catch(() => {}),
         },
         strings(l).langName,
       )

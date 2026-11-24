@@ -49,7 +49,6 @@ header {
 #who { flex: 1; text-align: right; opacity: .85; font-size: .9rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 header button { box-shadow: none; border: 0; background: rgba(255,255,255,.12); color: var(--ink); }
 header button:active { transform: none; box-shadow: none; background: rgba(255,255,255,.22); }
-#lang { font-size: .75rem; font-weight: 500; padding: .2rem .55rem; border-radius: 1rem; }
 #sound { width: 2rem; height: 1.7rem; padding: 0; border-radius: 1rem; display: grid; place-items: center; flex: none; }
 #sound svg { width: 1rem; height: 1rem; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 #sound.off { opacity: .55; }

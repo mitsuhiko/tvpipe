@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * What the phone page says, per language (the room's, `room.lang`, or
- * the phone's own choice). German is written for German speakers, not
+ * What the phone page says, per language (the room's, `room.lang`, the
+ * same on every phone; before joining, the browser's). German is written for German speakers, not
  * translated word for word: "du", „quotes“, "Platz 3 von 8".
  */
 
@@ -14,8 +14,6 @@ const en = (f) => ({
   joinTitle: "Join the game",
   yourName: "Your name",
   join: "Join",
-  /** The other language, for the switch. */
-  otherLang: "Deutsch",
   /** This language's own name (the VIP's language buttons). */
   langName: "English",
   /** The header's sound switch. */
@@ -180,7 +178,6 @@ const de = (f) => ({
   joinTitle: "Mach mit!",
   yourName: "Dein Name",
   join: "Mitspielen",
-  otherLang: "English",
   langName: "Deutsch",
   soundOn: "Ton an",
   soundOff: "Ton aus",
