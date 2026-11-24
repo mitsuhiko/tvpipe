@@ -34,7 +34,6 @@ body.phony { background-color: #1d0610; background-image: radial-gradient(100% 6
 #who { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; overflow: hidden; color: var(--muted); font-size: 15px; }
 #who b { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
 #who .dot, .chip .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); flex: none; }
-#lang { font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
 #banner { position: sticky; top: 44px; z-index: 4; background: var(--red); color: #fff; text-align: center; padding: 6px; font-weight: 600; }
 main { max-width: 520px; margin: 0 auto; padding: 14px 14px 28px; display: flex; flex-direction: column; gap: 14px; }
 
@@ -77,6 +76,7 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 
 .setting { margin-bottom: 12px; }
 .seg { display: flex; gap: 6px; }
 .seg button { flex: 1; font: inherit; font-size: 15px; padding: 9px 4px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .4); color: var(--text); }
+.seg button:disabled { opacity: .35; }
 .seg button.on { border-color: var(--cyan); color: var(--cyan); background: rgba(46, 230, 255, .1); box-shadow: 0 0 10px rgba(46, 230, 255, .35); font-weight: 700; }
 .setting .line { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 

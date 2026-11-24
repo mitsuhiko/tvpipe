@@ -11,7 +11,7 @@
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { watchFit } from "./fit.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { strings } from "./strings.js";
 
 const MAX_CLUE = 24;
@@ -31,48 +31,26 @@ blockEmoji();
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 const banner = /** @type {HTMLElement} */ (document.getElementById("banner"));
 const who = /** @type {HTMLElement} */ (document.getElementById("who"));
-const langButton = /** @type {HTMLButtonElement} */ (document.getElementById("lang"));
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone (the host page or the
+// VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "shifty:lang";
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") joinForm("", /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value);
-  else if (client.view?.me) {
-    shown = "";
-    render(client.view);
-  }
-});
 
 let shown = "";
 /** @type {(() => void) | null} called on every view while the screen stays */
@@ -174,8 +152,6 @@ document.addEventListener("focusin", (e) => e.target instanceof HTMLInputElement
 function joinForm(error = "", typed) {
   shown = "join";
   refresh = null;
-  langButton.hidden = false;
-  langButton.textContent = t.otherLang;
   const input = /** @type {HTMLInputElement} */ (h("input", { id: "name", maxlength: 16, autocapitalize: "words", enterkeyhint: "go", autocomplete: "off", required: true }));
   const err = h("p", { class: "error" }, error);
   input.value = typed ?? client.saved?.name ?? localStorage.getItem("shifty:name") ?? "";
@@ -281,8 +257,6 @@ function render(view) {
     autoSubmit = null;
     for (const c of cleanups) c();
     cleanups = [];
-    langButton.hidden = !(me.task === "lobby" || me.task === "final");
-    langButton.textContent = t.otherLang;
     document.body.classList.toggle("phony", me.role === "phony" && peek.up);
     build(view);
   }
@@ -348,18 +322,22 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons), line));
     items.push({ key, buttons, values, line });
   };
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel, false);
   add("rounds", [3, 4, 5, 6], ["3", "4", "5", "6"], t.roundsLabel, false);
   add("mode", ["typed", "spoken"], [t.typed, t.spoken], t.modeLabel, true);
   add("clues", [0, 1, 2], [t.auto, "1", "2"], t.cluesLabel, false);
   add("clueTime", [15, 25, 40], [15, 25, 40].map(t.seconds), t.clueTimeLabel, false);
   add("talkTime", [45, 60, 90, 120], [45, 60, 90, 120].map(t.seconds), t.talkTimeLabel, false);
   add("typing", [true, false], [t.shown, t.hidden], t.typingLabel, false);
+  add("late", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, false);
   const update = () => {
     const room = client.view?.room ?? {};
     box.hidden = !isVip();
     for (const it of items) {
       const cur = room[it.key];
       it.buttons.forEach((b, i) => b.classList.toggle("on", it.values[i] === cur));
+      // A language without words cannot be picked (as on the host page).
+      if (it.key === "lang" && Array.isArray(room.langs)) it.buttons.forEach((b, i) => (b.disabled = !room.langs.includes(it.values[i])));
       if (it.key === "mode" && it.line) it.line.textContent = t.modeLine[cur === "spoken" ? 1 : 0] ?? "";
     }
   };

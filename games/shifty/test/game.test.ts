@@ -389,19 +389,59 @@ test("the VIP's settings are checked, and none during a game", async () => {
     await vip.act("settings", { rounds: 6, mode: "spoken", clues: 1, clueTime: 40, talkTime: 90, typing: false });
     assert.deepEqual(g.settings, { mode: "spoken", clues: 1, clueTime: 40, talkTime: 90, typing: false });
     assert.equal(g.rounds, 6);
-    for (const bad of [{ rounds: 7 }, { mode: "mime" }, { clues: 3 }, { clueTime: 20 }, { talkTime: 30 }, { typing: "yes" }, { lang: "de" }]) {
+    for (const bad of [{ rounds: 7 }, { mode: "mime" }, { clues: 3 }, { clueTime: 20 }, { talkTime: 30 }, { typing: "yes" }, { lang: "fr" }, { late: "open" }, { late: true }, { color: 1 }]) {
       await assert.rejects(vip.act("settings", bad), { code: "bad-settings" }, JSON.stringify(bad));
     }
     await assert.rejects(other.act("settings", { rounds: 3 }), { code: "not-vip" });
     await until(() => vip.view?.room?.["mode"] === "spoken");
     assert.equal((party.screenView()["screen"] as Record<string, unknown>)["talkTime"], 90);
-    g.configure({ lang: "de" });
+    // The language and latecomers, as on the host page: the room's, every phone follows, the host page hears of it.
+    let told = 0;
+    g.on("settings", () => told++);
+    assert.deepEqual(other.view?.room?.["langs"], ["en", "de"]);
+    assert.equal(other.view?.room?.["late"], "wait");
+    await assert.rejects(other.act("settings", { lang: "de" }), { code: "not-vip" });
+    await assert.rejects(other.act("settings", { late: "closed" }), { code: "not-vip" });
+    assert.equal(g.lang, "en");
+    assert.equal(party.lateJoin, "wait");
+    await vip.act("settings", { lang: "de" });
     assert.equal(g.lang, "de");
+    assert.equal(told, 1);
+    await vip.act("settings", { late: "closed" });
+    assert.equal(party.lateJoin, "closed");
+    assert.equal(told, 2);
+    await until(() => [vip, other].every((c) => c.view?.room?.["lang"] === "de" && c.view?.room?.["late"] === "closed"));
+    assert.equal((party.screenView()["screen"] as Record<string, unknown>)["lang"], "de");
+    // The host page's latecomers field sets party.lateJoin and then configure({}): the phones see it.
+    party.lateJoin = "wait";
+    g.configure({});
+    await until(() => other.view?.room?.["late"] === "wait");
     assert.throws(() => g.configure({ lang: "fr" as "de" }), { code: "bad-lang" });
   } finally {
     vip.close();
     other.close();
     party.close();
+  }
+});
+
+test("the language and latecomers: not during a game, again at the end", async () => {
+  const { g, players, party, close } = await game(3, { rounds: 1 });
+  try {
+    const vip = players[0]!.client;
+    const end = new Promise((r) => g.once("end", r));
+    await vip.act("start");
+    await until(() => g.stage === "clue");
+    await assert.rejects(vip.act("settings", { lang: "de" }), { code: "running" });
+    await assert.rejects(vip.act("settings", { late: "closed" }), { code: "running" });
+    assert.equal(g.lang, "en");
+    assert.equal(party.lateJoin, "wait");
+    await end;
+    await until(() => g.phase === "final");
+    await vip.act("settings", { lang: "de", late: "closed" });
+    await until(() => players.every((p) => p.client.view?.room?.["lang"] === "de" && p.client.view?.room?.["late"] === "closed"));
+    assert.equal(party.lateJoin, "closed");
+  } finally {
+    close();
   }
 });
 

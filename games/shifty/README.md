@@ -59,10 +59,10 @@ cd games/shifty && npm install && npm run build
 Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once three
 are in (or the host page's Start). Settings (the host page, or the VIP's
-phone in the lobby): rounds (3–6), clues typed or out loud, clues each
-(auto, 1, 2), time for a clue (15, 25 or 40 s), time to talk (45–120
-s), the typing shown on the TV or not; on the host page only, the
-language and latecomers (next round, or not during a game). A game ends
+phone in the lobby and at the end, not during a game): the language,
+rounds (3–6), clues typed or out loud, clues each (auto, 1, 2), time
+for a clue (15, 25 or 40 s), time to talk (45–120 s), the typing shown
+on the TV or not, latecomers (next round, or not during a game). A game ends
 early, at the next round, when fewer than three players are left in it;
 a phony who leaves for good ends the round without points.
 
@@ -91,10 +91,10 @@ back, and fails on any page's error and on any bot's error.
 
 ## Languages
 
-English and German. The language is the room's: a setting on the host
-page, which starts with the browser's language and changes only between
-games; a phone may switch for itself on the join screen, in the lobby
-and at the end. Each language has its own words (`data/words.txt`,
+English and German. The language is the room's, the same on every
+phone and the TV: a setting on the host page (which starts with the
+browser's language) and on the VIP's phone, changed only between games;
+before joining, a phone speaks the browser's language. Each language has its own words (`data/words.txt`,
 `data/words.de.txt`, Krakel's lists) and its own rules for articles and
 endings in the clue check (`game/rules.ts`).
 

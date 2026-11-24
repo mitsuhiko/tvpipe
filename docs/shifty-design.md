@@ -97,12 +97,17 @@ deal ─▶ clues (one turn each, in turn) ─▶ accuse ─▶ verdict ─▶ l
   own accusation makes a 1–1–1 tie otherwise), so a careful phony has a
   fair chance, and the last chance decides many rounds. From four the
   accusation is more of a debate.
-- **Settings** (the host page, or the VIP's phone in the lobby): rounds
-  3–6 (default 4), clues typed or out loud, clues each auto/1/2, time
-  for a clue 15/25/40 s, time to talk 45/60/90/120 s, the typing shown
-  on the TV or not (the tiles and the needle), and on the host page the
-  language and whether latecomers wait for the next round or cannot
-  join during a game.
+- **Settings** (the host page, or the VIP's phone in the lobby and at
+  the end; none during a game): the language (the room's: every phone
+  and the TV speak it; only a language with words), rounds 3–6
+  (default 4), clues typed or out loud, clues each auto/1/2, time for a
+  clue 15/25/40 s, time to talk 45/60/90/120 s, the typing shown on the
+  TV or not (the tiles and the needle), and whether latecomers wait for
+  the next round or cannot join during a game (`party.lateJoin`). The
+  VIP's `settings` action takes the host page's keys (`lang`, `rounds`,
+  `mode`, `clues`, `clueTime`, `talkTime`, `typing`, `late`) with the
+  same choices; the room view carries them (and `langs`, the languages
+  with words), and a change from the phone shows on the host page.
 - **A game** of four rounds with six players takes about 15 minutes:
   6 × ≤ 25 s of clues, ≤ 60 s to talk and ~45 s of verdict, last chance
   and reveal a round.

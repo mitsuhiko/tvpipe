@@ -10,7 +10,7 @@
  * screens only ever get views.
  *
  * Views:
- * - `party.room` (every phone): `{ phase, lang, round, rounds, …settings, minPlayers, colors, category?, board?,
+ * - `party.room` (every phone): `{ phase, lang, langs, round, rounds, …settings, late, minPlayers, colors, category?, board?,
  *   order?, clues?, turn?, accused?, deadline?, verdict?, reveal? }`: `board` the sixteen words (everyone sees them),
  *   `order` who gives clues in which order, `clues` by id (`{ text, away?, spoken? }`, `text` null for silence),
  *   `turn` the clue being given (`{ key, id, pass, index, of, deadline }`), `accused` who has accused (never whom),
@@ -32,7 +32,7 @@
  * the TV and only as counts.
  */
 
-import { Emitter, PartyError, type Json, type Party, type Player, type Sender } from "@tvpipe/party";
+import { Emitter, PartyError, type Json, type LateJoin, type Party, type Player, type Sender } from "@tvpipe/party";
 
 import {
   addKey,
@@ -117,8 +117,11 @@ export const ROUNDS = [3, 4, 5, 6] as const;
 export const CLUES = [0, 1, 2] as const;
 export const MODES = ["typed", "spoken"] as const;
 export type Mode = (typeof MODES)[number];
+/** Latecomers (`party.lateJoin`): they wait for the next round, or nobody joins during a game (the host page's latecomers field offers these two). */
+export const LATE = ["wait", "closed"] as const satisfies readonly LateJoin[];
+export type Late = (typeof LATE)[number];
 
-/** The room's settings: the host page's, or the VIP's in the lobby. */
+/** The room's settings: the host page's, or the VIP's on their phone in the lobby and at the end (besides the language and latecomers). */
 export interface Settings {
   /** Clues typed on the phones, or said out loud. */
   mode: Mode;
@@ -356,15 +359,23 @@ export class Shifty extends Emitter<GameEvents> {
     });
     party.handle("settings", (d, from) => {
       vipOnly(from);
-      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "rounds, mode, clues, clueTime, talkTime, typing");
+      if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "lang, rounds, mode, clues, clueTime, talkTime, typing, late");
       const v = d as Record<string, Json>;
-      const o: Partial<Settings> & { rounds?: number } = {};
+      const o: Partial<Settings> & { rounds?: number; lang?: Lang; late?: Late } = {};
       const oneOf = (key: "rounds" | "clues" | "clueTime" | "talkTime", list: readonly number[]) => {
         if (v[key] === undefined) return;
         if (!list.includes(v[key] as number)) throw new PartyError("bad-settings", `${key}: ${list.join(", ")}`);
         o[key] = v[key] as number;
       };
-      for (const k of Object.keys(v)) if (!["rounds", "mode", "clues", "clueTime", "talkTime", "typing"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      for (const k of Object.keys(v)) if (!["lang", "rounds", "mode", "clues", "clueTime", "talkTime", "typing", "late"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+      if (v["lang"] !== undefined) {
+        if (!(this.langs as Json[]).includes(v["lang"])) throw new PartyError("bad-settings", `lang: ${this.langs.join(", ")}`);
+        o.lang = v["lang"] as Lang;
+      }
+      if (v["late"] !== undefined) {
+        if (!(LATE as readonly Json[]).includes(v["late"])) throw new PartyError("bad-settings", `late: ${LATE.join(", ")}`);
+        o.late = v["late"] as Late;
+      }
       oneOf("rounds", ROUNDS);
       oneOf("clues", CLUES);
       oneOf("clueTime", CLUE_TIMES);
@@ -397,11 +408,22 @@ export class Shifty extends Emitter<GameEvents> {
     this.#lobby();
   }
 
-  /** Changes the rounds, the timers, the language or the settings before a game; every phone and the TV follow. */
-  configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
+  /** Latecomers: they wait for the next round, or cannot join during a game (`party.lateJoin`; `open` reads as `wait`, as on the host page). */
+  get late(): Late {
+    return this.party.lateJoin === "closed" ? "closed" : "wait";
+  }
+
+  /** What the room view carries of the settings: the language and the languages with words, the rounds, {@link settings}, latecomers. */
+  #settingsView(): Record<string, Json> {
+    return { lang: this.#lang, langs: this.langs, rounds: this.rounds, ...this.settings, late: this.late };
+  }
+
+  /** Changes the language, the rounds, the timers, the settings or latecomers before a game; every phone and the TV follow. */
+  configure(o: { rounds?: number | undefined; timings?: Partial<Timings> | undefined; lang?: Lang | undefined; late?: Late | undefined } & { [K in keyof Settings]?: Settings[K] | undefined }): void {
     if (this.#running) throw new PartyError("running", "Not during a game");
     if (o.lang !== undefined && !this.langs.includes(o.lang)) throw new PartyError("bad-lang", `Nothing to play in ${o.lang}`);
-    const was = JSON.stringify([this.rounds, this.settings]);
+    if (o.late !== undefined && !LATE.includes(o.late)) throw new PartyError("bad-late", `Latecomers: ${LATE.join(", ")}`);
+    const was = JSON.stringify([this.#lang, this.rounds, this.settings, this.late]);
     if (o.rounds !== undefined) this.rounds = Math.max(1, Math.min(10, Math.round(o.rounds)));
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     if (o.lang !== undefined) this.#lang = o.lang;
@@ -410,11 +432,12 @@ export class Shifty extends Emitter<GameEvents> {
     if (o.clueTime !== undefined && o.clueTime > 0) this.timings.clue = o.clueTime * 1000;
     if (o.talkTime !== undefined && o.talkTime > 0) this.timings.talk = o.talkTime * 1000;
     if (o.typing !== undefined) this.#typing = o.typing;
+    if (o.late !== undefined) this.party.lateJoin = o.late;
     if (this.#phase === "lobby" || this.#phase === "final") {
-      this.party.room.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
+      this.party.room.set(this.#settingsView());
       this.party.screen.set({ lang: this.#lang, rounds: this.rounds, ...this.settings });
     }
-    if (JSON.stringify([this.rounds, this.settings]) !== was) this.emit("settings", this.settings);
+    if (JSON.stringify([this.#lang, this.rounds, this.settings, this.late]) !== was) this.emit("settings", this.settings);
   }
 
   /**
@@ -502,7 +525,7 @@ export class Shifty extends Emitter<GameEvents> {
   }
 
   #room(fields: Record<string, unknown>): void {
-    this.party.room.replace({ lang: this.#lang, round: this.#roundNo, rounds: this.rounds, ...this.settings, minPlayers: this.minPlayers, colors: this.#colorMap(), ...fields });
+    this.party.room.replace({ ...this.#settingsView(), round: this.#roundNo, minPlayers: this.minPlayers, colors: this.#colorMap(), ...fields });
   }
 
   #screen(fields: Record<string, unknown>): void {

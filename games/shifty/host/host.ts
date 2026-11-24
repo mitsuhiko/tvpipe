@@ -12,13 +12,13 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { Bot } from "../game/bots.ts";
-import { FAST_TIMINGS, Shifty, type Mode } from "../game/game.ts";
+import { FAST_TIMINGS, LATE, Shifty, type Mode } from "../game/game.ts";
 import { LANGS, parseCategories, type Category, type Lang } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
 const robots: Bot[] = [];
 
-/** Shifty's settings, as the host page shows them. */
+/** Shifty's settings, as the host page shows them; the VIP's phone has the same (game.ts, the `settings` action). */
 function settings(game: Shifty, words: Partial<Record<Lang, Category[]>>): Field[] {
   const s = () => game.settings;
   return [
@@ -77,7 +77,8 @@ function settings(game: Shifty, words: Partial<Record<Lang, Category[]>>): Field
       get: () => s().typing,
       set: (typing) => game.configure({ typing }),
     },
-    lateJoinField(game.party, ["wait", "closed"]),
+    // The room view carries it too: the VIP's phone shows and sets the same two.
+    lateJoinField(game.party, LATE, () => game.configure({})),
   ];
 }
 

@@ -12,7 +12,7 @@ export function strings(lang) {
   if (lang === "de") {
     return {
       ...f,
-      otherLang: "English",
+      langName: "Deutsch",
       connecting: "Verbinde …",
       scanToJoin: "Scanne den QR-Code auf dem Fernseher, um mitzuspielen.",
       joinTitle: "Wer bist du?",
@@ -37,6 +37,7 @@ export function strings(lang) {
       vipReady: "Alle da? Dann los.",
       waitVip: "Der VIP startet das Spiel.",
       settings: "Einstellungen",
+      langLabel: "Sprache",
       roundsLabel: "Runden",
       modeLabel: "Hinweise",
       typed: "getippt",
@@ -49,6 +50,9 @@ export function strings(lang) {
       typingLabel: "Tippen auf dem Fernseher",
       shown: "zeigen",
       hidden: "verbergen",
+      lateLabel: "Nachzügler",
+      lateWait: "ab der nächsten Runde",
+      lateClosed: "nicht im Spiel",
       /** @param {number} s */
       seconds: (s) => `${s} s`,
       howTitle: "So geht's",
@@ -141,7 +145,7 @@ export function strings(lang) {
   }
   return {
     ...f,
-    otherLang: "Deutsch",
+    langName: "English",
     connecting: "Connecting …",
     scanToJoin: "Scan the QR code on the TV to play.",
     joinTitle: "Who are you?",
@@ -166,6 +170,7 @@ export function strings(lang) {
     vipReady: "Everyone here? Start.",
     waitVip: "The VIP starts the game.",
     settings: "Settings",
+    langLabel: "Language",
     roundsLabel: "Rounds",
     modeLabel: "Clues",
     typed: "typed",
@@ -178,6 +183,9 @@ export function strings(lang) {
     typingLabel: "Typing on the TV",
     shown: "shown",
     hidden: "hidden",
+    lateLabel: "Latecomers",
+    lateWait: "from the next round",
+    lateClosed: "not during a game",
     /** @param {number} s */
     seconds: (s) => `${s} s`,
     howTitle: "How to play",
