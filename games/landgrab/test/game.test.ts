@@ -251,7 +251,8 @@ test("a latecomer waits, then rises as a rebel at the next round", async () => {
 });
 
 test("the VIP's settings: every one the host page has, checked, only the VIP's, none during a game", async () => {
-  const { party, g, players, close } = await game(2, { rounds: 1, timings: { plan: 60_000 } });
+  // The other player is silent: planning lasts its 60 s, so the room is still at the plan for the last checks.
+  const { party, g, players, close } = await game(2, { rounds: 1, silent: 1, timings: { plan: 60_000 } });
   try {
     const [vip, other] = players.map((p) => p.client) as [Bot["client"], Bot["client"]];
     let told = 0;
