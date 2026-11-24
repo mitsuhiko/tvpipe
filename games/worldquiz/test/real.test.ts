@@ -28,6 +28,8 @@ test("typed answers against the real names: either language, aliases, typos, nev
   is("Tschechien", "CZ");
   is("Czech Republic", "CZ");
   is("Holland", "NL");
+  is("cina", "CN");
+  is("China", "CN");
   is("Switzreland", "CH");
   is("Niger", "NE");
   is("Nigeria", "NG");

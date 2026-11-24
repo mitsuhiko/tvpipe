@@ -247,7 +247,10 @@ test("settings: only the VIP, only known values, not during a game", async () =>
     await assert.rejects(players[0]!.client.act("settings", { rounds: 7 }), /rounds/);
     await assert.rejects(players[0]!.client.act("settings", { colour: 1 }), /not a setting/);
     await players[0]!.client.act("settings", { rounds: 30, difficulty: "hard", disputed: true, map: "globe" });
-    assert.deepEqual(g.settings, { rounds: 30, difficulty: "hard", disputed: true, map: "globe" });
+    assert.deepEqual(g.settings, { mode: "cards", rounds: 30, difficulty: "hard", disputed: true, map: "globe" });
+    await assert.rejects(players[0]!.client.act("settings", { mode: "bets" }), /mode/);
+    await players[0]!.client.act("settings", { mode: "quiz" });
+    assert.equal(g.settings.mode, "quiz");
   } finally {
     for (const b of players) b.close();
     close();
@@ -355,6 +358,26 @@ test("the captain's choice has no time limit; a captain who leaves makes it a ch
     await until(() => g.stage !== "draw");
     assert.ok(["discard", "challenge"].includes(g.stage ?? ""), String(g.stage));
     g.close();
+  } finally {
+    for (const b of players) b.close();
+    close();
+  }
+});
+
+test("questions only: every round a challenge, no cards, no captain", async () => {
+  const { g, players, phases, screens, close } = await game(3, { competes: 1, settings: { mode: "quiz", rounds: 15 } });
+  try {
+    let cards = 0;
+    for (const b of players) b.client.on("view", (v: any) => void (v.me?.card ? cards++ : 0));
+    const end = new Promise((r) => g.once("end", r));
+    await players[0]!.client.act("start");
+    await end;
+    // Not rounded up to a multiple of the players.
+    assert.equal(Math.max(...screens.map((s) => s["rounds"] ?? 0)), 15);
+    assert.ok(!phases.some((p) => ["round:draw", "round:compete", "round:discard"].includes(p)), phases.join(" "));
+    assert.ok(phases.includes("round:challenge"));
+    assert.equal(cards, 0);
+    assert.ok(screens.every((s) => s["stage"] === undefined || s["captain"] === undefined || s["captain"] === null));
   } finally {
     for (const b of players) b.close();
     close();

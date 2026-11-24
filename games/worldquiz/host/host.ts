@@ -14,7 +14,7 @@ import { HostPage, languageField, lateJoinField, preferredLang, type Field } fro
 import { Bot } from "../game/bots.ts";
 import { landOf, type Countries, type Shapes } from "../game/data.ts";
 import { FAST_TIMINGS, Worldquiz } from "../game/game.ts";
-import { LANGS, ROUNDS, type Difficulty, type Lang, type MapMode } from "../game/rules.ts";
+import { LANGS, ROUNDS, type Difficulty, type Lang, type MapMode, type Mode } from "../game/rules.ts";
 import { status } from "./strings.ts";
 
 const robots: Bot[] = [];
@@ -25,10 +25,22 @@ function settings(game: Worldquiz): Field[] {
   return [
     languageField({ langs: LANGS, get: () => game.lang, set: (lang) => game.configure({ lang }) }),
     {
+      key: "mode",
+      type: "buttons",
+      label: { en: "Game", de: "Spiel" },
+      hint: { en: "With cards: the captain compares numbers or calls a challenge. Questions only: a challenge for everyone every round.", de: "Mit Karten: Der Kapitän vergleicht Zahlen oder ruft eine Frage aus. Nur Fragen: jede Runde eine Frage für alle." },
+      choices: [
+        { value: "cards", label: { en: "with cards", de: "mit Karten" } },
+        { value: "quiz", label: { en: "questions only", de: "nur Fragen" } },
+      ],
+      get: () => s().mode,
+      set: (mode: Mode) => game.configure({ mode }),
+    },
+    {
       key: "rounds",
       type: "buttons",
       label: { en: "Rounds", de: "Runden" },
-      hint: { en: "Rounded up so that everyone is captain equally often.", de: "Aufgerundet, damit alle gleich oft Kapitän sind." },
+      hint: { en: "With cards rounded up so that everyone is captain equally often.", de: "Mit Karten aufgerundet, damit alle gleich oft Kapitän sind." },
       choices: ROUNDS.map((n) => ({ value: n, label: String(n) })),
       get: () => s().rounds,
       set: (rounds: number) => game.configure({ rounds }),

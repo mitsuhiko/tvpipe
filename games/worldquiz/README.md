@@ -59,8 +59,9 @@ cd games/worldquiz && npm install && npm run build
 Pick the TVs (or "A browser tab on this computer"), then Start. The
 first player is the VIP and starts the game from their phone once two
 are in (or the host page's Start). Settings (the host page, or the VIP's
-phone in the lobby): rounds (15, 30, 45), difficulty (easy, normal,
-hard: 90, 60 or 30 s to answer, how well known the challenges'
+phone in the lobby): the game (with cards, or questions only: a
+challenge for everyone every round, no cards), rounds (15, 30, 45),
+difficulty (easy, normal, hard: 90, 60 or 30 s to answer, how well known the challenges'
 countries are, how close a pin must be, borders on the phone's map or
 only coasts), the TV's map (flat or globe; every phone picks its own),
 and the disputed states (Kosovo, Palestine, Taiwan and Western Sahara as
@@ -93,6 +94,5 @@ both.
 
 ## The fonts
 
-Grandstander (the logo, headings, numbers, buttons) and Sue Ellen
-Francisco (hand-written notes), both SIL OFL 1.1, in `phone/fonts/`
-with their licenses.
+Grandstander (everything: the logo, headings, numbers, buttons, notes),
+SIL OFL 1.1, in `phone/fonts/` with its license.

@@ -25,6 +25,9 @@ export const DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 export const MAPS = ["flat", "globe"] as const;
 export type MapMode = (typeof MAPS)[number];
+/** The game: cards (draw, the captain competes or calls a challenge) or only the challenges (§2.5). */
+export const MODES = ["cards", "quiz"] as const;
+export type Mode = (typeof MODES)[number];
 
 /** The five numbers on a card, in the card's order. */
 export const FACTS = ["population", "area", "neighbours", "highest", "gdp"] as const;

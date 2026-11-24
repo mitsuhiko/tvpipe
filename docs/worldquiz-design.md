@@ -128,6 +128,14 @@ Late joiners start at the last place's stop from the next round; a player
 who leaves keeps their plane until the end; fewer than two players ends
 the game.
 
+### 2.5 Questions only
+
+A setting (`mode`: `cards`, the default, or `quiz`): no cards, no
+captain, no compete. Every round is a challenge for everyone (another
+one when nobody was right, up to three, as after a called challenge),
+then the answer until Next. The rounds are the setting, not rounded up
+(nobody needs to be captain as often).
+
 ## 3. The data
 
 All data is fetched by a script once, curated by hand where the sources
@@ -306,7 +314,9 @@ winners' band as a ring around the country), so a tie looks like one.
 The 10 % is a starting point to check in play tests.
 
 **The reveal shows where it is first.** The camera flies to the country
-alone (popping up, a little flag with its name planted on it), then
+alone (in the hot colour, staying in place: no lifting or bobbing, so
+its shape and size read true; a little flag with its name planted on
+it), then
 pulls back until every pin is in view, and a line grows from each pin
 to the point of the country it was measured to, with the distance on
 it. The whole card is beside the map, everyone's distance in a list on
@@ -320,8 +330,10 @@ Matching (`game/answer.ts`, pure, with known-answer tests):
    punctuation and "the/die/der/republic of/republik" dropped,
    "st."→"saint/sankt".
 2. Compare with every name and alias of **every** country (or capital),
-   by Damerau–Levenshtein distance: 0 for up to 4 letters, 1 up to 8,
-   2 above.
+   by Damerau–Levenshtein distance: 0 for up to 3 letters, 1 up to 6,
+   2 above ("Cina" is China, "Irn" Iran). A name without its filler
+   words that is another country's own name keeps its fillers:
+   "Republic of China" (Taiwan) is not "China".
 3. Right only when the closest name is the wanted one and no other
    country's name is as close. An exact name of another country is
    wrong, however close.
@@ -389,9 +401,10 @@ come from the whole deck: learning a little country is the point.
   red, orange, yellow, teal, pink, purple, slate, amber, white (blue
   text). Players' colours come from the same palette. Square icon
   buttons for the map toggle and zoom.
-- **Type**: Grandstander (bold and childlike, SIL OFL, bundled) for the
-  logo, headings, numbers and buttons; Sue Ellen Francisco (a hand,
-  SIL OFL) for little hand-written notes.
+- **Type**: Grandstander (bold and childlike, SIL OFL, bundled) for
+  everything: the logo, headings, numbers and buttons, and the little
+  notes lighter and smaller (a thin hand font read badly on phones and
+  TVs).
 - **Phone**: one's card fills the screen (the map on top, the card
   below); in a challenge the question on top and a big field or the map;
   the captain's choice as big buttons.

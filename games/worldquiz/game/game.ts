@@ -53,6 +53,7 @@ import {
   LANGS,
   LEVELS,
   MAPS,
+  MODES,
   MAX_TRIES,
   MIN_PLAYERS,
   neighboursIn,
@@ -67,6 +68,7 @@ import {
   type Fact,
   type Kind,
   type MapMode,
+  type Mode,
   type Ranks,
 } from "./rules.ts";
 
@@ -133,6 +135,8 @@ export const FAST_TIMINGS: Timings = {
 };
 
 export interface Settings {
+  /** Cards (the captain's choice each round) or only challenges. */
+  mode: Mode;
   rounds: number;
   difficulty: Difficulty;
   disputed: boolean;
@@ -266,7 +270,7 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#all = options.countries;
     this.#land = options.land;
     if (this.#all.length === 0) throw new Error("worldquiz: no countries");
-    this.#settings = { rounds: 15, difficulty: "normal", disputed: false, map: "flat", ...options.settings };
+    this.#settings = { mode: "cards", rounds: 15, difficulty: "normal", disputed: false, map: "flat", ...options.settings };
     for (const c of this.#all) this.#byId.set(c.id, c);
   }
 
@@ -376,6 +380,7 @@ export class Worldquiz extends Emitter<GameEvents> {
     if (o.lang !== undefined && LANGS.includes(o.lang)) this.#lang = o.lang;
     if (o.timings) this.timings = { ...this.timings, ...o.timings };
     const s = this.#settings;
+    if (o.mode !== undefined && MODES.includes(o.mode)) s.mode = o.mode;
     if (o.rounds !== undefined && o.rounds > 0) s.rounds = Math.min(99, Math.round(o.rounds));
     if (o.difficulty !== undefined && DIFFICULTIES.includes(o.difficulty)) s.difficulty = o.difficulty;
     if (o.disputed !== undefined) s.disputed = !!o.disputed;
@@ -536,7 +541,8 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#setupDeck();
     const start = party.players.filter((p) => p.connected);
     this.#seats = start.map((p) => p.id);
-    this.#rounds = roundsFor(this.#settings.rounds, this.#seats.length);
+    // Cards: everyone captain as often; the quiz has no captain.
+    this.#rounds = this.#settings.mode === "quiz" ? this.#settings.rounds : roundsFor(this.#settings.rounds, this.#seats.length);
     for (const id of this.#seats) this.steps.set(id, 0);
     try {
       for (let r = 1; r <= this.#rounds; r++) {
@@ -581,6 +587,11 @@ export class Worldquiz extends Emitter<GameEvents> {
   async #round(n: number, signal: AbortSignal): Promise<void> {
     const party = this.party;
     const deck = this.#deck!;
+    if (this.#settings.mode === "quiz") {
+      // Only the challenges: no cards, no captain.
+      this.#captain = undefined;
+      return this.#challenges(signal);
+    }
     const players = party.players.filter((p) => this.steps.has(p.id) && p.connected);
     this.#hands = new Map(players.map((p) => [p.id, deck.draw()]));
     this.#captain = captainFor(n, this.#seats, (id) => !!party.player(id)?.connected && this.#hands.has(id));
@@ -668,6 +679,11 @@ export class Worldquiz extends Emitter<GameEvents> {
       }
     });
     await this.#awaitNext(nx, this.timings.discard, signal);
+    await this.#challenges(signal);
+  }
+
+  /** Challenges until someone wins one (at most three). */
+  async #challenges(signal: AbortSignal): Promise<void> {
     for (let k = 1; k <= MAX_TRIES && !signal.aborted; k++) {
       const won = await this.#challengeOnce(k, signal);
       if (won.length) break;
@@ -988,10 +1004,14 @@ export class Worldquiz extends Emitter<GameEvents> {
 
 /** The settings an action may change, checked. */
 export function parseSettings(d: Json): Partial<Settings> {
-  if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "rounds, difficulty, disputed, map");
+  if (typeof d !== "object" || d === null || Array.isArray(d)) throw new PartyError("bad-settings", "mode, rounds, difficulty, disputed, map");
   const v = d as Record<string, Json>;
   const o: Partial<Settings> = {};
-  for (const k of Object.keys(v)) if (!["rounds", "difficulty", "disputed", "map"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+  for (const k of Object.keys(v)) if (!["mode", "rounds", "difficulty", "disputed", "map"].includes(k)) throw new PartyError("bad-settings", `${k}: not a setting`);
+  if (v["mode"] !== undefined) {
+    if (!(MODES as readonly Json[]).includes(v["mode"])) throw new PartyError("bad-settings", "mode: cards or quiz");
+    o.mode = v["mode"] as Mode;
+  }
   if (v["rounds"] !== undefined) {
     if (!(ROUNDS as readonly Json[]).includes(v["rounds"])) throw new PartyError("bad-settings", `rounds: ${ROUNDS.join(", ")}`);
     o.rounds = v["rounds"] as number;

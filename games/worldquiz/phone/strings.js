@@ -40,6 +40,9 @@ export function strings(lang) {
       waitVip: "Der VIP startet das Spiel.",
       settings: "Einstellungen",
       roundsLabel: "Runden",
+      modeLabel: "Spiel",
+      modes: { cards: "Mit Karten", quiz: "Nur Fragen" },
+      modeLine: { cards: "Der Kapitän vergleicht Zahlen oder ruft eine Frage aus.", quiz: "Jede Runde eine Frage für alle, keine Karten." },
       difficultyLabel: "Schwierigkeit",
       levels: { easy: "leicht", normal: "normal", hard: "schwer" },
       levelLine: {
@@ -166,6 +169,9 @@ export function strings(lang) {
     waitVip: "The VIP starts the game.",
     settings: "Settings",
     roundsLabel: "Rounds",
+    modeLabel: "Game",
+    modes: { cards: "With cards", quiz: "Questions only" },
+    modeLine: { cards: "The captain compares numbers or calls a challenge.", quiz: "A question for everyone each round, no cards." },
     difficultyLabel: "Difficulty",
     levels: { easy: "easy", normal: "normal", hard: "hard" },
     levelLine: {

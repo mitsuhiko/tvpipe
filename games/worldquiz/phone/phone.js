@@ -471,6 +471,7 @@ function settings(err) {
     box.append(h("div", { class: "setting" }, h("label", {}, title), h("div", { class: "seg" }, ...buttons), line));
     items.push({ key, buttons, values, line, lines });
   };
+  add("mode", ["cards", "quiz"], [t.modes.cards, t.modes.quiz], t.modeLabel, (v) => t.modeLine[/** @type {"cards"} */ (v)] ?? "");
   add("rounds", [15, 30, 45], ["15", "30", "45"], t.roundsLabel);
   add("difficulty", ["easy", "normal", "hard"], [t.levels.easy, t.levels.normal, t.levels.hard], t.difficultyLabel, (v) => t.levelLine[/** @type {"easy"} */ (v)] ?? "");
   add("disputed", [false, true], [t.off, t.on], t.disputedLabel, (v) => t.disputedLine[v ? 1 : 0] ?? "");
@@ -911,7 +912,8 @@ function answerScreen(me, room) {
     );
   } else {
     input = /** @type {HTMLInputElement} */ (
-      h("input", { id: "answer", class: "answer", maxlength: MAX_ANSWER, autocomplete: "off", autocorrect: "off", autocapitalize: "words", spellcheck: "false", enterkeyhint: "go", placeholder: kind === "capital" ? t.capitalOf(q.name ?? "?") : t.whichCountry, "aria-label": kind === "capital" ? t.capitalOf(q.name ?? "?") : t.whichCountry })
+      // No password managers' or contacts' autofill on a quiz answer.
+      h("input", { id: "answer", class: "answer", maxlength: MAX_ANSWER, autocomplete: "off", "data-1p-ignore": "", "data-lpignore": "true", "data-form-type": "other", autocorrect: "off", autocapitalize: "words", spellcheck: "false", enterkeyhint: "go", placeholder: kind === "capital" ? t.capitalOf(q.name ?? "?") : t.whichCountry, "aria-label": kind === "capital" ? t.capitalOf(q.name ?? "?") : t.whichCountry })
     );
     const field = input;
     field.value = draft.text ?? "";

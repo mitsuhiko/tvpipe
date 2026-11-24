@@ -9,8 +9,9 @@
  *   borders, a darker sea shadow under the land, dashed graticule and
  *   little waves on a bright sea; the globe in a starry sky with an
  *   atmosphere glow and soft shading.
- * - Highlighted countries pop up: lifted, bobbing, in a hot colour; a
- *   country too small to see gets a pulsing ring. Pins in players'
+ * - Highlighted countries in a hot colour with a thick outline, in
+ *   place (not lifted or bobbing: shape and size read true); a country
+ *   too small to see gets a ring. Pins in players'
  *   colours; a pin's line to where it should have been, growing, with
  *   its distance; a little flag planted where the answer is.
  * - Our own projections: Mercator (the world repeats left and right, so
@@ -524,17 +525,13 @@ export class WorldMap {
         ctx.restore();
       }
     }
-    // Highlighted countries, lifted.
-    const bob = 5 + Math.sin(t * 3) * 1.5;
+    // Highlighted countries, in place.
     for (const ox of copies) {
       this.units.forEach((u, i) => {
         if (u.id === null || !this.hot.has(u.id)) return;
         const p = this.#flatPath(i);
         ctx.save();
-        ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * (ox + 2), this.dpr * (cy + 4));
-        ctx.fillStyle = "rgba(20,30,60,.35)";
-        ctx.fill(p);
-        ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * ox, this.dpr * (cy - bob));
+        ctx.setTransform(this.dpr * s, 0, 0, this.dpr * s, this.dpr * ox, this.dpr * cy);
         ctx.lineJoin = "round";
         ctx.strokeStyle = INK;
         ctx.lineWidth = 6 / s;
@@ -630,15 +627,10 @@ export class WorldMap {
     ctx.strokeStyle = "rgba(38,52,80,.75)";
     ctx.lineWidth = 1;
     paths.forEach((p, i) => { const u = /** @type {Unit} */ (this.units[i]); if (!(u.id && this.hot.has(u.id)) && (this.borders || u.id === null)) ctx.stroke(p); });
-    const bob = 5 + Math.sin(t * 3) * 1.5;
     paths.forEach((p, i) => {
       const u = /** @type {Unit} */ (this.units[i]);
       if (!(u.id && this.hot.has(u.id))) return;
       ctx.save();
-      ctx.translate(2, 4);
-      ctx.fillStyle = "rgba(20,30,60,.35)";
-      ctx.fill(p);
-      ctx.translate(-2, -4 - bob);
       ctx.strokeStyle = INK;
       ctx.lineWidth = 6;
       ctx.stroke(p);
@@ -671,8 +663,7 @@ export class WorldMap {
   /** @param {number} t */
   #drawMarks(t) {
     const ctx = this.ctx;
-    const bob = 5 + Math.sin(t * 3) * 1.5;
-    // Rings around hot countries too small to see.
+    // Rings around hot countries too small to see (still: no pulsing).
     for (const u of this.units) {
       if (u.id === null || !this.hot.has(u.id)) continue;
       const [w, s, e, n] = u.box;
@@ -680,11 +671,11 @@ export class WorldMap {
       if (!a || !b || Math.hypot(a[0] - b[0], a[1] - b[1]) > 26) continue;
       const c = this.project((w + e) / 2, (s + n) / 2);
       if (!c) continue;
-      const r = 18 + Math.sin(t * 4) * 3;
+      const r = 18;
       ctx.lineWidth = 5;
       ctx.strokeStyle = INK;
       ctx.beginPath();
-      ctx.arc(c[0], c[1] - bob, r, 0, 7);
+      ctx.arc(c[0], c[1], r, 0, 7);
       ctx.stroke();
       ctx.lineWidth = 3;
       ctx.strokeStyle = this.hotColor;

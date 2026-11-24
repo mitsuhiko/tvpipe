@@ -34,7 +34,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 #hud .nextbar { margin-left: auto; display: flex; align-items: center; gap: 1.2rem; background: #fff; border-radius: 3rem; padding: .6rem .8rem .6rem 1.8rem; box-shadow: 0 .5rem 0 #d3dae6, 0 .8rem 1.4rem rgba(10, 20, 50, .3); animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both; }
 #hud .nextbar + .clock { margin-left: 0; }
 #hud .nextbar .nl { font: 900 2rem/1 var(--font); white-space: nowrap; }
-#hud .nextbar .nl small { font: 2rem/1 var(--hand); margin-left: .8rem; opacity: .8; }
+#hud .nextbar .nl small { font: 700 1.5rem/1 var(--font); margin-left: .8rem; opacity: .8; }
 #hud .nextbar .nd { display: flex; gap: .4rem; }
 #hud .nextbar .nw { --c: #7c8696; width: 3.4rem; height: 3.4rem; border-radius: 50%; display: grid; place-items: center; font: 900 1.7rem/1 var(--font); color: #fff; background: var(--c); opacity: .35; box-shadow: inset 0 -.25rem 0 rgba(0, 0, 0, .2); }
 #hud .nextbar .nw.ok { opacity: 1; animation: pop .35s cubic-bezier(.3, 1.6, .5, 1) both; }
@@ -51,7 +51,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .chips { display: flex; flex-wrap: wrap; gap: .9rem; }
 
 .banner { position: absolute; top: 9rem; left: 50%; transform: translateX(-50%) rotate(-1.5deg); display: flex; align-items: center; gap: 1.2rem; background: #fff; border-radius: 1.4rem; padding: 1rem 2.4rem; font: 900 3.4rem/1 var(--font); white-space: nowrap; box-shadow: 0 .6rem 0 #d3dae6, 0 1rem 1.6rem rgba(10, 20, 50, .3); }
-.banner small { font: 2.4rem/1 var(--hand); opacity: .8; margin-left: .6rem; }
+.banner small { font: 700 1.7rem/1 var(--font); opacity: .8; margin-left: .6rem; }
 .banner .fi svg { width: 4.4rem; height: 4.4rem; display: block; }
 
 /* ---------------------------------------------------------------- lobby */
@@ -62,7 +62,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .lobby .qr svg { width: 100%; height: 100%; display: block; }
 .lobby .link { margin-top: 1rem; font: 900 2.8rem/1.1 var(--font); }
 .lobby .playersp { position: absolute; left: 44rem; right: 6rem; top: 26rem; min-height: 18rem; }
-.lobby .note { font: 2.6rem/1.2 var(--hand); margin: 1.4rem 0 0; }
+.lobby .note { font: 600 1.9rem/1.3 var(--font); margin: 1.4rem 0 0; }
 .lobby .how { position: absolute; left: 44rem; right: 6rem; top: 48rem; margin: 0; padding: 1.4rem 2rem 1.4rem 5rem; font-size: 1.9rem; font-weight: 700; line-height: 1.35; }
 
 /* ---------------------------------------------------------------- the trip */
@@ -97,8 +97,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .gone .gf { position: relative; display: inline-flex; }
 .gone .gf img { width: 4rem; height: 2.7rem; object-fit: cover; border-radius: .3rem; border: .2rem solid #fff; box-shadow: 0 .15rem 0 rgba(38, 52, 80, .3); }
 .gone .gf b { position: absolute; right: -.4rem; bottom: -.6rem; font-size: 1.1rem; background: var(--gold); color: #fff; border-radius: .5rem; padding: .1rem .3rem; }
-.gone .none { font: 1.9rem var(--hand); opacity: .6; }
-.gone .left { margin: .8rem 0 0; font: 1.9rem/1.1 var(--hand); }
+.gone .none { font: 600 1.4rem var(--font); opacity: .6; }
+.gone .left { margin: .8rem 0 0; font: 600 1.4rem/1.2 var(--font); }
 
 /* ---------------------------------------------------------------- compete */
 .compete .big-card { position: absolute; right: 3rem; top: 17rem; width: 36rem; font-size: 1.6rem; }
@@ -118,7 +118,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .mini .mrow.pick { outline: .16em solid var(--hot); border-radius: .33em; background: #fff; }
 .mini .rank { margin-left: auto; font-size: .75em; font-weight: 900; color: #fff; background: #9aa6bd; border-radius: .42em; padding: .08em .3em; }
 .mini .rank.gold { background: var(--gold); box-shadow: 0 .1em 0 var(--gold-lip); }
-.mini .mwho { margin-top: .25em; font: 1.3em/1 var(--hand); color: var(--c); filter: brightness(.8); }
+.mini .mwho { margin-top: .25em; font: 800 .95em/1 var(--font); color: var(--c); filter: brightness(.8); }
 .mini.won { outline: .5rem solid var(--gold); transform: translateY(-1.2rem) scale(1.06); transition: transform .4s cubic-bezier(.3, 1.6, .5, 1); }
 
 /* ---------------------------------------------------------------- discard */
@@ -133,11 +133,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .a-top { font: 900 3rem/1 var(--font); color: #e0307a; text-transform: uppercase; letter-spacing: .08em; }
 .a-icon svg { width: 12rem; height: 12rem; margin: 1rem 0; }
 .a-kind { font: 900 6rem/1 var(--font); }
-.a-line { font: 3rem/1.2 var(--hand); margin-top: .8rem; }
+.a-line { font: 600 2.2rem/1.3 var(--font); margin-top: .8rem; }
 .a-try { margin-top: 1rem; font-weight: 800; font-size: 2.2rem; color: #ef4444; }
 
 .ask { position: absolute; left: 50%; top: 10rem; transform: translateX(-50%); display: flex; align-items: center; gap: 2rem; background: #fff; border-radius: 2rem; padding: 1.4rem 3rem; box-shadow: 0 .8rem 0 #d3dae6, 0 1.2rem 2rem rgba(10, 20, 50, .3); max-width: 100rem; }
-.ask-text { font: 2.8rem/1.15 var(--hand); }
+.ask-text { font: 700 2.1rem/1.2 var(--font); }
 .ask-text b { display: block; font: 900 5rem/1 var(--font); max-width: 70rem; }
 .ask-flag { width: 14rem; aspect-ratio: 3 / 2; object-fit: cover; border: .5rem solid #fff; border-radius: .5rem; box-shadow: .2rem .3rem 0 rgba(38, 52, 80, .45); transform: rotate(3deg); }
 .ask-pin svg { width: 8rem; height: 8rem; display: block; }
@@ -160,14 +160,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .ans .chip { box-shadow: none; padding-right: .4rem; font-size: 1.7rem; background: transparent; }
 .ans .chip .dot { width: 2.8rem; height: 2.8rem; }
 .ans .said { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.ans .as { font: 2rem/1 var(--hand); opacity: .75; white-space: nowrap; }
+.ans .as { font: 600 1.5rem/1 var(--font); opacity: .75; white-space: nowrap; }
 .ans .mark { margin-left: auto; font: 900 2.6rem/1 var(--font); color: #ef4444; }
 .ans.right { background: #e6fbe9; box-shadow: 0 .3rem 0 #9bdcaa; }
 .ans.right .mark { color: #22c55e; }
 .nobody { position: absolute; left: calc(50% - 2rem); top: 42%; transform: translate(-50%, -50%); text-align: center; }
 .stampbig { font: 900 6rem/1 var(--font); color: #ef4444; border: .8rem solid #ef4444; border-radius: 1.6rem; padding: 1rem 2.4rem; transform: rotate(-8deg); background: rgba(255, 255, 255, .85); animation: slam2 .5s .3s cubic-bezier(.3, 1.7, .5, 1) both; }
 @keyframes slam2 { from { transform: rotate(-20deg) scale(2.5); opacity: 0; } }
-.another { margin-top: 2rem; font: 3rem/1.1 var(--hand); color: #fff; text-shadow: 0 .2rem 0 var(--ink), 0 0 .6rem var(--ink); }
+.another { margin-top: 2rem; font: 800 2.2rem/1.2 var(--font); color: #fff; text-shadow: 0 .2rem 0 var(--ink), 0 0 .6rem var(--ink); }
 
 /* ---------------------------------------------------------------- final */
 .final .champ { position: absolute; top: 17rem; left: 0; right: 0; text-align: center; font: 900 5.4rem/1.1 var(--font); color: #ffcf4a; -webkit-text-stroke: .6rem var(--ink); paint-order: stroke fill; text-shadow: 0 .5rem 0 var(--ink); }
@@ -178,10 +178,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .podium .p3 { order: 3; min-height: 17rem; }
 .podium .pl svg { width: 7rem; height: 7rem; fill: var(--c); stroke: var(--ink); stroke-width: 1.2; }
 .podium .pn { font: 900 2.8rem/1.1 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.podium .ps { font: 2.4rem var(--hand); }
+.podium .ps { font: 700 1.8rem var(--font); }
 .podium .pp { font: 900 5rem/1 var(--font); color: var(--c); filter: brightness(.85); }
 .final .rest { position: absolute; right: 4rem; bottom: 14rem; background: var(--paper); border-radius: 1.4rem; padding: 1rem 1.6rem 1rem 4rem; font-weight: 800; font-size: 1.9rem; }
-.final .note { position: absolute; left: 0; right: 0; bottom: 10.5rem; text-align: center; font: 2.4rem var(--hand); color: #fff; text-shadow: 0 .2rem 0 var(--ink); margin: 0; }
+.final .note { position: absolute; left: 0; right: 0; bottom: 10.5rem; text-align: center; font: 700 1.8rem var(--font); color: #fff; text-shadow: 0 .2rem 0 var(--ink); margin: 0; }
 .final ~ #race, body:has(.final) #race { display: none; }
 
 /* The globe has the dark sky: light text on it stays readable. */

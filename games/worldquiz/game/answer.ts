@@ -56,7 +56,7 @@ export function distance(a: string, b: string): number {
 
 /** How many mistakes a name of this many letters forgives. */
 export function forgiven(letters: number): number {
-  return letters <= 4 ? 0 : letters <= 8 ? 1 : 2;
+  return letters <= 3 ? 0 : letters <= 6 ? 1 : 2;
 }
 
 /** A thing to answer with: an id and the names that mean it. */
@@ -76,10 +76,20 @@ export class Matcher {
   readonly #names: { id: string; name: string; plain: string; full: string }[] = [];
 
   constructor(candidates: readonly Candidate[]) {
+    // A name without its filler words that is another's own name is
+    // that one's: "Republic of China" (Taiwan) without them is "China".
+    const own = new Map<string, Set<string>>();
     for (const c of candidates)
       for (const name of c.names) {
         const p = plain(name);
-        if (p) this.#names.push({ id: c.id, name, plain: p, full: plain(name, false) });
+        if (p && p === plain(name, false)) own.set(p, (own.get(p) ?? new Set()).add(c.id));
+      }
+    for (const c of candidates)
+      for (const name of c.names) {
+        const full = plain(name, false);
+        let p = plain(name);
+        if (p !== full && [...(own.get(p) ?? [])].some((id) => id !== c.id)) p = full;
+        if (p) this.#names.push({ id: c.id, name, plain: p, full });
       }
   }
 
@@ -88,7 +98,9 @@ export class Matcher {
     const a = plain(answer);
     const full = plain(answer, false);
     if (!a) return { ids: [], name: null };
-    const exact = this.#names.filter((n) => n.plain === a);
+    // Exactly a name, with its filler words ("Republic of China") or without.
+    const whole = this.#names.filter((n) => n.full === full);
+    const exact = whole.length ? whole : this.#names.filter((n) => n.plain === a);
     if (exact.length) return { ids: [...new Set(exact.map((n) => n.id))], name: exact[0]!.name };
     let best = Infinity;
     let hits: { id: string; name: string }[] = [];

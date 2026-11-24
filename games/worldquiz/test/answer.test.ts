@@ -79,12 +79,30 @@ test("typos are forgiven toward one country only", () => {
   assert.deepEqual(read("South Sudn"), ["SS"]);
   // As close to two countries: neither.
   assert.deepEqual(read("Nigera"), []);
-  // Short names forgive nothing.
-  assert.deepEqual(read("Irn"), []);
-  assert.deepEqual(read("Mlai"), []);
+  // Four letters forgive one mistake, three none.
+  assert.deepEqual(read("Irn"), ["IR"]);
+  assert.deepEqual(read("Mlai"), ["ML"]);
+  assert.deepEqual(read("Ira"), []);
+  assert.deepEqual(read("Ia"), []);
+  // Seven letters and more forgive two.
+  assert.deepEqual(read("Austrai"), ["AT"]);
+  assert.deepEqual(read("Germni"), ["DE"]);
   // Far off.
   assert.deepEqual(read("Atlantis"), []);
   assert.deepEqual(read(""), []);
+});
+
+test("a name without its filler words that is another country's own name stays that one's", () => {
+  const m = new Matcher([
+    { id: "CN", names: ["China", "People's Republic of China"] },
+    { id: "TW", names: ["Taiwan", "Republic of China"] },
+    { id: "CU", names: ["Cuba", "Republic of Cuba"] },
+  ]);
+  assert.deepEqual(m.read("China").ids, ["CN"]);
+  assert.deepEqual(m.read("Cina").ids, ["CN"]);
+  assert.deepEqual(m.read("Republic of China").ids, ["TW"]);
+  assert.deepEqual(m.read("Republic of Cuba").ids, ["CU"]);
+  assert.deepEqual(m.read("Cuba").ids, ["CU"]);
 });
 
 test("the name an answer was read as comes back for the reveal", () => {
