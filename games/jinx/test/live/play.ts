@@ -425,14 +425,14 @@ try {
   await shot("lobby");
   await pic(phone, "phone-lobby", "phone");
 
-  // The VIP's settings on the phone (below the table): words easy, then back to normal, from the phone.
+  // The VIP's settings on the phone (below the table; language, rounds, writing time, words, latecomers): words easy, then back to normal, from the phone.
   if (!args.shots) {
     await phone.until(`!!document.querySelector("section.settings:not([hidden])")`, 5000).catch(() => problem("phone lobby: the VIP has no settings"));
     const pick = async (key: number, i: number) => {
       await phone.eval(`(() => { const s = document.querySelectorAll("section.settings .setting")[${key}]; s.scrollIntoView({ block: "center" }); s.querySelectorAll(".seg button")[${i}].click(); return true; })()`);
       await phone.until(`document.querySelectorAll("section.settings .setting")[${key}].querySelectorAll(".seg button")[${i}].classList.contains("on")`, 5000);
     };
-    await pick(2, 0);
+    await pick(3, 0);
     await win.until(`jinx.game.difficulty === "easy"`, 3000).catch(() => problem("phone lobby: the VIP's words setting did not reach the game"));
     await sleep(300);
     await phone.screenshot(`${out}/phone-lobby-settings.png`);
@@ -443,7 +443,7 @@ try {
     await phone.screenshot(`${out}/phone-small-lobby-settings.png`);
     await check("small phone lobby settings", phone);
     await phone.resize(PHONE);
-    await pick(2, 1);
+    await pick(3, 1);
     await win.until(`jinx.game.difficulty === "normal"`, 3000).catch(() => problem("phone lobby: the VIP's words setting did not reach the game"));
     log("phone: the VIP's settings (words easy, then normal)");
   }

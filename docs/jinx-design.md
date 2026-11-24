@@ -65,15 +65,18 @@ counts as missed, the bank stays as it is.
 - **Players: 3–8.** The game has as many rounds as guessers: every player
   guesses once with 6–8 players, twice with 3–5 (a setting can
   change it: once, twice). A game takes about 10–20 minutes.
-- **Settings:** rounds, writing time and words, on the host page or the
-  VIP's phone in the lobby and at the end (the `settings` action, checked
-  against the same choices: anything else is refused with
-  `bad-settings`); the language and the latecomers only on the host page.
-  They change only between games.
+- **Settings:** language, rounds, writing time, words and latecomers,
+  on the host page or the VIP's phone in the lobby and at the end (the
+  `settings` action, checked against the same choices, a language only
+  with words: anything else is refused with `bad-settings`, anyone but
+  the VIP with `not-vip`). The room view carries them (`lang`, `langs`,
+  `settings`); a change from the phone redraws the host page. They change
+  only between games (`running` during one), as on the host page.
 - **Guesser order:** the join order, rotated by one each game.
 - **Joining late:** from the next round, appended to the guesser order
-  (the game gets one or two rounds longer). The host page can close a
-  running game to newcomers instead (the latecomers setting: "from the
+  (the game gets one or two rounds longer). The host page or the VIP can
+  close a running game to newcomers instead (the latecomers setting, the
+  party's `lateJoin`: "from the
   next round" or "closed"; their phone says the game is closed to new
   players right now); a player who dropped out comes back by name either
   way. A player who leaves is
@@ -408,7 +411,7 @@ The TV page is rendered in a headless Chrome and H.264-encoded at about
 
 | Phase | Clue-giver | Guesser |
 |---|---|---|
-| Lobby | name, draw your face (or shuffle), "Look at the TV!"; the VIP starts from 3 players and has the settings (rounds, writing time, words) | |
+| Lobby | name, draw your face (or shuffle), "Look at the TV!"; the VIP starts from 3 players and has the settings (language, rounds, writing time, words, latecomers) | |
 | Hot seat | "Anna guesses. Get ready." | "You're in the hot seat. Don't look at anyone's phone." |
 | Writing | the word on an index card, one field, the bold flame toggle, Send; a rejected clue shows the reason and stays editable; then "Sent: BEACON 🔥" | "Eyes on the TV: your friends are writing", who is done |
 | Jinx check | your card's fate ("JINXED with Esme: plural"), not the other words | "3 clues survived · 4 were jinxed" |
@@ -472,15 +475,17 @@ time, difficulty, latecomers), `screen/` (the TV page), `phone/` (the phone page
 English and German. A room plays in one language; the matcher, the words
 and the bots are that language's, and so is everything the pages say.
 
-**The room's language.** A host page setting, first the browser's
-language, then the last choice on that computer (`localStorage`); it
-changes only between games (`configure({ lang })` refuses during one).
+**The room's language.** A setting of the host page and of the VIP's
+phone (for everyone), first the browser's language, then the last
+choice on that computer (`localStorage`); it changes only between games
+(`configure({ lang })` refuses during one).
 The game sends it with the room view and the TV view (`lang`), so every
 phone, the TV and the host page follow at once. A phone may switch for
 itself where rebuilding its screen loses nothing (joining, the lobby,
-the end); it then keeps its own language. A language whose data files
-the host page cannot load (`data/words.de.txt`, `data/dict.de.txt`)
-cannot be picked.
+the end); it then keeps its own language, until its VIP picks the
+room's. A language whose data files the host page cannot load
+(`data/words.de.txt`, `data/dict.de.txt`) cannot be picked (the room
+view's `langs` has the others).
 
 **The words.** Each language has its own list and its own dealt-words
 memory per room (`localStorage`, one key per language): switching to

@@ -13,9 +13,10 @@
  * Nothing on the TV or a phone tells who jinxed with whom before `jinx`.
  *
  * Language: `lang` in the screen view and the room view is the room's
- * language (`en`, `de`; the host page's setting, changed only between
- * games). The TV, the phones and the host page say everything in it (a
- * phone may pick its own); the words and the clues are in it.
+ * language (`en`, `de`; the host page's or the VIP's setting, changed
+ * only between games). The TV, the phones and the host page say
+ * everything in it (a phone may pick its own); the words and the clues
+ * are in it.
  */
 
 import type { Lang } from "./lang.ts";
@@ -335,20 +336,25 @@ export type ScreenView =
 /**
  * The settings the VIP may change from the phone (lobby and end), as the
  * host page does: rounds (`auto`: twice with 3–5 players, once with 6–8),
- * the writing time in seconds, the words' difficulty. The language and
- * the latecomers stay the host page's.
+ * the writing time in seconds, the words' difficulty, the latecomers.
+ * The language is one too (the `settings` action's `lang`), in the room
+ * view as `lang`.
  */
 export interface Settings {
   rounds: "auto" | 1 | 2;
   /** Seconds: 30, 45, 60 or 90 (the tests' short timers aside). */
   write: number;
   difficulty: "easy" | "normal" | "hard";
+  /** Latecomers: play from the next round (`wait`), or nobody new joins a running game (`closed`; players can still rejoin by name). */
+  late: "wait" | "closed";
 }
 
 export interface RoomView {
   phase: ScreenView["phase"];
   /** The room's language. */
   lang: Lang;
+  /** The languages there are words for (the VIP can pick these). */
+  langs: Lang[];
   /** The game's settings (the next game's, between games). */
   settings: Settings;
   people: People;
@@ -429,10 +435,11 @@ export interface Actions {
   /** VIP, lobby: remove a player. */
   kick: { id: string };
   /**
-   * VIP, lobby and end: change settings (any of them; refused with
-   * `bad-settings` for another key or value, `running` during a game).
+   * VIP, lobby and end: change settings (any of them, and `lang`, one of
+   * `RoomView.langs`; refused with `bad-settings` for another key or
+   * value, `running` during a game).
    */
-  settings: Partial<Settings>;
+  settings: Partial<Settings> & { lang?: Lang };
   /**
    * A clue-giver, write phase: send (or replace) the clue in `slot` (0, or 1
    * with 3 players). Refused with code `too-close:REASON`, `own-clue:REASON`

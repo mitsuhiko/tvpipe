@@ -42,8 +42,8 @@ Pick the TVs in tvpipe's launcher, then Start: the window becomes the host
 page. Scan the QR code on the TV; the first player is the VIP and starts from their phone once three
 are in (or the host page's Start), and offers "Play again" at the end.
 
-Settings (the host page; rounds, writing time and words also on the VIP's
-phone in the lobby and at the end): language, rounds (auto: every player guesses twice with 3–5 players, once
+Settings (the host page, and all of them on the VIP's phone in the lobby
+and at the end; only between games): language (for everyone), rounds (auto: every player guesses twice with 3–5 players, once
 with 6–8; or once, or twice), writing time (30/45/60/90 s), words (easy,
 normal: mostly easy and medium with one hard word in ten, hard: medium
 and hard), latecomers (from the next round, or closed: nobody new joins
@@ -57,9 +57,9 @@ for a game of that many rounds.
 English and German. The language is the room's: a setting on the host
 page, which starts with the browser's language (then the last choice on
 that computer) and changes only between games. It goes with the room and
-TV views (`lang`), so every phone, the TV and the host page speak it; a
-phone may switch for itself on the join screen, in the lobby and at the
-end. Each language has its own words (`data/words.de.txt`), dictionary
+TV views (`lang`), so every phone, the TV and the host page speak it.
+The VIP can change it from the phone too; a phone may switch for itself
+on the join screen, in the lobby and at the end. Each language has its own words (`data/words.de.txt`), dictionary
 and clue matcher (`game/lang.ts`): what jinxes in German is German
 grammar, read from a lexicon of the German Wiktionary (Hunde/Hund,
 lief/laufen, größer/groß, Schneemänner/Schneemann, Bäcker/backen; see
@@ -81,7 +81,7 @@ German word list against the German matcher (`test/words-de.test.ts`), the
 rules (`test/rules.test.ts`: the pot, the bank, dealing, guesser order, titles and goals,
 awards, the web), and whole games with bots on `@tvpipe/party`'s relay
 in memory (`test/game.test.ts`): 3 and 4 players, play again, clue
-refusals and replacing, the moderate hook on clues, drafts and guesses, all clues jinxed, wrong guesses and passes (the bank never below 0), the bank, best clues and the record, the VIP's settings from the phone (refusals), timers
+refusals and replacing, the moderate hook on clues, drafts and guesses, all clues jinxed, wrong guesses and passes (the bank never below 0), the bank, best clues and the record, the VIP's settings from the phone (every one, the language and the latecomers too; refusals), timers
 for a silent or disconnected guesser, a late joiner, a room closed to latecomers, a player who leaves,
 a guesser who leaves, too few left (the game ends), closing a game mid-round,
 a closed bot, the secrecy of the word on the TV and the guesser's

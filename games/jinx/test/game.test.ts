@@ -65,13 +65,15 @@ async function setup(
     records?: Record<number, number>;
     tvDelay?: number;
     moderate?: (text: string) => string | false | undefined;
+    /** The languages with words (default both). */
+    words?: ("en" | "de")[];
   } = {},
 ) {
   const relay = new MemoryRelay();
   const party = new Party({ grace: 100, maxPlayers: 8, tvDelay: o.tvDelay, moderate: o.moderate && ((text, ctx) => (ctx.kind === "name" ? undefined : o.moderate!(text))) }).listen(relay);
   const g = new Jinx(party, {
     lang: o.lang,
-    words: { en: WORDS, de: WORDS_DE },
+    words: Object.fromEntries(Object.entries({ en: WORDS, de: WORDS_DE }).filter(([l]) => !o.words || o.words.includes(l as "en" | "de"))),
     match: { en: { known }, de: MATCH_DE },
     dealt: o.dealt,
     records: o.records,
@@ -531,24 +533,41 @@ test("the VIP's settings from the phone: lobby and end, checked as the host page
     const vip = players[0]!.client;
     const changed: unknown[] = [];
     g.on("settings", (s) => changed.push(s));
-    assert.deepEqual(party.room.peek()["settings"], { rounds: 1, write: 2, difficulty: "normal" }, "the tests' 1.5 s write rounds to 2");
+    assert.deepEqual(party.room.peek()["settings"], { rounds: 1, write: 2, difficulty: "normal", late: "wait" }, "the tests' 1.5 s write rounds to 2");
+    assert.deepEqual(party.room.peek()["langs"], ["en", "de"]);
     await vip.act("settings", { rounds: 2, write: 30 });
     await vip.act("settings", { difficulty: "hard" });
     assert.equal(g.rounds, 2);
     assert.equal(g.timings.write, 30_000);
     assert.equal(g.difficulty, "hard");
     assert.deepEqual(changed, [
-      { rounds: 2, write: 30, difficulty: "normal" },
-      { rounds: 2, write: 30, difficulty: "hard" },
+      { rounds: 2, write: 30, difficulty: "normal", late: "wait" },
+      { rounds: 2, write: 30, difficulty: "hard", late: "wait" },
     ]);
-    await until(() => JSON.stringify(players[1]!.client.view["room"]?.settings) === JSON.stringify({ rounds: 2, write: 30, difficulty: "hard" }));
-    // Refused: not the VIP, values the host page does not offer, the host's own settings.
-    await assert.rejects(players[1]!.client.act("settings", { rounds: 1 }), (e: { code: string }) => e.code === "not-vip");
-    for (const bad of [{ rounds: 3 }, { rounds: "1" }, { write: 50 }, { write: 45_000 }, { difficulty: "insane" }, { lang: "de" }, { late: "closed" }, { rounds: 1, write: 7 }, null, [1], "auto"]) {
+    await until(() => JSON.stringify(players[1]!.client.view["room"]?.settings) === JSON.stringify({ rounds: 2, write: 30, difficulty: "hard", late: "wait" }));
+    // The latecomers: the party's lateJoin, as the host page's field sets it.
+    await vip.act("settings", { late: "closed" });
+    assert.equal(party.lateJoin, "closed");
+    await until(() => players[1]!.client.view["room"]?.settings?.late === "closed");
+    // The language: the whole room's (every phone, the TV); the host page hears of it.
+    await vip.act("settings", { lang: "de" });
+    assert.equal(g.lang, "de");
+    assert.equal((party.screen.peek() as { lang: string }).lang, "de");
+    await until(() => players.every((b) => b.client.view["room"]?.lang === "de"));
+    assert.equal(changed.length, 4, "a new language is a change of settings");
+    // Refused: not the VIP (every setting), values the host page does not offer.
+    for (const s of [{ rounds: 1 }, { write: 45 }, { difficulty: "easy" }, { late: "wait" }, { lang: "en" }]) {
+      await assert.rejects(players[1]!.client.act("settings", s), (e: { code: string }) => e.code === "not-vip", JSON.stringify(s));
+    }
+    for (const bad of [{ rounds: 3 }, { rounds: "1" }, { write: 50 }, { write: 45_000 }, { difficulty: "insane" }, { lang: "fr" }, { lang: "EN" }, { lang: 1 }, { late: "open" }, { late: true }, { colour: "red" }, { rounds: 1, write: 7 }, null, [1], "auto"]) {
       await assert.rejects(vip.act("settings", bad), (e: { code: string }) => e.code === "bad-settings", JSON.stringify(bad));
     }
     assert.equal(g.rounds, 2, "a refused change changes nothing");
+    assert.equal(g.lang, "de");
+    assert.equal(party.lateJoin, "closed");
+    await vip.act("settings", { lang: "en", late: "wait" });
     assert.equal(g.lang, "en");
+    assert.equal(party.lateJoin, "wait");
     await vip.act("settings", { rounds: "auto", write: 30 });
     assert.equal(g.rounds, "auto");
     // Not during a game; again at the end.
@@ -557,10 +576,23 @@ test("the VIP's settings from the phone: lobby and end, checked as the host page
     const end = new Promise((r) => g.once("end", r));
     await vip.act("start");
     await assert.rejects(vip.act("settings", { rounds: 2 }), (e: { code: string }) => e.code === "running");
+    for (const s of [{ lang: "de" }, { late: "closed" }]) await assert.rejects(vip.act("settings", s), (e: { code: string }) => e.code === "running", JSON.stringify(s));
     await end;
-    await vip.act("settings", { write: 90 });
+    await vip.act("settings", { write: 90, late: "closed", lang: "de" });
     assert.equal(g.timings.write, 90_000);
-    assert.equal((party.room.peek()["settings"] as { write: number }).write, 90);
+    assert.deepEqual(party.room.peek()["settings"], { rounds: 1, write: 90, difficulty: "easy", late: "closed" });
+    assert.equal(party.room.peek()["lang"], "de");
+  } finally {
+    close();
+  }
+});
+
+test("the VIP cannot pick a language without words (the host page greys it out)", async () => {
+  const { party, g, players, close } = await setup(3, { words: ["en"] });
+  try {
+    assert.deepEqual(party.room.peek()["langs"], ["en"]);
+    await assert.rejects(players[0]!.client.act("settings", { lang: "de" }), (e: { code: string }) => e.code === "bad-settings");
+    assert.equal(g.lang, "en");
   } finally {
     close();
   }

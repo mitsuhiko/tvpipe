@@ -5,7 +5,8 @@
  * and shows the room on tvpipe's standard host page (`HostPage` of
  * @tvpipe/party: the QR code, the TVs, the players, a muted preview of
  * the TV) with Jinx's settings (`settings` below: rounds, writing time,
- * words, latecomers). Bots are for tests: their buttons show only in test mode
+ * words, latecomers; the VIP's phone has them all too, the language as
+ * well). Bots are for tests: their buttons show only in test mode
  * (`tvpipe game play --dev`) or with `?bots` in the page's URL. The
  * room's dealt words are kept in `localStorage` per language, so no word
  * comes twice until all were dealt, and so are the room's records (the
@@ -18,7 +19,7 @@
 import { HostPage, languageField, lateJoinField, preferredLang, type Field } from "@tvpipe/party";
 
 import { bots, type Bot } from "../game/bots.ts";
-import { Jinx } from "../game/game.ts";
+import { Jinx, LATE_JOINS } from "../game/game.ts";
 import { LANGS, matcher, type Lang } from "../game/lang.ts";
 import type { MatchOptions, WordEntry } from "../game/match.ts";
 import type { Difficulty, RoundsSetting } from "../game/rules.ts";
@@ -86,7 +87,8 @@ function settings(game: Jinx, words: Partial<Record<Lang, WordEntry[]>>): Field[
       set: (difficulty: Difficulty) => game.configure({ difficulty }),
     },
     // Latecomers play from the next round, or the game is closed to them (they can still rejoin by name).
-    lateJoinField(game.party, ["wait", "closed"]),
+    // Through the game, so the phones (the VIP's settings) see it.
+    { ...lateJoinField(game.party, LATE_JOINS), set: (late: (typeof LATE_JOINS)[number]) => game.configure({ late }) },
   ];
 }
 
@@ -195,7 +197,7 @@ async function main(): Promise<void> {
     bots: addBots,
   });
   game.on("phase", () => page.update());
-  // The VIP changed a setting from the phone.
+  // The VIP changed a setting from the phone (the language too).
   game.on("settings", () => page.update());
   page.tvpipe.on("closing", () => {
     for (const b of robots) b.close();

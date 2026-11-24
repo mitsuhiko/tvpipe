@@ -18,6 +18,8 @@ import { format } from "./i18n.js";
 const en = (f) => ({
   /** The other language, for the switch. */
   otherLang: "Deutsch",
+  /** This language by its own name (the VIP's language setting). */
+  langName: "English",
   someone: "Someone",
   theGuesser: "The guesser",
   // Joining and the connection.
@@ -143,6 +145,7 @@ const en = (f) => ({
   youreIn: "You're in!",
   // The VIP's settings (the lobby and the end).
   settings: "Settings",
+  langLabel: "Language (for everyone)",
   roundsLabel: "Everyone guesses",
   roundsAuto: "auto",
   roundsOnce: "once",
@@ -160,6 +163,14 @@ const en = (f) => ({
   easy: "easy",
   normal: "normal",
   hard: "hard",
+  lateLabel: "Latecomers",
+  lateWait: "next round",
+  lateClosed: "closed",
+  /** @type {Record<string, string>} */
+  lateLine: {
+    wait: "Newcomers play from the next round.",
+    closed: "Nobody new joins during a game (players can come back).",
+  },
   lateNote: "A round is on: you play from the next one. Draw your face in the meantime.",
   // The round.
   /** @param {number} r @param {number} of */
@@ -310,6 +321,7 @@ const en = (f) => ({
 /** @type {typeof en} */
 const de = (f) => ({
   otherLang: "English",
+  langName: "Deutsch",
   someone: "Jemand",
   theGuesser: "Wer rät",
   connecting: "Verbinde…",
@@ -420,6 +432,7 @@ const de = (f) => ({
   startsSoon: "Gleich geht's los",
   youreIn: "Du bist drin!",
   settings: "Einstellungen",
+  langLabel: "Sprache (für alle)",
   roundsLabel: "Alle raten",
   roundsAuto: "auto",
   roundsOnce: "einmal",
@@ -435,6 +448,13 @@ const de = (f) => ({
   easy: "leicht",
   normal: "normal",
   hard: "schwer",
+  lateLabel: "Nachzügler",
+  lateWait: "nächste Runde",
+  lateClosed: "geschlossen",
+  lateLine: {
+    wait: "Wer neu kommt, spielt ab der nächsten Runde mit.",
+    closed: "Während eines Spiels kommt niemand Neues dazu; wer schon mitspielt, kann zurück.",
+  },
   lateNote: "Gerade läuft eine Runde: Du spielst ab der nächsten mit. Mal so lange dein Gesicht.",
   roundOf: (r, of) => `Runde ${f.n(r)} von ${f.n(of)}`,
   hotSeat: "Heißer Stuhl für dich",

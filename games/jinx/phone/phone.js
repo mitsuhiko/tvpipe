@@ -5,8 +5,9 @@
  * actions of game/views.ts; the guesser's draft goes as `input({ draft })`.
  * The look is the TV's table: felt, cream paper, tomato card backs, chips.
  * Everything players typed is shown as text (`textContent`), never as markup.
- * It speaks the room's language (`room.lang`), or the one the player
- * picked with the header's switch (joining, the lobby, the end);
+ * It speaks the room's language (`room.lang`, the host page's or the
+ * VIP's setting), or the one the player picked with the header's switch
+ * (joining, the lobby, the end);
  * `strings.js` has the texts. Jinx is a team game: the room shares one
  * bank of chips, so the phone shows the room's bank and what this phone's
  * cards did for it, never personal points or ranks.
@@ -34,7 +35,7 @@
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
 import { COLORS, FLAME, faceSvg, PRESETS } from "./faces.js";
-import { browserLang, pickLang } from "./i18n.js";
+import { browserLang, LANGS, pickLang } from "./i18n.js";
 import { Pad } from "./pad.js";
 import { strings } from "./strings.js";
 
@@ -221,7 +222,7 @@ langButton.addEventListener("click", () => {
 /** @returns {RoomView} */
 function roomView() {
   const r = client.view?.room;
-  return r && typeof r === "object" && Array.isArray(r.people) ? r : { phase: "lobby", lang: browserLang(), settings: { rounds: "auto", write: 45, difficulty: "normal" }, people: [], minPlayers: 3, maxPlayers: 8 };
+  return r && typeof r === "object" && Array.isArray(r.people) ? r : { phase: "lobby", lang: browserLang(), langs: [], settings: { rounds: "auto", write: 45, difficulty: "normal", late: "wait" }, people: [], minPlayers: 3, maxPlayers: 8 };
 }
 
 /** @returns {PlayerState | null} */
@@ -777,39 +778,64 @@ function facePad(face, color, err) {
 }
 
 /**
- * The VIP's settings (the lobby and the end), as the host page offers
- * them: rounds, writing time, words. The language and the latecomers stay
- * the host's. The current values come with the room view.
+ * The VIP's settings (the lobby and the end), all the host page offers:
+ * the language (for the whole room; one without words greyed out),
+ * rounds, writing time, words, latecomers. The current values come with
+ * the room view.
  * @param {HTMLElement} err
  */
 function settingsBox(err) {
-  /** @type {{ key: keyof Settings, buttons: HTMLButtonElement[], values: any[] }[]} */
+  /** @type {{ key: keyof Settings | "lang", buttons: HTMLButtonElement[], values: any[] }[]} */
   const items = [];
   const roundsLine = h("p", { class: "line" });
+  const lateLine = h("p", { class: "line" });
   const box = h("section", { class: "settings" }, h("h2", { class: "label" }, t.settings));
-  /** @param {keyof Settings} key @param {any[]} values @param {string[]} labels @param {string} title @param {HTMLElement | null} [line] */
+  /** @param {keyof Settings | "lang"} key @param {any[]} values @param {string[]} labels @param {string} title @param {HTMLElement | null} [line] */
   const add = (key, values, labels, title, line = null) => {
-    const buttons = values.map((v, i) => btn("", () => void act("settings", { [key]: v }, err).catch(() => {}), labels[i] ?? String(v)));
+    const buttons = values.map((v, i) => btn("", () => void pick(key, v), labels[i] ?? String(v)));
     const head = h("h3", {}, title);
     box.append(h("div", { class: "setting" }, head, h("div", { class: "seg", role: "group", "aria-label": title }, ...buttons), line));
     items.push({ key, buttons, values });
   };
+  /** @param {keyof Settings | "lang"} key @param {any} v */
+  const pick = async (key, v) => {
+    try {
+      await act("settings", { [key]: v }, err);
+    } catch {
+      return;
+    }
+    if (key !== "lang") return;
+    // The VIP picked the room's language: this phone follows the room again.
+    try {
+      localStorage.removeItem(LANG_KEY);
+    } catch {}
+    if (useLang()) {
+      shown = "";
+      render();
+    }
+  };
+  add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel);
   add("rounds", ["auto", 1, 2], [t.roundsAuto, t.roundsOnce, t.roundsTwice], t.roundsLabel, roundsLine);
   add("write", [30, 45, 60, 90], [30, 45, 60, 90].map(t.seconds), t.writeLabel);
   add("difficulty", ["easy", "normal", "hard"], [t.easy, t.normal, t.hard], t.wordsLabel);
+  add("late", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, lateLine);
   /** @param {RoomView} room */
   const update = (room) => {
     box.hidden = !myself()?.vip || !room.settings;
     const cur = room.settings;
     if (!cur) return;
     for (const it of items) {
+      const value = it.key === "lang" ? room.lang : cur[it.key];
       it.buttons.forEach((b, i) => {
-        const on = it.values[i] === cur[it.key];
+        const on = it.values[i] === value;
         b.classList.toggle("on", on);
         b.setAttribute("aria-pressed", String(on));
+        // A language without words cannot be picked (as on the host page).
+        if (it.key === "lang") b.disabled = !on && Array.isArray(room.langs) && !room.langs.includes(it.values[i]);
       });
     }
     roundsLine.textContent = t.roundsLine[cur.rounds] ?? "";
+    lateLine.textContent = t.lateLine[cur.late] ?? "";
   };
   return { box, update };
 }
