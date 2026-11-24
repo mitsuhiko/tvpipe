@@ -244,6 +244,15 @@ A host page of a game's own skips it (it is a convenience, not a
 requirement), or uses only the form: `new SettingsForm(fields,
 lang).element` in any element. This repository's games all use it.
 
+This repository's games follow two rules for settings. Every field of
+the host page is also on the VIP's phone (the game's `settings`
+action: only the VIP, the same choices, locked while a game runs
+unless the field is `live`), and a change from either side reaches
+the other. The language is the room's, shared by every player: each
+phone speaks it like the TV (before joining: the browser's), and no
+phone switches only itself; the VIP and the host page set it for
+everyone.
+
 The TV page:
 
 ```js
