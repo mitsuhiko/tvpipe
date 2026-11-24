@@ -55,10 +55,6 @@ header {
   min-height: 58px;
 }
 #me { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-#lang {
-  flex: none; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 999px;
-  background: var(--felt-deep); color: var(--cream); box-shadow: 0 0 0 2px var(--felt-print);
-}
 #me .name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 700; }
 .dial {
   flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;

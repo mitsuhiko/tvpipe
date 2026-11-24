@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * What the phone page says, per language (the room's, `room.lang`, or
- * the phone's own choice). German is written for German speakers, not
+ * What the phone page says, per language (the room's, `room.lang`, the
+ * same on every phone). German is written for German speakers, not
  * translated word for word: "du", „Anführungszeichen“, the table's
  * cheeky voice. Jinx is a team game: the room plays as one, with one bank
  * of chips ("we", "our chips"), no personal points, ranks or winners.
@@ -16,8 +16,6 @@ import { format } from "./i18n.js";
 
 /** @param {import("./i18n.js").Format} f */
 const en = (f) => ({
-  /** The other language, for the switch. */
-  otherLang: "Deutsch",
   /** This language by its own name (the VIP's language setting). */
   langName: "English",
   someone: "Someone",
@@ -320,7 +318,6 @@ const en = (f) => ({
 
 /** @type {typeof en} */
 const de = (f) => ({
-  otherLang: "English",
   langName: "Deutsch",
   someone: "Jemand",
   theGuesser: "Wer rät",

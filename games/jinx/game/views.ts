@@ -14,9 +14,9 @@
  *
  * Language: `lang` in the screen view and the room view is the room's
  * language (`en`, `de`; the host page's or the VIP's setting, changed
- * only between games). The TV, the phones and the host page say
- * everything in it (a phone may pick its own); the words and the clues
- * are in it.
+ * only between games). The TV, every phone (the same for all; before
+ * joining, the browser's) and the host page say everything in it; the
+ * words and the clues are in it.
  */
 
 import type { Lang } from "./lang.ts";

@@ -6,8 +6,7 @@
  * The look is the TV's table: felt, cream paper, tomato card backs, chips.
  * Everything players typed is shown as text (`textContent`), never as markup.
  * It speaks the room's language (`room.lang`, the host page's or the
- * VIP's setting), or the one the player picked with the header's switch
- * (joining, the lobby, the end);
+ * VIP's setting), the same on every phone; before joining, the browser's.
  * `strings.js` has the texts. Jinx is a team game: the room shares one
  * bank of chips, so the phone shows the room's bank and what this phone's
  * cards did for it, never personal points or ranks.
@@ -125,8 +124,7 @@ function logo(large = false) {
 const tiles = logo();
 const timer = h("div", { id: "timer", class: "dial", hidden: true, "aria-live": "off" });
 const meBox = h("div", { id: "me" });
-const langButton = /** @type {HTMLButtonElement} */ (h("button", { type: "button", id: "lang", hidden: true }));
-header.append(tiles, timer, langButton, meBox);
+header.append(tiles, timer, meBox);
 const banner = h("div", { id: "banner", role: "status", hidden: true });
 const main = h("main", { id: "main" });
 const dock = h("footer", { id: "dock" });
@@ -158,63 +156,27 @@ const client = PartyClient.fromLocation();
 blockEmoji();
 
 // ---------------------------------------------------------------------------
-// The language: the phone's own choice, else the room's, else the browser's.
+// The language: the room's, the same on every phone (the host page or the
+// VIP sets it); before joining, the browser's.
 
-const LANG_KEY = "jinx:lang";
-/** @returns {import("./i18n.js").Lang | null} */
-function ownLang() {
-  try {
-    const v = localStorage.getItem(LANG_KEY);
-    return v ? pickLang(v) : null;
-  } catch {
-    return null;
-  }
-}
 /** @returns {import("./i18n.js").Lang} */
 function roomLang() {
   const l = client.view?.room?.lang;
   return typeof l === "string" ? pickLang(l) : browserLang();
 }
-let lang = ownLang() ?? roomLang();
+let lang = roomLang();
 let t = strings(lang);
 document.documentElement.lang = lang;
 
-/** Follows the language; true when it changed (the screen has to be built again). */
+/** Follows the room's language; true when it changed (the screen has to be built again). */
 function useLang() {
-  const l = ownLang() ?? roomLang();
+  const l = roomLang();
   if (l === lang) return false;
   lang = l;
   t = strings(l);
   document.documentElement.lang = l;
   return true;
 }
-
-/** The switch: only where rebuilding loses nothing (joining, the lobby, the end). */
-function showSwitch(on = false) {
-  langButton.hidden = !on;
-  langButton.textContent = t.otherLang;
-  langButton.lang = lang === "de" ? "en" : "de";
-}
-langButton.addEventListener("click", () => {
-  const next = lang === "de" ? "en" : "de";
-  try {
-    // Back to the room's language: follow the room again.
-    if (next === roomLang()) localStorage.removeItem(LANG_KEY);
-    else localStorage.setItem(LANG_KEY, next);
-  } catch {}
-  if (!useLang()) return;
-  if (shown === "join") {
-    const typed = /** @type {HTMLInputElement | null} */ (document.getElementById("name"))?.value;
-    joinForm("", typed);
-  } else if (meView()) {
-    shown = "";
-    render();
-  } else {
-    // Before joining (no room, or a resumed phone connecting): the plain screen again.
-    plain(shown, logo(true), big(shown === "no-room" ? t.scanToJoin : t.connecting));
-    showSwitch(true);
-  }
-});
 
 // ---------------------------------------------------------------------------
 // The view
@@ -453,10 +415,10 @@ const ENVELOPE = `<svg viewBox="0 0 200 130" aria-hidden="true"><rect x="4" y="4
 const CLUE_GAME_CODES = new Set(["late", "not-asked", "bad-slot", "not-player", "refused"]);
 
 /**
- * A refusal in this phone's language, by its code. A refused clue's
+ * A refusal in the room's language, by its code. A refused clue's
  * message is the matcher's own wording in the room's language: shown as it
- * is when this phone speaks the room's language, else said from the code
- * and its reason ("too-close:plural").
+ * is (other refusals are said from the code and its reason,
+ * "too-close:plural").
  * @param {any} e
  * @param {string} [action] the action refused (`clue`, `guess`, …)
  */
@@ -464,7 +426,7 @@ function message(e, action = "") {
   const code = typeof e?.code === "string" ? e.code : "";
   const [base = "", reason] = code.split(":");
   const said = typeof e?.message === "string" && e.message ? e.message : "";
-  if (action === "clue" && !CLUE_GAME_CODES.has(base) && lang === roomLang() && said) return said;
+  if (action === "clue" && !CLUE_GAME_CODES.has(base) && said) return said;
   const r = /** @type {import("../game/views.ts").Reason | undefined} */ (reason && reason in t.reasons ? reason : undefined);
   if (base === "too-close") return t.tryAnother(t.tooClose[r ?? "too close"]);
   if (base === "own-clue") return t.ownClue(r && r !== "same word" ? t.reasons[r] : null);
@@ -521,7 +483,6 @@ function plain(key, ...kids) {
   mount({ main: [h("section", { class: "center" }, ...kids)] });
   outside = true;
   timer.hidden = true;
-  showSwitch(false);
 }
 
 /** A screen outside the game is up (no clock). */
@@ -544,7 +505,6 @@ function render() {
   if (key !== shown) {
     shown = key;
     outside = false;
-    showSwitch(me.task === "lobby" || me.task === "final");
     mount(build(me, room));
   }
   refresh?.(me, room);
@@ -651,13 +611,12 @@ function build(me, room) {
 
 /**
  * @param {string} [error]
- * @param {string} [typed] the name typed so far (the language switched)
  */
-function joinForm(error = "", typed) {
+function joinForm(error = "") {
   shown = "join";
   let saved = "";
   try {
-    saved = typed ?? client.saved?.name ?? localStorage.getItem(NAME_KEY) ?? "";
+    saved = client.saved?.name ?? localStorage.getItem(NAME_KEY) ?? "";
   } catch {}
   const input = /** @type {HTMLInputElement} */ (
     h("input", { id: "name", maxlength: 16, autocapitalize: "words", autocomplete: "nickname", enterkeyhint: "go", spellcheck: "false", placeholder: t.yourName, "aria-label": t.yourName })
@@ -698,7 +657,6 @@ function joinForm(error = "", typed) {
   });
   outside = true;
   timer.hidden = true;
-  showSwitch(true);
 }
 
 // ---------------------------------------------------------------------------
@@ -798,22 +756,7 @@ function settingsBox(err) {
     items.push({ key, buttons, values });
   };
   /** @param {keyof Settings | "lang"} key @param {any} v */
-  const pick = async (key, v) => {
-    try {
-      await act("settings", { [key]: v }, err);
-    } catch {
-      return;
-    }
-    if (key !== "lang") return;
-    // The VIP picked the room's language: this phone follows the room again.
-    try {
-      localStorage.removeItem(LANG_KEY);
-    } catch {}
-    if (useLang()) {
-      shown = "";
-      render();
-    }
-  };
+  const pick = (key, v) => act("settings", { [key]: v }, err).catch(() => {});
   add("lang", [...LANGS], LANGS.map((l) => strings(l).langName), t.langLabel);
   add("rounds", ["auto", 1, 2], [t.roundsAuto, t.roundsOnce, t.roundsTwice], t.roundsLabel, roundsLine);
   add("write", [30, 45, 60, 90], [30, 45, 60, 90].map(t.seconds), t.writeLabel);
@@ -1668,7 +1611,6 @@ document.addEventListener("visibilitychange", () => {
 plain("connecting", logo(true), big(t.connecting));
 if (!client.room || !client.key) {
   plain("no-room", logo(true), big(t.scanToJoin));
-  showSwitch(true);
 } else if (client.canResume) {
   client.connect().then(wake, (/** @type {any} */ e) => joinForm(e?.code === "no-player" ? "" : message(e, "join")));
 } else {

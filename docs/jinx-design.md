@@ -480,10 +480,9 @@ phone (for everyone), first the browser's language, then the last
 choice on that computer (`localStorage`); it changes only between games
 (`configure({ lang })` refuses during one).
 The game sends it with the room view and the TV view (`lang`), so every
-phone, the TV and the host page follow at once. A phone may switch for
-itself where rebuilding its screen loses nothing (joining, the lobby,
-the end); it then keeps its own language, until its VIP picks the
-room's. A language whose data files the host page cannot load
+phone, the TV and the host page follow at once: one language for the
+whole table, no phone has its own (before joining, a phone speaks its
+browser's). A language whose data files the host page cannot load
 (`data/words.de.txt`, `data/dict.de.txt`) cannot be picked (the room
 view's `langs` has the others).
 

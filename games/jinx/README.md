@@ -58,8 +58,8 @@ English and German. The language is the room's: a setting on the host
 page, which starts with the browser's language (then the last choice on
 that computer) and changes only between games. It goes with the room and
 TV views (`lang`), so every phone, the TV and the host page speak it.
-The VIP can change it from the phone too; a phone may switch for itself
-on the join screen, in the lobby and at the end. Each language has its own words (`data/words.de.txt`), dictionary
+The VIP can change it from the phone too; no phone has a language of
+its own (before joining, it speaks the browser's). Each language has its own words (`data/words.de.txt`), dictionary
 and clue matcher (`game/lang.ts`): what jinxes in German is German
 grammar, read from a lexicon of the German Wiktionary (Hunde/Hund,
 lief/laufen, größer/groß, Schneemänner/Schneemann, Bäcker/backen; see
