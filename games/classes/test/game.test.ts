@@ -485,7 +485,7 @@ test("Stop is off: refused", async () => {
 });
 
 test("the vote's refusals: own, auto, bad-answer, too-late, not-playing", async () => {
-  const { g, manual, relay, party, close } = await game(3, { manual: ["Ann", "Bob", "Cat"], columns: EN.filter((c) => !c.rule), settings: { rounds: 1, columns: 6, late: "wait" }, timings: { letterMax: 50, write: 500, vote: 4000, voteMax: 4000, voteEmpty: 4000 } });
+  const { g, manual, relay, party, close } = await game(3, { manual: ["Ann", "Bob", "Cat"], columns: EN.filter((c) => !c.rule), settings: { rounds: 1, columns: 6, late: "wait" }, timings: { letterMax: 50, write: 500, vote: 4000, voteMax: 4000, voteEmpty: 4000, marked: 5000 } });
   try {
     g.script = { letter: "B" };
     const [a, b, c] = manual.map((m) => m.client) as [PartyClient, PartyClient, PartyClient];
@@ -585,7 +585,7 @@ function fakeWiki(delay = 20) {
 
 test("Wikipedia: open, follow a link, back (no fetch), search, another result; the driver; more time; the refusals", async () => {
   const { wiki, calls } = fakeWiki();
-  const { g, manual, room, screen, close } = await game(3, { manual: ["Ann", "Bob", "Cat"], columns: EN.filter((c) => !c.rule), wiki, settings: { rounds: 1, columns: 6 }, timings: { letterMax: 50, write: 300, vote: 3000, voteMax: 3000, voteEmpty: 3000, wikiGap: 60, wikiPer: 6, wikiMin: 5000, wikiMaxAdd: 9000 } });
+  const { g, manual, room, screen, close } = await game(3, { manual: ["Ann", "Bob", "Cat"], columns: EN.filter((c) => !c.rule), wiki, settings: { rounds: 1, columns: 6 }, timings: { letterMax: 50, write: 300, vote: 3000, voteMax: 3000, voteEmpty: 3000, wikiGap: 60, wikiPer: 6, wikiMin: 5000, wikiMaxAdd: 9000, marked: 5000 } });
   try {
     g.script = { letter: "B" };
     const [a, b, c] = manual.map((m) => m.client) as [PartyClient, PartyClient, PartyClient];
