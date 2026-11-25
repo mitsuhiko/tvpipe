@@ -386,6 +386,12 @@ country's outline (its rings) and the view, not its id; the TV and the
 phone draw the outline over the map. Judged as the flag challenge
 (§4.4). Countries smaller than about 20 km across are never asked.
 
+**Name the country** (`spot`) is its easier form: the same outline in
+the hot colour, but in its place on the map among the land around it
+(borders as the difficulty says, no names, a ring around a small one);
+any country with land can be asked. The question is the same as the
+shape's (outline and view, no id).
+
 ### 4.7 Which is bigger?
 
 Four countries (name and flag) and one of the numbers (population,
@@ -401,7 +407,11 @@ steps.
 A country (name and flag) and one number (population, area, highest
 point); everyone sets a guess on a logarithmic slider (population 1k–2
 billion, area 1–20 million km², height 10–9,000 m) with the value
-shown as it would be on a card. The closest by ratio wins (|log
+shown as it would be on a card. Four other countries on the slider
+for scale, a line under the track each with flag, name and number:
+the smallest and the largest of the deck on the slider, and between
+them one of the three best known near a third and two thirds of the
+way (log); never the country asked nor one with its very number. The closest by ratio wins (|log
 guess/answer|), with everyone within 10 % of the best ratio; a guess
 off by more than the level's factor never wins (easy ×3, normal ×2,
 hard ×1.5). The reveal: a number line (log) with every guess as a dot
@@ -430,7 +440,8 @@ the four on the map, the odd one marked.
 A setting (`kinds`, the host page and the VIP's phone): which kinds are in
 the mix, all by default, at least one. A challenge picks a kind at
 random among those some country of the pool can be asked in (odd one
-out needs three neighbours, name a neighbour one, a shape 20 km), then
+out needs three neighbours, name a neighbour one, a shape 20 km, name
+the country some land), then
 a country that fits; when none of the kinds can be made, a pin. The
 tie-break is always the pin (§2.4).
 

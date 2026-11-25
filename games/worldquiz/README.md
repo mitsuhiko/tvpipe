@@ -19,8 +19,10 @@ highest point, GDP per person).
   wins; pins that are nearly as close tie; the answer shows the
   country, every pin and a line from each to it), **pick its flag**
   among 6 (9 on hard), **name the shape** (its outline on the map, no
-  names), pick **which is bigger** of four (people, area, height, GDP
-  per person), **guess a number** on a slider (closest by ratio),
+  names), **name the country** (the same, easier: lit up in its place
+  among its neighbours), pick **which is bigger** of four (people, area, height, GDP
+  per person), **guess a number** on a slider (closest by ratio;
+  four other countries marked on it for scale),
   **name a neighbour**, or pick the **odd one out** (of four, the one
   that does not border a country). Nobody right: another challenge, up
   to three.

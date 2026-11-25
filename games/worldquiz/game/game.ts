@@ -55,6 +55,7 @@ import {
   GUESS_FACTS,
   GUESS_RANGE,
   guessOf,
+  guessRefs,
   judgeGuesses,
   judgePins,
   KINDS,
@@ -845,6 +846,8 @@ export class Worldquiz extends Emitter<GameEvents> {
         const [w, s, e, n] = c.box;
         return (this.#land.get(c.id)?.length ?? 0) > 0 && km([w, s], [e, n]) >= SHAPE_KM;
       }
+      case "spot":
+        return (this.#land.get(c.id)?.length ?? 0) > 0;
       case "neighbour":
         return neighboursIn(c, this.#inDeck).length >= 1;
       case "odd":
@@ -883,6 +886,7 @@ export class Worldquiz extends Emitter<GameEvents> {
         return { question: { name: c.name[l], flags: options.map((o) => o.flag) }, truth: { options, right: options.indexOf(c) } };
       }
       case "shape":
+      case "spot":
         return { question: { shape: outline(this.#land.get(c.id) ?? []), box: c.box, at: c.at }, truth: {} };
       case "bigger": {
         const b = biggerOf(c, pool.length >= 8 ? pool : all, this.#settings.difficulty, rng);
@@ -893,7 +897,9 @@ export class Worldquiz extends Emitter<GameEvents> {
         const g = guessOf(c, rng);
         if (!g) return null;
         const range = GUESS_RANGE[g.fact];
-        return { question: { fact: g.fact, name: c.name[l], flag: c.flag, min: range[0], max: range[1] }, truth: { fact: g.fact, value: g.value, range } };
+        // Reference countries on the slider, never the one asked.
+        const refs = guessRefs(c, all, g.fact, rng).map((r) => ({ ...shown(r.country), amount: r.value }));
+        return { question: { fact: g.fact, name: c.name[l], flag: c.flag, min: range[0], max: range[1], refs }, truth: { fact: g.fact, value: g.value, range } };
       }
       case "neighbour": {
         const neighbours = neighboursIn(c, this.#inDeck);

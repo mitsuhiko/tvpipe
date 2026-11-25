@@ -27,6 +27,7 @@ const KIND_TEXT: Record<Kind, { label: { en: string; de: string }; hint: { en: s
   where: { label: { en: "Where is it?", de: "Wo liegt's?" }, hint: { en: "Pin a country on the map.", de: "Ein Land auf der Karte zeigen." } },
   pickflag: { label: { en: "Pick the flag", de: "Welche Flagge?" }, hint: { en: "A country's name: pick its flag among 6 (9 on hard).", de: "Ein Ländername: seine Flagge unter 6 (schwer: 9) wählen." } },
   shape: { label: { en: "Name the shape", de: "Welche Form?" }, hint: { en: "A country's outline on the map, no names: type it.", de: "Der Umriss eines Landes auf der Karte, ohne Namen: tippen, welches." } },
+  spot: { label: { en: "Name the country", de: "Welches Land?" }, hint: { en: "A country lit up on the map among its neighbours, no names: type it.", de: "Ein Land leuchtet auf der Karte zwischen seinen Nachbarn, ohne Namen: tippen, welches." } },
   bigger: { label: { en: "Which is bigger?", de: "Wer hat mehr?" }, hint: { en: "Four countries: the most people, area, height or GDP per person.", de: "Vier Länder: die meisten Einwohner, die größte Fläche, Höhe oder BIP pro Kopf." } },
   guess: { label: { en: "Guess the number", de: "Schätzen" }, hint: { en: "A country's population, area or highest point on a slider; the closest wins.", de: "Einwohner, Fläche oder höchster Punkt eines Landes schätzen; am nächsten gewinnt." } },
   neighbour: { label: { en: "Name a neighbour", de: "Nachbarland" }, hint: { en: "Type any country that borders it.", de: "Irgendein Land tippen, das angrenzt." } },

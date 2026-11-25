@@ -525,7 +525,7 @@ const KIND_ICONS = {
 };
 const LETTERS = "ABCDEFGHI";
 /** How each kind is answered (game/rules.ts ANSWERS). */
-const HOW = /** @type {Record<string, "text" | "pin" | "choice" | "number">} */ ({ capital: "text", flag: "text", where: "pin", pickflag: "choice", shape: "text", bigger: "choice", guess: "number", neighbour: "text", odd: "choice" });
+const HOW = /** @type {Record<string, "text" | "pin" | "choice" | "number">} */ ({ capital: "text", flag: "text", where: "pin", pickflag: "choice", shape: "text", spot: "text", bigger: "choice", guess: "number", neighbour: "text", odd: "choice" });
 
 /** Options as cards in a row: a letter, the flag, the name. @param {any[]} options */
 function optionRow(options) {
@@ -588,6 +588,15 @@ function challengeScene(sc) {
     }
     // Close enough to see the shape of a small one too.
     look({ box: q.box }, 1700, 0.85, 60);
+  } else if (kind === "spot") {
+    // The easier shape: the outline in its place, the land around it (no names).
+    ask = h("div", { class: "banner" }, h("span", { class: "fi", html: KIND_ICONS.spot }), t.kindLines.spot);
+    if (map) {
+      map.outline = decodeRings(q.shape ?? []);
+      map.top = 16 * rem();
+      map.bottom = 20 * rem();
+    }
+    look({ box: q.box, at: q.at }, 1700, 0.3);
   } else if (kind === "bigger" || kind === "odd") {
     const fact = /** @type {keyof typeof ICONS} */ (q.fact);
     const head =

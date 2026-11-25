@@ -28,12 +28,12 @@ import { strings } from "./strings.js";
 /** @typedef {import("../screen/map.js").Mark} Mark */
 /** @typedef {import("../screen/map.js").Line} Line */
 /** @typedef {[number, number]} LonLat */
-/** @typedef {"capital" | "flag" | "where" | "pickflag" | "shape" | "bigger" | "guess" | "neighbour" | "odd"} Kind */
+/** @typedef {"capital" | "flag" | "where" | "pickflag" | "shape" | "spot" | "bigger" | "guess" | "neighbour" | "odd"} Kind */
 
 /** The kinds of challenge (game/rules.ts KINDS) and how each is answered (ANSWERS there). */
-const KINDS = /** @type {Kind[]} */ (["capital", "flag", "where", "pickflag", "shape", "bigger", "guess", "neighbour", "odd"]);
+const KINDS = /** @type {Kind[]} */ (["capital", "flag", "where", "pickflag", "shape", "spot", "bigger", "guess", "neighbour", "odd"]);
 /** @type {Record<Kind, "text" | "pin" | "choice" | "number">} */
-const HOW = { capital: "text", flag: "text", where: "pin", pickflag: "choice", shape: "text", bigger: "choice", guess: "number", neighbour: "text", odd: "choice" };
+const HOW = { capital: "text", flag: "text", where: "pin", pickflag: "choice", shape: "text", spot: "text", bigger: "choice", guess: "number", neighbour: "text", odd: "choice" };
 const LETTERS = "ABCDEFGHI";
 
 const MAX_ANSWER = 40;
@@ -127,7 +127,7 @@ function buzz(ms) {
 const PLANE = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M37 17c0-2-2-3-4-3H25L15 3h-5l5 11H8L5 9H2l2 11-2 11h3l3-5h7l-5 11h5l10-11h8c2 0 4-1 4-3z" fill="#fff" stroke="#263450" stroke-width="3" stroke-linejoin="round" transform="rotate(-20 20 20)"/></svg>';
 const KIND_ICONS = {
   capital: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 35h30M8 35V18h24v17M5 18 20 6l15 12z" fill="#ffcf4a" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M13 22v9M20 22v9M27 22v9" stroke="#263450" stroke-width="3" stroke-linecap="round"/><path d="M20 6V1l6 2-6 2" fill="#ff7a45" stroke="#263450" stroke-width="2" stroke-linejoin="round"/></svg>',
-  flag: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37V4" stroke="#263450" stroke-width="3.5" stroke-linecap="round"/><path d="M9 6c8-4 14 4 24 0v17c-10 4-16-4-24 0z" fill="#ef4444" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><path d="M9 12.5c8-4 14 4 24 0v5c-10 4-16-4-24 0z" fill="#fff"/></svg>',
+  flag: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37V4" stroke="#263450" stroke-width="3.5" stroke-linecap="round"/><path d="M9 6c8-4 14 4 24 0v17c-10 4-16-4-24 0z" fill="#ef4444" stroke="#263450" stroke-width="3" stroke-linejoin="round"/></svg>',
   where: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 37s12-12 12-21a12 12 0 0 0-24 0c0 9 12 21 12 21z" fill="#ff7a45" stroke="#263450" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="16" r="4.5" fill="#fff" stroke="#263450" stroke-width="2.5"/></svg>',
   ...KIND_ICONS_MORE,
 };
@@ -998,6 +998,21 @@ function answerScreen(me, room) {
     };
     const nudge = (/** @type {number} */ k) => set(roundNice((draft.value ?? toValue(Number(slider.value))) * k));
     const ends = h("div", { class: "gends" }, h("span", {}, f.fact(fact, lo)), h("span", {}, f.fact(fact, hi)));
+    // Reference countries as lines under the track, smallest on the left (never the one asked).
+    const refs = (Array.isArray(q.refs) ? q.refs : []).filter((/** @type {any} */ r) => Number(r?.amount) >= lo && Number(r?.amount) <= hi);
+    const marks = refs.length
+      ? h(
+          "div",
+          { class: "grefs" },
+          ...refs.map((/** @type {any} */ r, /** @type {number} */ i) =>
+            h(
+              "span",
+              { class: `gref${i === 0 ? " first" : i === refs.length - 1 ? " last" : ""}`, style: { "--p": String(toPos(Number(r.amount)) / STEPS) } },
+              h("span", { class: "glab" }, h("img", { class: "gflag", src: flagSrc(r.flag ?? ""), alt: "" }), h("b", {}, r.name ?? ""), h("small", {}, f.fact(fact, Number(r.amount)))),
+            ),
+          ),
+        )
+      : null;
     show(
       h("section", { class: "panel pop question where" }, h("div", { class: "qrow" }, h("img", { class: "qflag", src: flagSrc(q.flag ?? ""), alt: "" }), h("h1", { "data-fit": "2" }, t.guessQ[fact]?.(q.name ?? "?") ?? "")), tick),
       h(
@@ -1005,6 +1020,7 @@ function answerScreen(me, room) {
         { class: "panel guess" },
         value,
         slider,
+        marks,
         ends,
         h("div", { class: "gnudge" }, h("button", { type: "button", class: "btn white small", onclick: () => nudge(1 / 1.1) }, `− ${t.less}`), h("button", { type: "button", class: "btn white small", onclick: () => nudge(1.1) }, `+ ${t.more}`)),
       ),
@@ -1031,6 +1047,10 @@ function answerScreen(me, room) {
       // The country alone on the sea: no neighbours, no grid to tell where.
       map = mapView({ outline: decodeRings(q.shape ?? []), lone: true, box: q.box ?? null, at: null, cls: "shapemap", fill: 0.6, maxZoom: 40, interactive: true, borders: me.borders !== false });
       show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.kindLines.shape), tick), map.el, form);
+    } else if (kind === "spot") {
+      // The easier shape: the outline in its place, the land around it (no names).
+      map = mapView({ outline: decodeRings(q.shape ?? []), box: q.box ?? null, at: q.at ?? null, cls: "shapemap", fill: 0.3, interactive: true, borders: me.borders !== false });
+      show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.kindLines.spot), tick), map.el, form);
     } else {
       const head =
         kind === "capital" || kind === "neighbour"
@@ -1405,10 +1425,14 @@ function fakeView(name) {
       const it = demoData.byId.get("IT");
       return { room: { ...room, stage: "challenge", kind: "shape", deadline: now + 40000 }, me: { task: "answer", key: "c7", kind: "shape", question: { shape: coded("IT"), box: it?.box, at: it?.at }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
     },
+    spot: () => {
+      const it = demoData.byId.get("IT");
+      return { room: { ...room, stage: "challenge", kind: "spot", deadline: now + 40000 }, me: { task: "answer", key: "c7s", kind: "spot", question: { shape: coded("IT"), box: it?.box, at: it?.at }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
+    },
     bigger: () => ({ room: { ...room, stage: "challenge", kind: "bigger", deadline: now + 40000 }, me: { task: "answer", key: "c8", kind: "bigger", question: { fact: "population", options: ["NG", "BR", "JP", "MX"].map((id) => ({ name: nm(id), flag: fl(id) })) }, deadline: now + 40000, borders: true, locked: false, steps: 2 } }),
     guess: () => {
       drafts.set("c9", { value: 25_000_000 });
-      return { room: { ...room, stage: "challenge", kind: "guess", deadline: now + 40000 }, me: { task: "answer", key: "c9", kind: "guess", question: { fact: "population", name: nm("PE"), flag: fl("PE"), min: 1000, max: 2e9 }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
+      return { room: { ...room, stage: "challenge", kind: "guess", deadline: now + 40000 }, me: { task: "answer", key: "c9", kind: "guess", question: { fact: "population", name: nm("PE"), flag: fl("PE"), min: 1000, max: 2e9, refs: [["TV", 9_492], ["MU", 1_243_741], ["GB", 69_487_000], ["IN", 1_463_865_525]].map(([id, amount]) => ({ name: nm(String(id)), flag: fl(String(id)), amount })) }, deadline: now + 40000, borders: true, locked: false, steps: 2 } };
     },
     neighbour: () => {
       const hu = demoData.byId.get("HU");

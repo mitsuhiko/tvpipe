@@ -486,13 +486,16 @@ for (const kind of KINDS.filter((k) => !["capital", "flag", "where"].includes(k)
         const q = x["question"];
         const text = JSON.stringify(q);
         assert.ok(!("id" in q) || kind === "neighbour", text);
-        if (kind === "shape") assert.deepEqual(Object.keys(q).sort(), ["at", "box", "shape"]);
+        if (kind === "shape" || kind === "spot") assert.deepEqual(Object.keys(q).sort(), ["at", "box", "shape"]);
         if (kind === "pickflag") {
           assert.deepEqual(Object.keys(q).sort(), ["flags", "name"]);
           assert.equal(new Set(q.flags).size, q.flags.length);
         }
         if (kind === "bigger" || kind === "odd") assert.equal(q.options.length, 4);
-        if (kind === "guess") assert.ok(q.min < q.max);
+        if (kind === "guess") {
+          assert.ok(q.min < q.max);
+          assert.ok(q.refs.length === 4 && q.refs.every((r: { name: string; amount: number }) => r.name !== q.name && r.amount >= q.min && r.amount <= q.max), text);
+        }
         assert.ok(!text.includes('"right"') && !text.includes('"value"'), text);
       }
       // The reveal has what it shows.
@@ -502,7 +505,7 @@ for (const kind of KINDS.filter((k) => !["capital", "flag", "where"].includes(k)
         if (kind === "bigger") assert.equal(x["solution"].id, r.options[r.right].id);
         if (kind === "guess") assert.ok(r.value > 0 && r.factor === 2);
         if (kind === "neighbour") assert.ok(r.neighbours.length > 0);
-        if (kind === "shape") assert.equal(r, null);
+        if (kind === "shape" || kind === "spot") assert.equal(r, null);
       }
       // The phone's answer screen had the question, its result its own answer and the reveal.
       assert.ok(phone.some((m) => m.task === "answer" && m.kind === kind && m.question));

@@ -38,10 +38,10 @@ export type Fact = (typeof FACTS)[number];
 /**
  * The kinds of challenge (§4): type the capital, name the flag's
  * country, pin it on the map, pick its flag among several, name the
- * shape, pick the biggest of four, guess a number, name a neighbour,
+ * shape, name the country shown among its neighbours, pick the biggest of four, guess a number, name a neighbour,
  * pick the one of four that is no neighbour.
  */
-export const KINDS = ["capital", "flag", "where", "pickflag", "shape", "bigger", "guess", "neighbour", "odd"] as const;
+export const KINDS = ["capital", "flag", "where", "pickflag", "shape", "spot", "bigger", "guess", "neighbour", "odd"] as const;
 export type Kind = (typeof KINDS)[number];
 /** How a kind is answered: typed, a pin, one of the shown options, a number. */
 export const ANSWERS: Record<Kind, "text" | "pin" | "choice" | "number"> = {
@@ -50,6 +50,7 @@ export const ANSWERS: Record<Kind, "text" | "pin" | "choice" | "number"> = {
   where: "pin",
   pickflag: "choice",
   shape: "text",
+  spot: "text",
   bigger: "choice",
   guess: "number",
   neighbour: "text",
@@ -423,6 +424,39 @@ export function guessOf(c: Country, rng: () => number): { fact: GuessFact; value
     if (value >= lo && value <= hi) return { fact, value };
   }
   return null;
+}
+
+/** Reference countries on the guess slider (§4.8). */
+export const GUESS_REFS = 4;
+
+/**
+ * The guess slider's reference countries (§4.8): up to four others than
+ * `c` whose number is on the slider and not `c`'s own: the smallest, the
+ * largest, and between them one of the best known near a third and two
+ * thirds of the way (log); smallest first.
+ */
+export function guessRefs(c: Country, deck: readonly Country[], fact: GuessFact, rng: () => number): { country: Country; value: number }[] {
+  const [lo, hi] = GUESS_RANGE[fact];
+  const mine = factOf(c, fact, new Set());
+  const on = deck
+    .filter((x) => x.id !== c.id)
+    .map((country) => ({ country, value: factOf(country, fact, new Set()) }))
+    .filter((r) => r.value >= lo && r.value <= hi && r.value !== mine)
+    .sort((a, b) => a.value - b.value || a.country.fame - b.country.fame);
+  if (on.length <= GUESS_REFS) return on;
+  const first = on[0]!;
+  const last = on[on.length - 1]!;
+  const span = Math.log(last.value) - Math.log(first.value);
+  const at = (r: { value: number }) => (span > 0 ? (Math.log(r.value) - Math.log(first.value)) / span : 0);
+  const picked = [first, last];
+  for (const goal of [1 / 3, 2 / 3]) {
+    const free = on.filter((r) => !picked.includes(r) && r.value !== first.value && r.value !== last.value && !picked.some((p) => p.value === r.value));
+    if (!free.length) continue;
+    // One of the three best known within a tenth of the way, else the nearest.
+    const near = free.filter((r) => Math.abs(at(r) - goal) <= 0.1).sort((a, b) => a.country.fame - b.country.fame);
+    picked.push(near.length ? near[Math.floor(rng() * Math.min(3, near.length))]! : free.reduce((a, b) => (Math.abs(at(b) - goal) < Math.abs(at(a) - goal) ? b : a)));
+  }
+  return picked.sort((a, b) => a.value - b.value);
 }
 
 /**

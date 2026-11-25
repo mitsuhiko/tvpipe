@@ -4,7 +4,7 @@ import { test } from "node:test";
 import type { Country, Ring } from "../game/data.ts";
 import type { FlagColours } from "../game/flagcolours.ts";
 import { outline } from "../game/game.ts";
-import { biggerOf, captainFor, rightNeighbour, compete, Deck, deckOf, factOf, fairBigger, guessOf, judgeGuesses, judgePins, knownEnough, oddOf, POOL_SIZE, ranksOf, roundsFor, seeded, strongFacts, topLists, wrongFlags } from "../game/rules.ts";
+import { biggerOf, captainFor, rightNeighbour, compete, Deck, deckOf, factOf, fairBigger, guessOf, guessRefs, judgeGuesses, judgePins, knownEnough, oddOf, POOL_SIZE, ranksOf, roundsFor, seeded, strongFacts, topLists, wrongFlags } from "../game/rules.ts";
 import { COUNTRIES } from "./world.ts";
 
 test("the deck: every card comes up once before any comes back", () => {
@@ -183,6 +183,27 @@ test("which is bigger: fair fours (distinct, the biggest 10 % ahead; easy each d
     }
   // Nobody to stand with: null.
   assert.equal(biggerOf(pool[0]!, [pool[0]!, pool[1]!], "normal", seeded(1)), null);
+});
+
+test("guess the number: reference countries span the slider, never the one asked nor its number", () => {
+  const pop = (id: string, population: number, fame: number) => mk(id, [0, 0], { population, fame });
+  // 2,000 … 1e9 (log): a third of the way is about 160,000, two thirds 12.6 million. X is off the slider (it starts at 1,000).
+  const deck = [pop("X", 500, 1), pop("S", 2000, 50), pop("B", 1.5e5, 5), pop("C", 2e5, 60), pop("D", 1e5, 9), pop("F", 3e5, 80), pop("E", 1.2e7, 3), pop("L", 1e9, 40), pop("Q", 5e4, 2), pop("T", 5e4, 1)];
+  const q = deck.find((c) => c.id === "Q")!;
+  const middles = new Set<string>();
+  for (let seed = 1; seed < 40; seed++) {
+    const ids = guessRefs(q, deck, "population", seeded(seed)).map((r) => r.country.id);
+    assert.equal(ids.length, 4);
+    assert.equal(ids[0], "S");
+    assert.ok(["B", "C", "D"].includes(ids[1]!), ids.join());
+    assert.equal(ids[2], "E");
+    assert.equal(ids[3], "L");
+    middles.add(ids[1]!);
+  }
+  // One of the three best known near the third, not always the same.
+  assert.ok(middles.size > 1);
+  // Too few on the slider: every one there is, smallest first, still without the asked country or its number.
+  assert.deepEqual(guessRefs(q, [deck[7]!, deck[0]!, deck[1]!, deck[8]!, deck[9]!], "population", seeded(1)).map((r) => r.country.id), ["S", "L"]);
 });
 
 test("guess the number: closest by ratio, ties within 10 % of its ratio, too far never wins", () => {
