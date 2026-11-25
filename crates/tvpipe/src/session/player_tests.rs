@@ -211,13 +211,19 @@ fn preview_plays_the_test_pattern_in_a_page() {
     let vids: Vec<_> = log.records.iter().filter(|r| r.0 == Kind::H264).collect();
     assert!(vids.len() >= 20, "{}", vids.len());
     assert!(vids[0].2, "the first video record is a keyframe");
-    // Video instants increase by about a frame (30 fps).
+    // Delivered pictures stay on the 30 fps timeline even if a frame is skipped.
+    let mut consecutive = false;
     for w in vids.windows(2) {
         assert!(w[1].1 > w[0].1, "{:?}", w);
+        let delta = w[1].1 - w[0].1;
+        let frames = (delta * 30 + 500_000) / 1_000_000;
+        assert!(
+            frames > 0 && delta.abs_diff(frames * 1_000_000 / 30) < 2_000,
+            "{delta}"
+        );
+        consecutive |= frames == 1;
     }
-    let span = vids[vids.len() - 1].1 - vids[0].1;
-    let expect = (vids.len() as u64 - 1) * 1_000_000 / 30;
-    assert!(span.abs_diff(expect) < 2_000, "{span} vs {expect}");
+    assert!(consecutive, "no consecutive frames at 30 fps");
     // PCM in s16le stereo frames.
     let audio: Vec<_> = log.records.iter().filter(|r| r.0 == Kind::Audio).collect();
     assert!(!audio.is_empty());

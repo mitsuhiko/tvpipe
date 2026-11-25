@@ -234,7 +234,7 @@ test("a shared page goes to another page in the same tab", { skip: !unix }, asyn
   assert.equal("navigate" in Session.prototype, false);
 });
 
-test("a played file seeks and pauses", { skip: !unix }, async () => {
+test("a played file seeks and pauses", { skip: !unix }, async (t) => {
   const { binary, dir } = stubBinary(`
     emit({ type: "receiver", name: "TV", protocol: "cast", state: "connected" });
     emit({ type: "connected", receivers: ["TV"] });
@@ -251,7 +251,10 @@ test("a played file seeks and pauses", { skip: !unix }, async () => {
     finish(0);
   `);
   const s = await play("movie.mp4", { binary, to: "TV" });
+  t.after(async () => { await s.stop(); });
   assert.ok(s instanceof PlaySession);
+  // play() resolves on started; playback may arrive in a later stdout read.
+  if (!s.playback) await new Promise((r) => s.once("playback", r));
   assert.deepEqual(s.playback, { type: "playback", positionMs: 0, durationMs: 60000, paused: false });
   const paused = new Promise((r) => s.once("playback", r));
   s.seek(30_000);
