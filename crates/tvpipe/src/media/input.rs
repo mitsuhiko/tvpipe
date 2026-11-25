@@ -2071,9 +2071,11 @@ pub(crate) mod tests {
             .map(|f| f.pts)
             .collect();
         assert!(video.windows(2).all(|w| w[1] > w[0]));
-        // The second pass continues the timeline (frame 30 = 1 s + start).
+        // The second pass continues the timeline (frame 30 = 1 s + start),
+        // or later where the output is by the clock if the loop came late
+        // (Timeline::map; a loaded CI runner, ~40 ms seen): up to 100 ms.
         let pass = video[30] - video[0];
-        assert!((90_000..=93_000).contains(&pass), "{pass}");
+        assert!((90_000..=99_000).contains(&pass), "{pass}");
         assert!(video[30] - video[29] >= 3000);
         let airplay = frames
             .iter()
