@@ -31,6 +31,14 @@ env.client = client;
 
 const room = /** @type {HTMLElement} */ (document.getElementById("room"));
 
+// The room is 1280×720 (the manifest's TV size), scaled to the window (screen.css).
+function fitRoom() {
+  const k = Math.min(innerWidth / 1280, innerHeight / 720);
+  document.documentElement.style.setProperty("--k", String(k > 0 ? k : 1));
+}
+fitRoom();
+addEventListener("resize", fitRoom);
+
 // ---------------------------------------------------------------------------
 // The room: frieze, board, wall, desks, the layer above the board
 

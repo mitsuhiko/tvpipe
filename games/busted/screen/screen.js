@@ -25,6 +25,14 @@ const page = /** @type {HTMLElement} */ (document.getElementById("page"));
 const main = /** @type {HTMLElement} */ (document.getElementById("main"));
 const flashEl = /** @type {HTMLElement} */ (document.getElementById("flash"));
 
+// The page is 1280×720 (the manifest's TV size), scaled to the window (screen.css).
+function fitStage() {
+  const k = Math.min(innerWidth / 1280, innerHeight / 720);
+  document.documentElement.style.setProperty("--k", String(k > 0 ? k : 1));
+}
+fitStage();
+addEventListener("resize", fitStage);
+
 let lang = pickLang(undefined);
 let t = strings(lang);
 

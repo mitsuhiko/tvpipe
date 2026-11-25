@@ -24,6 +24,14 @@ const client = PartyClient.fromLocation({ role: /** @type {any} */ (params.get("
 const stage = /** @type {HTMLElement} */ (document.getElementById("stage"));
 const statusBar = /** @type {HTMLElement} */ (document.getElementById("status"));
 const sky = /** @type {HTMLElement} */ (document.getElementById("sky"));
+
+// The stage is 1280×720 (the manifest's TV size), scaled to the window (screen.css).
+function fitStage() {
+  const k = Math.min(innerWidth / 1280, innerHeight / 720);
+  document.documentElement.style.setProperty("--k", String(k > 0 ? k : 1));
+}
+fitStage();
+addEventListener("resize", fitStage);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 
 let lang = pickLang(undefined);

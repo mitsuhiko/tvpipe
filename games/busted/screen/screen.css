@@ -40,12 +40,16 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #c9c0ad; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #c9c0ad; }
 body { font: 500 18px/1.3 "Franklin", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
 
 /* The page: newsprint with a soft vignette and the fold. */
+/* 1280×720 (the manifest's TV size), scaled to the window (`--k`,
+   screen.js) in a browser window or the host page's preview. The rejoin
+   badge stays outside: it sizes itself to the window. */
 #page {
-  position: absolute; inset: 0;
+  position: fixed; left: 50%; top: 50%; width: 1280px; height: 720px; overflow: hidden;
+  transform: translate(-50%, -50%) scale(var(--k, 1)); transform-origin: 50% 50%;
   background:
     linear-gradient(90deg, transparent 49.6%, rgba(0, 0, 0, .05) 50%, transparent 50.4%),
     radial-gradient(130% 120% at 50% 40%, var(--paper) 55%, var(--paper-2) 100%);

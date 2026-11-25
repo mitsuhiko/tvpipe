@@ -33,7 +33,13 @@ body {
 #sky { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 .float { position: absolute; width: var(--s); height: var(--s); opacity: .75; animation: float var(--d) ease-in-out var(--dl) infinite alternate; filter: drop-shadow(0 2px 0 rgba(216, 27, 106, .18)); }
 @keyframes float { from { transform: translateY(0) rotate(-12deg); } to { transform: translateY(-26px) rotate(12deg); } }
-#stage { position: fixed; inset: 0; }
+/* The stage is 1280×720 (the manifest's TV size), scaled to the window
+   (`--k`, screen.js); the sky fills the window behind it, the rejoin
+   badge sizes itself to the window. */
+#stage {
+  position: fixed; left: 50%; top: 50%; width: 1280px; height: 720px;
+  transform: translate(-50%, -50%) scale(var(--k, 1)); transform-origin: 50% 50%;
+}
 #status { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #fff; padding: 6px 16px; border-radius: 999px; font-weight: 600; box-shadow: 0 4px 0 rgba(216, 27, 106, .2); }
 [hidden] { display: none !important; }
 [data-fit] { white-space: nowrap; overflow-wrap: normal; }
