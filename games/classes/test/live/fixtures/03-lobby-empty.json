@@ -1,0 +1,28 @@
+{
+  "about": "The lobby before anyone joined",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {},
+    "players": [],
+    "round": 0,
+    "rounds": 4,
+    "used": [],
+    "phase": "lobby"
+  }
+}

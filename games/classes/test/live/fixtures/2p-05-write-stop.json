@@ -1,0 +1,102 @@
+{
+  "about": "Two players: Anna stopped",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 2,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      }
+    },
+    "players": [
+      "p1",
+      "p2"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "write",
+    "letter": "D",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "City"
+      },
+      {
+        "subject": "bio",
+        "text": "Animal"
+      },
+      {
+        "subject": "break",
+        "text": "Excuse for missing homework"
+      },
+      {
+        "subject": "music",
+        "text": "Band or singer"
+      },
+      {
+        "subject": "lang",
+        "text": "Word that starts and ends with the letter",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "register",
+        "text": "Something Priya would buy"
+      },
+      {
+        "subject": "home",
+        "text": "Pizza topping"
+      },
+      {
+        "subject": "media",
+        "text": "Villain"
+      }
+    ],
+    "deadline": "now+8200",
+    "stopBy": "p1",
+    "progress": {
+      "p1": [
+        1,
+        2,
+        3,
+        1,
+        2,
+        3,
+        1,
+        2
+      ],
+      "p2": [
+        1,
+        0,
+        2,
+        0,
+        3,
+        0,
+        0,
+        1
+      ]
+    }
+  }
+}

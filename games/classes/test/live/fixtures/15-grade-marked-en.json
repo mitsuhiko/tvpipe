@@ -1,0 +1,141 @@
+{
+  "about": "Marked in English: the only answer gets 20? no: two valid, 10 each",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 6,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "grade",
+    "letter": "D",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "City"
+      },
+      {
+        "subject": "bio",
+        "text": "Animal"
+      },
+      {
+        "subject": "break",
+        "text": "Excuse for missing homework"
+      },
+      {
+        "subject": "music",
+        "text": "Band or singer"
+      },
+      {
+        "subject": "lang",
+        "text": "Word that starts and ends with the letter",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "register",
+        "text": "Something Priya would buy"
+      }
+    ],
+    "col": 4,
+    "stage": "marked",
+    "answers": [
+      {
+        "id": "b1",
+        "who": [
+          "p1"
+        ],
+        "texts": [
+          "Dad"
+        ]
+      },
+      {
+        "id": "b2",
+        "who": [
+          "p2"
+        ],
+        "texts": [
+          "Dread"
+        ]
+      },
+      {
+        "id": "b3",
+        "who": [
+          "p3"
+        ],
+        "texts": [
+          "Dog"
+        ],
+        "auto": "rule:ends"
+      }
+    ],
+    "done": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "deadline": null,
+    "wiki": null,
+    "marks": [
+      {
+        "id": "b1",
+        "doubts": 0,
+        "of": 2,
+        "struck": false,
+        "points": 10,
+        "stars": 2
+      },
+      {
+        "id": "b2",
+        "doubts": 2,
+        "of": 2,
+        "struck": true,
+        "points": 0,
+        "stars": 0
+      },
+      {
+        "id": "b3",
+        "doubts": 0,
+        "of": 2,
+        "struck": true,
+        "points": 0,
+        "stars": 0
+      }
+    ]
+  },
+  "wait": 5500
+}

@@ -1,0 +1,45 @@
+{
+  "about": "The lobby, English, four in the class, the VIP can start",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      },
+      "p4": {
+        "name": "Tom",
+        "hand": 3
+      }
+    },
+    "players": [],
+    "round": 0,
+    "rounds": 4,
+    "used": [],
+    "phase": "lobby"
+  }
+}

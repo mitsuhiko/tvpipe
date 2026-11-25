@@ -1,0 +1,33 @@
+# Eine kleine deutsche Spaltenliste für die Tests (nicht data/columns.de.txt).
+== geo
+Stadt | classic:1 | A: Augsburg, Aachen; B: Berlin, Bonn; C: Celle, Chemnitz; D: Dresden; E: Essen; F: Frankfurt; G: Göttingen; H: Hamburg; I: Ingolstadt; J: Jena; K: Köln; L: Leipzig; M: München; N: Nürnberg; O: Oldenburg; P: Potsdam; R: Regensburg; S: Stuttgart; T: Trier; U: Ulm; V: Verden; W: Wien; Z: Zürich
+Land | classic:2 | A: Ägypten; B: Belgien; C: China; D: Dänemark; E: England; F: Frankreich; G: Griechenland; H: Haiti; I: Italien; J: Japan; K: Kanada; L: Lettland; M: Mexiko; N: Norwegen; O: Österreich; P: Polen; R: Russland; S: Spanien; T: Türkei; U: Ungarn; V: Vietnam; W: Wales; Z: Zypern
+Fluss | classic:3 | A: Aller; D: Donau; E: Elbe; F: Fulda; I: Isar, Inn; L: Lahn; M: Main, Mosel; N: Neckar; O: Oder; R: Rhein; S: Saale, Spree; T: Themse; U: Unstrut; W: Weser
+== bio
+Tier | | A: Affe; B: Bär; C: Chamäleon; D: Dachs; E: Esel; F: Fuchs; G: Giraffe; H: Hund; I: Igel; J: Jaguar; K: Katze; L: Löwe; M: Maus; N: Nashorn; O: Otter; P: Pferd; R: Reh; S: Schaf; T: Tiger; U: Uhu; W: Wolf; Z: Zebra
+== home
+Obst oder Gemüse | | A: Apfel; B: Banane; D: Dattel; E: Erdbeere; F: Feige; G: Gurke; H: Himbeere; K: Kirsche; L: Lauch; M: Mango; O: Orange; P: Pflaume; R: Rettich; S: Spinat; T: Tomate; Z: Zwiebel
+== music
+Instrument | | B: Blockflöte; C: Cello; D: Dudelsack; F: Flöte; G: Gitarre; H: Harfe; K: Klavier; L: Laute; O: Oboe; P: Posaune; S: Saxofon; T: Trompete
+== sport
+Sportart | | B: Basketball; F: Fußball; G: Golf; H: Handball; J: Judo; K: Karate; L: Leichtathletik; R: Rudern; S: Schwimmen; T: Tennis; V: Volleyball; W: Wasserball
+== social
+Beruf | | A: Arzt; B: Bäcker; D: Dachdecker; E: Elektriker; F: Friseur; G: Gärtner; H: Hausmeister; K: Koch; L: Lehrer; M: Maurer; P: Pilot; R: Richter; S: Schreiner; T: Tischler; Z: Zahnarzt
+== lang
+Wort, das mit dem Buchstaben endet | rule:ends | A: Aula; D: Dorfrand; E: Ehe, Elfe; G: Gong; K: Kuckuck; L: Lineal; M: Museum; N: Nein; O: Oslo; P: Pump; R: Radar; S: Sinus; T: Takt; U: Uhu
+Wort mit Doppelbuchstaben | rule:double | A: Allee; B: Bett; D: Dummkopf; E: Esslöffel; F: Futter; G: Gewitter; H: Hummel; K: Kaffee; L: Löffel; M: Mutter; P: Puppe; R: Rennen; S: Sommer; T: Tasse; W: Wasser; Z: Zimmer
+Langes Wort (mind. 12 Buchstaben) | rule:long | A: Arbeitszimmer; B: Bundesregierung; D: Donaudampfschiff; E: Eisenbahnwagen; F: Fahrradschloss; G: Geburtstagskuchen; H: Hausaufgaben; K: Kindergarten; L: Lebensmittelladen; M: Motorradhelm; S: Schokoladenkuchen; T: Taschenrechner; W: Weihnachtsbaum
+Zwei Wörter, ein Buchstabe | funny rule:two | B: Bunte Blumen; F: Fliegende Fische; G: Grüne Gurke; H: Hungriger Hase; K: Kleine Katze; L: Lauter Löwe; M: Müde Maus; P: Pinke Pferde; R: Rote Rose; S: Süße Schnecke; T: Tanzender Tiger; W: Wilder Wolf
+== break
+Ausrede für fehlende Hausaufgaben | any |
+Nutzlose Superkraft | any |
+Schlechter Name für ein Haustier | any |
+== trip
+Etwas im Koffer | any |
+Mitbringsel | any |
+== register
+Etwas, das {player} kaufen würde | any |
+{player's} geheimes Talent | any |
+== detention
+Mittel gegen Kater | any |
+Grund für eine Trennung | any |

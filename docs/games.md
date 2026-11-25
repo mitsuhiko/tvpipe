@@ -601,7 +601,7 @@ the file and the pictures. This repository's games take theirs with their
 live check: `node test/live/play.ts --shots ../../site/static/games/NAME`
 (see the script's header for the bots it needs).
 
-**This repository's games** (Drawbluff, Jinx, Garble, Krakel, Shifty, Crosstalk, Snug, Busted, Pinch, Worldquiz) release this way through
+**This repository's games** (Drawbluff, Jinx, Garble, Krakel, Shifty, Crosstalk, Snug, Busted, Pinch, Worldquiz, Classes) release this way through
 `.github/workflows/games.yml`:
 
 1. Bump `games/NAME/package.json`'s `version`; when tvpipe's series

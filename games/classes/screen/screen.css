@@ -1,0 +1,281 @@
+/*
+ * Classes on the TV: the classroom (docs/classes-design.md §6). The wall,
+ * the alphabet frieze along the top, the blackboard (flat green with a
+ * soft gradient, no grain), the wall clock and the timetable in the
+ * column on the right (the join badge pinned below them), the desks with
+ * the exercise books. This file: the fonts, the room and what stays;
+ * scenes.css: each phase's scene.
+ *
+ * The picture is sent as H.264: large flat colours, off-white paper
+ * (never pure white), paper lines faint, 1–2 px, on whole pixels; no thin
+ * hatching, no textures.
+ */
+
+@font-face { font-family: "Andika"; src: url("../fonts/andika-400.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Andika"; src: url("../fonts/andika-700.woff2") format("woff2"); font-weight: 700; }
+@font-face { font-family: "Cabin Sketch"; src: url("../fonts/cabin-sketch-400.woff2") format("woff2"); }
+@font-face { font-family: "Caveat"; src: url("../fonts/caveat-400-700.woff2") format("woff2"); font-weight: 400 700; }
+@font-face { font-family: "Caveat Brush"; src: url("../fonts/caveat-brush-400.woff2") format("woff2"); }
+@font-face { font-family: "Patrick Hand"; src: url("../fonts/patrick-hand-400.woff2") format("woff2"); }
+@font-face { font-family: "Kalam"; src: url("../fonts/kalam-400.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Kalam"; src: url("../fonts/kalam-700.woff2") format("woff2"); font-weight: 700; }
+@font-face { font-family: "Gochi Hand"; src: url("../fonts/gochi-hand-400.woff2") format("woff2"); }
+@font-face { font-family: "Indie Flower"; src: url("../fonts/indie-flower-400.woff2") format("woff2"); }
+@font-face { font-family: "Architects Daughter"; src: url("../fonts/architects-daughter-400.woff2") format("woff2"); }
+@font-face { font-family: "Shadows Into Light Two"; src: url("../fonts/shadows-into-light-two-400.woff2") format("woff2"); }
+@font-face { font-family: "Coming Soon"; src: url("../fonts/coming-soon-400.woff2") format("woff2"); }
+@font-face { font-family: "Gloria Hallelujah"; src: url("../fonts/gloria-hallelujah-400.woff2") format("woff2"); }
+@font-face { font-family: "Handlee"; src: url("../fonts/handlee-400.woff2") format("woff2"); }
+
+:root {
+  --wall: #e9dec6;
+  --wall-2: #dfd0b2;
+  --wood: #8d5c36;
+  --wood-dark: #6a4224;
+  --desk: #c08f5e;
+  --desk-2: #b07f4f;
+  --board: #2f5b48;
+  --board-2: #274d3d;
+  --chalk: rgba(250, 250, 244, .94);
+  --chalk-dim: rgba(250, 250, 244, .62);
+  --chalk-yellow: #f7e07a;
+  --chalk-pink: #f6aebf;
+  --paper: #f7f3e8;
+  --paper-2: #ece5d3;
+  --grid: rgba(60, 100, 150, .17);
+  --ink: #1f3a8f;
+  --pencil: #3b3b3f;
+  --red: #d0262b;
+  --gold: #f4b400;
+  --text: #24221f;
+
+  /* The subjects' covers (§4.4). */
+  --geo: #2f6fd0;
+  --bio: #3a9a48;
+  --home: #ee8a1f;
+  --music: #7d4fc0;
+  --media: #e0558f;
+  --sport: #d93a33;
+  --social: #8b5a34;
+  --lang: #f2c230;
+  --break: #6cc3ea;
+  --trip: #1f9e94;
+  --register: #8a8f98;
+  --detention: #2a2a2e;
+
+  /* The join badge: a notice pinned on the wall. */
+  --tvpipe-join-bg: #f7f3e8;
+  --tvpipe-join-fg: #24221f;
+  --tvpipe-join-accent: #d0262b;
+  --tvpipe-join-font: "Andika", sans-serif;
+  --tvpipe-join-border: 3px solid #8d5c36;
+  --tvpipe-join-shadow: 0 6px 14px rgba(60, 40, 20, .28);
+  --tvpipe-join-x: 26px;
+  --tvpipe-join-y: 18px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: var(--wall); }
+body { font: 400 20px/1.25 "Andika", system-ui, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+[data-fit="1"] { white-space: nowrap; }
+[data-fit] { overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.nw { white-space: nowrap; }
+
+/* ------------------------------------------------------------------ */
+/* The room */
+
+#room {
+  position: absolute; inset: 0; overflow: hidden;
+  background: linear-gradient(180deg, var(--wall) 0%, var(--wall-2) 100%);
+}
+/* The desks: a wooden band along the bottom while they write. */
+#room::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 318px; bottom: 0; display: none;
+  background: linear-gradient(180deg, var(--desk) 0%, var(--desk-2) 100%);
+  border-top: 6px solid var(--wood-dark);
+}
+#room[data-layout="write"]::before { display: block; }
+#room[data-layout="final"]::before { display: none; }
+
+/* Subjects as colours, for tabs, chips and covers. */
+.s-geo { --c: var(--geo); --on: #fff; }
+.s-bio { --c: var(--bio); --on: #fff; }
+.s-home { --c: var(--home); --on: #2a1a08; }
+.s-music { --c: var(--music); --on: #fff; }
+.s-media { --c: var(--media); --on: #fff; }
+.s-sport { --c: var(--sport); --on: #fff; }
+.s-social { --c: var(--social); --on: #fff; }
+.s-lang { --c: var(--lang); --on: #2a2208; }
+.s-break { --c: var(--break); --on: #0d2a38; }
+.s-trip { --c: var(--trip); --on: #fff; }
+.s-register { --c: var(--register); --on: #fff; }
+.s-detention { --c: var(--detention); --on: #fff; }
+
+/* The handwriting of each player (`hand`), sized to look alike. */
+.hand0 { font-family: "Patrick Hand", cursive; --hs: 1.04; }
+.hand1 { font-family: "Kalam", cursive; --hs: .9; }
+.hand2 { font-family: "Gochi Hand", cursive; --hs: 1.04; }
+.hand3 { font-family: "Indie Flower", cursive; --hs: .98; }
+.hand4 { font-family: "Architects Daughter", cursive; --hs: .88; }
+.hand5 { font-family: "Shadows Into Light Two", cursive; --hs: 1; }
+.hand6 { font-family: "Coming Soon", cursive; --hs: .84; }
+.hand7 { font-family: "Gloria Hallelujah", cursive; --hs: .8; }
+.hand8 { font-family: "Handlee", cursive; --hs: .96; }
+.hand9 { font-family: "Caveat", cursive; --hs: 1.18; font-weight: 600; }
+
+/* ------------------------------------------------------------------ */
+/* The alphabet frieze */
+
+#frieze {
+  position: absolute; left: 18px; top: 8px; width: 1244px; height: 56px;
+  display: grid; grid-template-columns: repeat(26, 1fr); gap: 4px;
+}
+#frieze::before {
+  content: ""; position: absolute; left: -18px; right: -18px; top: 3px; height: 3px; background: var(--wood-dark); opacity: .55;
+}
+#frieze .card {
+  position: relative; height: 54px; border-radius: 4px; background: var(--paper);
+  border-top: 8px solid var(--fc); box-shadow: 0 2px 0 rgba(80, 55, 30, .25);
+  display: grid; place-items: center; transition: transform .12s ease-out, background-color .12s, opacity .3s;
+}
+#frieze .card b { font: 700 31px/1 "Andika", sans-serif; color: var(--fc); margin-top: -2px; }
+#frieze .c0 { --fc: var(--geo); }
+#frieze .c1 { --fc: var(--sport); }
+#frieze .c2 { --fc: var(--bio); }
+#frieze .c3 { --fc: #d89a10; }
+#frieze .c4 { --fc: var(--music); }
+#frieze .c5 { --fc: var(--home); }
+#frieze .card .cross { position: absolute; inset: 4px 5px 2px; width: calc(100% - 10px); height: calc(100% - 6px); display: none; }
+#frieze .card .cross path { fill: none; stroke: var(--red); stroke-width: 4.5; stroke-linecap: round; }
+#frieze .card.used .cross { display: block; }
+#frieze .card.used b { opacity: .45; }
+#frieze .card.out { opacity: .38; }
+#frieze .card.lit { background: #ffe066; transform: translateY(4px) scale(1.18); z-index: 2; box-shadow: 0 0 0 3px #fff6c4, 0 6px 16px rgba(120, 80, 0, .45); transition: none; }
+#frieze .card.current { background: #ffe066; transform: translateY(3px) scale(1.12); z-index: 2; box-shadow: 0 0 0 3px var(--red), 0 6px 14px rgba(120, 80, 0, .35); }
+
+/* ------------------------------------------------------------------ */
+/* The blackboard */
+
+#board {
+  position: absolute; left: 20px; top: 74px; width: 1024px; height: 622px;
+  border: 12px solid var(--wood); border-radius: 6px;
+  box-shadow: inset 0 0 0 2px var(--wood-dark), 0 6px 0 var(--wood-dark), 0 10px 18px rgba(60, 40, 20, .25);
+  background: radial-gradient(120% 110% at 45% 35%, #356551 0%, var(--board) 55%, var(--board-2) 100%);
+  transition: height .5s cubic-bezier(.3, .7, .3, 1);
+}
+#room[data-layout="write"] #board { height: 232px; }
+#room[data-layout="final"] #board, #room[data-layout="book"] #board { opacity: 1; }
+#chalk { position: absolute; inset: 0; overflow: hidden; color: var(--chalk); }
+#chalk .scene { position: absolute; inset: 0; }
+#board .tray { position: absolute; left: 60px; right: 60px; bottom: -22px; height: 10px; background: var(--wood-dark); border-radius: 0 0 4px 4px; }
+#board .tray .stick { position: absolute; left: 80px; top: -7px; width: 46px; height: 8px; border-radius: 3px; background: #f4f1e6; }
+#board .tray .stick.yellow { left: 140px; width: 34px; background: var(--chalk-yellow); }
+#board .tray .sponge { position: absolute; right: 90px; top: -14px; width: 70px; height: 16px; border-radius: 4px; background: #3c4a8a; border-top: 5px solid #c9b48a; }
+#room[data-layout="write"] #board .tray { display: none; }
+
+.chalk-title { font-family: "Cabin Sketch", "Patrick Hand", cursive; font-weight: 400; color: var(--chalk); }
+
+/* Chalk being written: revealed from the left. */
+@keyframes chalkin { from { clip-path: inset(-20% 100% -20% 0); } to { clip-path: inset(-20% -5% -20% 0); } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dropin { from { opacity: 0; transform: translateY(-24px) rotate(var(--r, 0deg)); } to { opacity: 1; transform: translateY(0) rotate(var(--r, 0deg)); } }
+@keyframes pop { 0% { opacity: 0; transform: scale(.3); } 70% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: scale(1); } }
+
+/* A subject's tab. */
+.tab {
+  display: inline-block; padding: 3px 10px 4px; border-radius: 5px 5px 5px 0; background: var(--c); color: var(--on);
+  font: 700 15px/1.1 "Andika", sans-serif; letter-spacing: .02em; white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* The wall: the clock, its digits, the timetable */
+
+#wall { position: absolute; left: 1064px; top: 74px; width: 196px; height: 440px; }
+#wall .clockbox { width: 176px; height: 176px; margin: 4px auto 0; filter: drop-shadow(0 5px 6px rgba(60, 40, 20, .3)); }
+.wallclock { width: 100%; height: 100%; display: block; }
+.wallclock .rim { fill: #3a3d42; }
+.wallclock .face { fill: var(--paper); }
+.wallclock .wedge { fill: rgba(47, 111, 208, .25); }
+#wall.red .wallclock .wedge { fill: rgba(208, 38, 43, .38); }
+.wallclock .hour-mark { stroke: #222; stroke-width: 5; }
+.wallclock .min-mark { stroke: #555; stroke-width: 2; }
+.wallclock .hand { stroke: #1d1d1f; stroke-linecap: round; }
+.wallclock .hour { stroke-width: 8; }
+.wallclock .minute { stroke-width: 6; }
+.wallclock .second line { stroke: var(--red); stroke-width: 3; }
+.wallclock .second circle { fill: var(--red); }
+.wallclock .pivot { fill: #1d1d1f; }
+#wall .digits {
+  width: 120px; margin: 8px auto 0; text-align: center; padding: 2px 0 3px;
+  font: 700 34px/1.1 "Andika", sans-serif; color: var(--text); background: var(--paper); border-radius: 6px;
+  box-shadow: 0 3px 0 rgba(80, 55, 30, .25); font-variant-numeric: tabular-nums;
+}
+#wall.red .digits { color: #fff; background: var(--red); }
+#note {
+  position: relative; width: 176px; margin: 18px auto 0; padding: 16px 12px 12px; background: var(--paper);
+  border-radius: 3px; box-shadow: 0 4px 10px rgba(60, 40, 20, .22); transform: rotate(-1.5deg);
+}
+#note .tape, .tape {
+  position: absolute; left: 50%; top: -10px; width: 70px; height: 20px; margin-left: -35px;
+  background: rgba(240, 230, 190, .82); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); transform: rotate(3deg);
+}
+#note .lesson { font: 700 20px/1.2 "Andika", sans-serif; text-align: center; }
+#note .of { font: 400 17px/1.2 "Andika", sans-serif; text-align: center; color: #555; margin-top: 2px; }
+#note .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; }
+#note .chip { height: 18px; border-radius: 3px; background: var(--c); }
+#note .chip.past { opacity: .35; }
+#note .chip.now { outline: 3px solid var(--text); outline-offset: 1px; }
+#note.calendar { width: 140px; padding: 0 0 10px; text-align: center; transform: rotate(2deg); margin-top: 26px; }
+#note.calendar .month { background: var(--red); color: #fff; font: 700 20px/1 "Andika", sans-serif; padding: 16px 0 8px; border-radius: 3px 3px 0 0; }
+#note.calendar .day { font: 700 74px/1 "Andika", sans-serif; color: var(--text); padding-top: 8px; }
+#note.calendar .wd { font: 400 20px/1.2 "Andika", sans-serif; color: #555; }
+
+/* ------------------------------------------------------------------ */
+/* The desks and everyone's exercise book */
+
+#desks { position: absolute; left: 20px; top: 326px; width: 1024px; height: 384px; }
+#room:not([data-layout="write"]) #desks { display: none; }
+.desks { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(var(--per), var(--bw)); justify-content: center; align-content: center; gap: 14px; }
+.desks.r1 { align-content: center; }
+.book {
+  position: relative; width: var(--bw); height: var(--bh); border-radius: 4px 7px 7px 4px; background: var(--paper);
+  border: 4px solid var(--cover); border-left-width: 9px; box-shadow: 0 6px 10px rgba(60, 35, 10, .32);
+  transform: rotate(var(--r)); animation: dropin .5s var(--d) both ease-out; display: flex; flex-direction: column;
+}
+.book .label {
+  flex: none; height: 34px; margin: -1px -1px 0; background: var(--cover); display: flex; align-items: center; gap: 6px; padding: 0 4px 3px;
+}
+.book .label .nm {
+  flex: 1; min-width: 0; height: 28px; background: var(--paper); border-radius: 4px; padding: 0 8px;
+  font: 700 19px/28px "Andika", sans-serif; color: var(--text); text-align: center;
+}
+.book .label .count { flex: none; font: 700 15px/1 "Andika", sans-serif; color: #fff; padding: 0 3px; text-shadow: 0 1px 1px rgba(0, 0, 0, .3); font-variant-numeric: tabular-nums; }
+.book.k3 .label .count, .book.k9 .label .count { color: #1d1d1d; text-shadow: none; }
+.book .page { flex: 1; padding: 6px 10px 0 18px; position: relative; }
+.book .page::before { content: ""; position: absolute; left: 12px; top: 0; bottom: 0; width: 2px; background: rgba(208, 38, 43, .35); }
+.book .line { height: var(--lh); border-bottom: 1px solid var(--grid); position: relative; }
+.book .line .scribble { position: absolute; left: 2px; bottom: 0; display: block; }
+.scribble path { fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.book .line.fresh .scribble { animation: chalkin .7s ease-out both; }
+.book.full { box-shadow: 0 0 0 3px #fff5b0, 0 6px 10px rgba(60, 35, 10, .32); }
+.book.away { opacity: .55; filter: grayscale(.6); }
+.book .label { position: relative; }
+.book .raised { position: absolute; left: -18px; top: -34px; width: 44px; height: 60px; z-index: 2; transform-origin: 50% 100%; animation: wave .9s ease-in-out infinite alternate; }
+.raised .palm { fill: #f3c9a0; stroke: #5d3a22; stroke-width: 2; stroke-linejoin: round; }
+.raised .sleeve { fill: var(--cover, #2f6fd0); stroke: #5d3a22; stroke-width: 2; }
+@keyframes wave { from { transform: rotate(-8deg); } to { transform: rotate(8deg); } }
+.book.k0 { --cover: #2f6fd0; }
+.book.k1 { --cover: #d93a33; }
+.book.k2 { --cover: #3a9a48; }
+.book.k3 { --cover: #f2c230; }
+.book.k4 { --cover: #7d4fc0; }
+.book.k5 { --cover: #ee8a1f; }
+.book.k6 { --cover: #1f9e94; }
+.book.k7 { --cover: #e0558f; }
+.book.k8 { --cover: #8b5a34; }
+.book.k9 { --cover: #6cc3ea; }
+
+/* The layer over the board: the exercise book when grading, the final's desk. */
+#over { position: absolute; left: 20px; top: 72px; width: 1024px; height: 636px; pointer-events: none; }
+#room:not([data-layout="book"]):not([data-layout="final"]) #over { display: none; }

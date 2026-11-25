@@ -1,0 +1,72 @@
+{
+  "about": "The lobby, German, ten with long names, party settings",
+  "screen": {
+    "lang": "de",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 6,
+      "columns": 10,
+      "time": 180,
+      "mix": "silly",
+      "content": "party",
+      "stop": true,
+      "classic": true,
+      "letters": "all",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "Maximilian",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Hildegard-Luise",
+        "hand": 2
+      },
+      "p4": {
+        "name": "Konstantin",
+        "hand": 3
+      },
+      "p5": {
+        "name": "Friederike",
+        "hand": 4
+      },
+      "p6": {
+        "name": "Ben",
+        "hand": 5
+      },
+      "p7": {
+        "name": "Josephine Marie",
+        "hand": 6
+      },
+      "p8": {
+        "name": "Bartholomäus",
+        "hand": 7
+      },
+      "p9": {
+        "name": "Mia",
+        "hand": 8
+      },
+      "p10": {
+        "name": "Karl-Heinz Otto",
+        "hand": 9
+      }
+    },
+    "players": [],
+    "round": 0,
+    "rounds": 4,
+    "used": [],
+    "phase": "lobby"
+  },
+  "away": [
+    "p6"
+  ]
+}

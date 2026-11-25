@@ -1,0 +1,13 @@
+{
+  "name": "classes",
+  "title": "Classes",
+  "tvpipe": "0.4",
+  "root": "dist",
+  "pages": {
+    "host": "host/index.html",
+    "tv": "screen/index.html",
+    "phone": "phone/index.html"
+  },
+  "players": { "min": 2, "max": 10 },
+  "tv": { "width": 1280, "height": 720 }
+}

@@ -1,0 +1,298 @@
+{
+ "about": "Marked in English",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p2"
+ },
+ "screen": {
+  "lang": "en",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 3,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   },
+   "p3": {
+    "name": "Hildegard-Luise",
+    "hand": 2
+   },
+   "p4": {
+    "name": "Konstantin",
+    "hand": 3
+   },
+   "p5": {
+    "name": "Friederike",
+    "hand": 4
+   },
+   "p6": {
+    "name": "Ben",
+    "hand": 5
+   },
+   "p7": {
+    "name": "Josephine Marie",
+    "hand": 6
+   },
+   "p8": {
+    "name": "Bartholomäus",
+    "hand": 7
+   },
+   "p9": {
+    "name": "Mia",
+    "hand": 8
+   },
+   "p10": {
+    "name": "Karl-Heinz Otto",
+    "hand": 9
+   }
+  },
+  "players": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "p5",
+   "p6",
+   "p7",
+   "p8",
+   "p9",
+   "p10"
+  ],
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "phase": "grade",
+  "letter": "K",
+  "columns": [
+   {
+    "subject": "geo",
+    "text": "City"
+   },
+   {
+    "subject": "bio",
+    "text": "Animal"
+   },
+   {
+    "subject": "break",
+    "text": "Excuse for missing homework"
+   },
+   {
+    "subject": "home",
+    "text": "Something going off in the fridge"
+   },
+   {
+    "subject": "media",
+    "text": "Fairy-tale character"
+   },
+   {
+    "subject": "register",
+    "text": "Something Hildegard-Luise would buy"
+   },
+   {
+    "subject": "lang",
+    "text": "Word that starts and ends with the letter",
+    "rule": "rule:ends"
+   },
+   {
+    "subject": "sport",
+    "text": "Sport"
+   },
+   {
+    "subject": "trip",
+    "text": "Something you'd smuggle onto the coach"
+   },
+   {
+    "subject": "social",
+    "text": "Job"
+   }
+  ],
+  "col": 2,
+  "stage": "marked",
+  "answers": [
+   {
+    "id": "a1",
+    "who": [
+     "p1",
+     "p4",
+     "p7"
+    ],
+    "texts": [
+     "The cat threw up on it",
+     "the cat threw up on it",
+     "Cat threw up on it"
+    ],
+    "same": "same"
+   },
+   {
+    "id": "a2",
+    "who": [
+     "p2"
+    ],
+    "texts": [
+     "Kidnapped by my little brother"
+    ]
+   },
+   {
+    "id": "a3",
+    "who": [
+     "p3"
+    ],
+    "texts": [
+     ""
+    ],
+    "auto": "empty"
+   },
+   {
+    "id": "a4",
+    "who": [
+     "p5"
+    ],
+    "texts": [
+     "Left it on the bus"
+    ],
+    "auto": "letter"
+   },
+   {
+    "id": "a5",
+    "who": [
+     "p6"
+    ],
+    "texts": [
+     "Kevin copied it and never gave it back"
+    ]
+   },
+   {
+    "id": "a6",
+    "who": [
+     "p8",
+     "p9"
+    ],
+    "texts": [
+     "Karate tournament",
+     "Karate turnament"
+    ],
+    "same": "typo"
+   },
+   {
+    "id": "a7",
+    "who": [
+     "p10"
+    ],
+    "texts": [
+     "Knocked over a kettle"
+    ]
+   }
+  ],
+  "done": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "p5",
+   "p6",
+   "p7",
+   "p8",
+   "p9",
+   "p10"
+  ],
+  "deadline": null,
+  "wiki": null,
+  "marks": [
+   {
+    "id": "a1",
+    "doubts": 1,
+    "of": 7,
+    "struck": false,
+    "points": 5,
+    "stars": 1
+   },
+   {
+    "id": "a2",
+    "doubts": 2,
+    "of": 9,
+    "struck": false,
+    "points": 10,
+    "stars": 3
+   },
+   {
+    "id": "a3",
+    "doubts": 0,
+    "of": 9,
+    "struck": true,
+    "points": 0,
+    "stars": 0
+   },
+   {
+    "id": "a4",
+    "doubts": 0,
+    "of": 9,
+    "struck": true,
+    "points": 0,
+    "stars": 0
+   },
+   {
+    "id": "a5",
+    "doubts": 1,
+    "of": 9,
+    "struck": false,
+    "points": 10,
+    "stars": 0
+   },
+   {
+    "id": "a6",
+    "doubts": 3,
+    "of": 8,
+    "struck": false,
+    "points": 5,
+    "stars": 2
+   },
+   {
+    "id": "a7",
+    "doubts": 7,
+    "of": 9,
+    "struck": true,
+    "points": 0,
+    "stars": 0
+   }
+  ]
+ },
+ "me": {
+  "task": "grade",
+  "answers": [
+   "Kaiserslautern",
+   "Kängurus",
+   "Katze hat draufgekotzt",
+   "Kartoffelsalat",
+   "Kaiser",
+   "Kaffeemaschine",
+   "Kajak",
+   "Kickboxen",
+   "Kaugummi",
+   "Kfz-Mechatronikerin"
+  ],
+  "earned": 10
+ }
+}

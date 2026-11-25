@@ -1,0 +1,190 @@
+{
+  "about": "The final in English: one best answer",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "round": 4,
+    "rounds": 4,
+    "used": [
+      "D",
+      "T",
+      "B",
+      "S"
+    ],
+    "phase": "final",
+    "scores": [
+      {
+        "id": "p2",
+        "round": 0,
+        "total": 160,
+        "rank": 1
+      },
+      {
+        "id": "p1",
+        "round": 0,
+        "total": 140,
+        "rank": 2
+      },
+      {
+        "id": "p3",
+        "round": 0,
+        "total": 70,
+        "rank": 3
+      }
+    ],
+    "cards": [
+      {
+        "id": "p2",
+        "rank": 1,
+        "total": 160,
+        "grades": [
+          {
+            "subject": "geo",
+            "grade": "A"
+          },
+          {
+            "subject": "bio",
+            "grade": "B"
+          },
+          {
+            "subject": "break",
+            "grade": "A"
+          },
+          {
+            "subject": "lang",
+            "grade": "C"
+          },
+          {
+            "subject": "register",
+            "grade": "B"
+          },
+          {
+            "subject": "home",
+            "grade": "A"
+          }
+        ],
+        "remarks": [
+          "top",
+          "twenty"
+        ],
+        "stamp": "promoted"
+      },
+      {
+        "id": "p1",
+        "rank": 2,
+        "total": 140,
+        "grades": [
+          {
+            "subject": "geo",
+            "grade": "B"
+          },
+          {
+            "subject": "bio",
+            "grade": "A"
+          },
+          {
+            "subject": "break",
+            "grade": "D"
+          },
+          {
+            "subject": "lang",
+            "grade": "B"
+          },
+          {
+            "subject": "register",
+            "grade": "F"
+          },
+          {
+            "subject": "home",
+            "grade": "C"
+          }
+        ],
+        "remarks": [
+          "clown"
+        ],
+        "stamp": "promoted"
+      },
+      {
+        "id": "p3",
+        "rank": 3,
+        "total": 70,
+        "grades": [
+          {
+            "subject": "geo",
+            "grade": "E"
+          },
+          {
+            "subject": "bio",
+            "grade": "C"
+          },
+          {
+            "subject": "break",
+            "grade": "B"
+          },
+          {
+            "subject": "lang",
+            "grade": "F"
+          },
+          {
+            "subject": "register",
+            "grade": "D"
+          },
+          {
+            "subject": "home",
+            "grade": "E"
+          }
+        ],
+        "remarks": [
+          "facts",
+          "empty"
+        ],
+        "stamp": "held"
+      }
+    ],
+    "best": [
+      {
+        "id": "p1",
+        "text": "My dog joined a band",
+        "column": "Excuse for missing homework",
+        "subject": "break",
+        "stars": 2
+      }
+    ]
+  },
+  "hash": "ago=24000",
+  "wait": 2600
+}

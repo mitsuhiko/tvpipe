@@ -1,0 +1,381 @@
+{
+  "about": "Wikipedia: the next step loads over the last article",
+  "screen": {
+    "lang": "de",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 10,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "Maximilian",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Hildegard-Luise",
+        "hand": 2
+      },
+      "p4": {
+        "name": "Konstantin",
+        "hand": 3
+      },
+      "p5": {
+        "name": "Friederike",
+        "hand": 4
+      },
+      "p6": {
+        "name": "Ben",
+        "hand": 5
+      },
+      "p7": {
+        "name": "Josephine Marie",
+        "hand": 6
+      },
+      "p8": {
+        "name": "Bartholomäus",
+        "hand": 7
+      },
+      "p9": {
+        "name": "Mia",
+        "hand": 8
+      },
+      "p10": {
+        "name": "Karl-Heinz Otto",
+        "hand": 9
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3",
+      "p4",
+      "p5",
+      "p6",
+      "p7",
+      "p8",
+      "p9",
+      "p10"
+    ],
+    "round": 2,
+    "rounds": 4,
+    "used": [
+      "M",
+      "K"
+    ],
+    "phase": "grade",
+    "letter": "K",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "Stadt"
+      },
+      {
+        "subject": "bio",
+        "text": "Tier"
+      },
+      {
+        "subject": "break",
+        "text": "Ausrede für fehlende Hausaufgaben"
+      },
+      {
+        "subject": "home",
+        "text": "Etwas, das im Kühlschrank vergammelt"
+      },
+      {
+        "subject": "media",
+        "text": "Märchenfigur"
+      },
+      {
+        "subject": "register",
+        "text": "Etwas, das Hildegard-Luise kaufen würde"
+      },
+      {
+        "subject": "lang",
+        "text": "Wort, das mit dem Buchstaben anfängt und aufhört",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "sport",
+        "text": "Sportart"
+      },
+      {
+        "subject": "trip",
+        "text": "Was man heimlich in den Reisebus schmuggelt"
+      },
+      {
+        "subject": "social",
+        "text": "Beruf"
+      }
+    ],
+    "col": 2,
+    "stage": "vote",
+    "answers": [
+      {
+        "id": "a1",
+        "who": [
+          "p1",
+          "p4",
+          "p7"
+        ],
+        "texts": [
+          "Katze hat draufgekotzt",
+          "Katze hat drauf gekotzt",
+          "Die Katze hat draufgekotzt"
+        ],
+        "same": "same"
+      },
+      {
+        "id": "a2",
+        "who": [
+          "p2"
+        ],
+        "texts": [
+          "Kein WLAN im Kinderzimmer"
+        ]
+      },
+      {
+        "id": "a3",
+        "who": [
+          "p3"
+        ],
+        "texts": [
+          ""
+        ],
+        "auto": "empty"
+      },
+      {
+        "id": "a4",
+        "who": [
+          "p5"
+        ],
+        "texts": [
+          "Hab sie im Bus vergessen"
+        ],
+        "auto": "letter"
+      },
+      {
+        "id": "a5",
+        "who": [
+          "p6"
+        ],
+        "texts": [
+          "Kumpel hat abgeschrieben, nie zurück"
+        ]
+      },
+      {
+        "id": "a6",
+        "who": [
+          "p8",
+          "p9"
+        ],
+        "texts": [
+          "Klimastreik",
+          "Klimastreick"
+        ],
+        "same": "typo"
+      },
+      {
+        "id": "a7",
+        "who": [
+          "p10"
+        ],
+        "texts": [
+          "Kobold"
+        ]
+      }
+    ],
+    "done": [
+      "p1",
+      "p2",
+      "p5",
+      "p8"
+    ],
+    "deadline": "now+31000",
+    "wiki": {
+      "id": "a7",
+      "by": "p4",
+      "query": "Klabautermann",
+      "title": "Kobold",
+      "description": "Hausgeist in der Volkssage",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Example.jpg",
+      "url": "https://de.wikipedia.org/wiki/Kobold",
+      "blocks": [
+        {
+          "t": "p",
+          "c": [
+            "Ein ",
+            {
+              "s": "Kobold",
+              "b": true
+            },
+            " ist in der Vorstellungswelt vieler europäischer Völker ein kleiner ",
+            {
+              "s": "Hausgeist",
+              "a": "Hausgeist"
+            },
+            ", der in Häusern, Ställen, Bergwerken oder auf Schiffen lebt."
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Name"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Das Wort ist seit dem 13. Jahrhundert belegt. Es wird meist als „Hauswalter“ gedeutet; der zweite Teil gehört zu ",
+            {
+              "s": "holde",
+              "i": true
+            },
+            ", „gütiger Geist“."
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Erscheinungsformen"
+          ]
+        },
+        {
+          "t": "li",
+          "c": [
+            "Der ",
+            {
+              "s": "Klabautermann",
+              "a": "Klabautermann"
+            },
+            " auf Schiffen"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Die ",
+            {
+              "s": "Heinzelmännchen",
+              "a": "Heinzelmännchen"
+            },
+            " in Köln"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Der Pumuckl in München"
+          ],
+          "d": 2
+        },
+        {
+          "t": "li",
+          "c": [
+            "Bergkobolde im Erzgebirge"
+          ],
+          "d": 1
+        },
+        {
+          "t": "h3",
+          "c": [
+            "Im Volksglauben"
+          ]
+        },
+        {
+          "t": "quote",
+          "c": [
+            "Wer ihm abends eine Schale Milch hinstellt, dem hilft er heimlich bei der Arbeit."
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Wird er verspottet oder vergessen, treibt er Schabernack, versteckt Werkzeug, verknotet die Mähnen der Pferde und poltert nachts auf dem Dachboden."
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Kobalt"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Im Bergbau erzählte man von Kobolden, die den Bergleuten das Erz verdarben; daher stammt der Name des Metalls ",
+            {
+              "s": "Kobalt",
+              "a": "Kobalt"
+            },
+            "."
+          ]
+        },
+        {
+          "t": "li",
+          "c": [
+            "Kobaltblau"
+          ],
+          "n": 1,
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Kobaltglas"
+          ],
+          "n": 2,
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Smalte"
+          ],
+          "n": 3,
+          "d": 1
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Literatur"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Ellis Kaut: Meister Eder und sein Pumuckl. München 1962."
+          ]
+        }
+      ],
+      "cut": true,
+      "trail": [
+        "Klimastreik",
+        "Kobold"
+      ],
+      "back": true,
+      "results": [],
+      "pick": -1,
+      "at": 0,
+      "loading": true
+    }
+  },
+  "wait": 1800
+}

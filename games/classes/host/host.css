@@ -1,0 +1,10 @@
+/* Classes' look on tvpipe's standard host page (@tvpipe/party's HostPage draws the rest): the teacher's desk by the blackboard. */
+@font-face { font-family: "Cabin Sketch"; src: url("../fonts/cabin-sketch-400.woff2") format("woff2"); }
+@font-face { font-family: "Andika"; src: url("../fonts/andika-400.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Andika"; src: url("../fonts/andika-700.woff2") format("woff2"); font-weight: 700; }
+:root { color-scheme: dark; --bg: #23352b; --card: #2d4537; --line: #4a6656; --text: #f3f0e6; --muted: #b6c2b5; --accent: #f2c94c; --accent-text: #2a2205; --link: #f2c94c; --ok: #8fe3a2; --error: #ff8a7a; font-family: "Andika", system-ui, sans-serif; }
+body { background: var(--bg); }
+.logo { font-family: "Cabin Sketch", "Andika", sans-serif; font-size: 34px !important; font-weight: 400 !important; line-height: 1; color: var(--text) !important; letter-spacing: .02em; }
+.desk { display: flex; flex-direction: column; gap: 8px; }
+.desk h2 { margin-top: 10px !important; }
+.desk button { font: inherit; }

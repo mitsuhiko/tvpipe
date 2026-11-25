@@ -1,0 +1,162 @@
+{
+  "about": "Writing in English, six players: Charlotte stopped, 8 s left",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      },
+      "p4": {
+        "name": "Tom",
+        "hand": 3
+      },
+      "p5": {
+        "name": "Charlotte",
+        "hand": 4
+      },
+      "p6": {
+        "name": "Sam",
+        "hand": 5
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3",
+      "p4",
+      "p5",
+      "p6"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "write",
+    "letter": "D",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "City"
+      },
+      {
+        "subject": "bio",
+        "text": "Animal"
+      },
+      {
+        "subject": "break",
+        "text": "Excuse for missing homework"
+      },
+      {
+        "subject": "music",
+        "text": "Band or singer"
+      },
+      {
+        "subject": "lang",
+        "text": "Word that starts and ends with the letter",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "register",
+        "text": "Something Priya would buy"
+      },
+      {
+        "subject": "home",
+        "text": "Pizza topping"
+      },
+      {
+        "subject": "media",
+        "text": "Villain"
+      }
+    ],
+    "deadline": "now+8200",
+    "stopBy": "p5",
+    "progress": {
+      "p1": [
+        0,
+        2,
+        1,
+        0,
+        2,
+        1,
+        3,
+        0
+      ],
+      "p2": [
+        1,
+        0,
+        2,
+        1,
+        3,
+        0,
+        1,
+        3
+      ],
+      "p3": [
+        2,
+        1,
+        0,
+        2,
+        1,
+        3,
+        0,
+        1
+      ],
+      "p4": [
+        0,
+        2,
+        1,
+        3,
+        0,
+        1,
+        3,
+        0
+      ],
+      "p5": [
+        1,
+        2,
+        3,
+        1,
+        2,
+        3,
+        1,
+        2
+      ],
+      "p6": [
+        2,
+        1,
+        3,
+        0,
+        1,
+        3,
+        0,
+        1
+      ]
+    }
+  }
+}

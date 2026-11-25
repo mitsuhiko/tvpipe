@@ -1,0 +1,136 @@
+{
+ "about": "Two players in English: the other wrote, I did not",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p2"
+ },
+ "screen": {
+  "phase": "grade",
+  "lang": "en",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 2,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   }
+  },
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "letter": "K",
+  "columns": [
+   {
+    "subject": "geo",
+    "text": "City"
+   },
+   {
+    "subject": "bio",
+    "text": "Animal"
+   },
+   {
+    "subject": "break",
+    "text": "Excuse for missing homework"
+   },
+   {
+    "subject": "home",
+    "text": "Something going off in the fridge"
+   },
+   {
+    "subject": "media",
+    "text": "Fairy-tale character"
+   },
+   {
+    "subject": "register",
+    "text": "Something Hildegard-Luise would buy"
+   },
+   {
+    "subject": "lang",
+    "text": "Word that starts and ends with the letter",
+    "rule": "rule:ends"
+   },
+   {
+    "subject": "sport",
+    "text": "Sport"
+   },
+   {
+    "subject": "trip",
+    "text": "Something you'd smuggle onto the coach"
+   },
+   {
+    "subject": "social",
+    "text": "Job"
+   }
+  ],
+  "col": 2,
+  "stage": "vote",
+  "deadline": "now+27000",
+  "wiki": null,
+  "done": [
+   "p2"
+  ],
+  "answers": [
+   {
+    "id": "2-2-1",
+    "who": [
+     "p1"
+    ],
+    "texts": [
+     "Kevin ate it"
+    ]
+   },
+   {
+    "id": "2-2-2",
+    "who": [
+     "p2"
+    ],
+    "texts": [
+     ""
+    ],
+    "auto": "empty"
+   }
+  ]
+ },
+ "me": {
+  "task": "grade",
+  "answers": [
+   "Kaiserslautern",
+   "Kängurus",
+   "Katze hat draufgekotzt",
+   "Kartoffelsalat",
+   "Kaiser",
+   "Kaffeemaschine",
+   "Kajak",
+   "Kickboxen",
+   "Kaugummi",
+   "Kfz-Mechatronikerin"
+  ],
+  "doubts": [],
+  "star": null,
+  "done": false,
+  "lookups": 8
+ }
+}

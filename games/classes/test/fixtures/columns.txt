@@ -1,0 +1,35 @@
+# A small English column list for the tests (not data/columns.txt).
+== geo
+City | classic:1 | A: Amsterdam, Athens; B: Berlin, Boston; C: Cairo, Chicago; D: Dublin, Dallas; E: Edinburgh; F: Florence; G: Glasgow; H: Hamburg; I: Istanbul; J: Jakarta; K: Kyoto; L: London, Lisbon; M: Madrid, Munich; N: Nairobi; O: Oslo; P: Paris; R: Rome; S: Sydney; T: Tokyo; W: Warsaw
+Country | classic:2 | A: Austria; B: Brazil; C: Canada; D: Denmark; E: Egypt; F: France; G: Germany; H: Hungary; I: India; J: Japan; K: Kenya; L: Latvia; M: Mexico; N: Norway; O: Oman; P: Peru; R: Romania; S: Spain; T: Turkey; W: Wales
+River | classic:3 | A: Amazon; B: Brahmaputra; C: Congo; D: Danube; E: Elbe; G: Ganges; I: Indus; J: Jordan; L: Loire; M: Mississippi; N: Nile; O: Orinoco; R: Rhine; S: Seine; T: Thames; V: Volga; Y: Yangtze; Z: Zambezi
+== bio
+Animal | | A: Ant; B: Bear; C: Cat; D: Dog; E: Eagle; F: Fox; G: Goat; H: Horse; I: Iguana; J: Jaguar; K: Koala; L: Lion; M: Mouse; N: Newt; O: Owl; P: Pig; R: Rabbit; S: Snake; T: Tiger; W: Wolf
+== home
+Fruit or vegetable | | A: Apple; B: Banana; C: Carrot; D: Date; E: Eggplant; F: Fig; G: Grape; K: Kiwi; L: Lemon; M: Mango; O: Orange; P: Pear; R: Radish; S: Spinach; T: Tomato; W: Watermelon
+== music
+Instrument | | B: Banjo; C: Cello; D: Drum; F: Flute; G: Guitar; H: Harp; K: Kazoo; L: Lute; M: Mandolin; O: Oboe; P: Piano; S: Saxophone; T: Trumpet; V: Violin
+== media
+Film | | A: Avatar; B: Batman; C: Cars; F: Frozen; G: Gladiator; H: Hook; J: Jaws; M: Matilda; P: Psycho; R: Rocky; S: Shrek; T: Titanic
+== sport
+Sport | | B: Baseball; C: Cricket; D: Darts; F: Football; G: Golf; H: Hockey; J: Judo; K: Karate; R: Rugby; S: Skiing; T: Tennis; W: Wrestling
+== social
+Job | | A: Actor; B: Baker; C: Chef; D: Doctor; E: Engineer; F: Farmer; G: Gardener; H: Hairdresser; J: Judge; L: Lawyer; M: Mechanic; N: Nurse; P: Pilot; T: Teacher
+== lang
+Starts and ends with the letter | rule:ends | A: Area, Asia; B: Blob; C: Chic; D: Dad; E: Eye, Else; G: Gag; K: Kick; L: Level; M: Mum; N: Noun; O: Ohio; P: Pump; R: Radar; S: Slugs; T: Tent; W: Window
+Word with a double letter | rule:double | A: Apple; B: Balloon; C: Coffee; D: Dinner; E: Egg; F: Funny; G: Giraffe; H: Happy; K: Kitten; L: Letter; M: Mirror; P: Pepper; S: Summer; T: Tree; W: Wood
+Long word (9 letters or more) | rule:long | A: Adventure; B: Beautiful; C: Chocolate; D: Dangerous; E: Excellent; F: Fantastic; G: Grandmother; H: Hamburger; I: Important; M: Marvellous; P: Pineapple; S: Strawberry; T: Telephone; W: Wonderful
+Animal with an adjective | funny rule:two | B: Brown Bear; C: Cool Cat; D: Dancing Dog; F: Fierce Fish; G: Grumpy Goat; H: Happy Horse; L: Lazy Lion; M: Mad Mouse; P: Purple Pig; R: Red Rabbit; S: Silly Snake; T: Tiny Tiger; W: Wild Wolf
+== break
+Excuse for missing homework | any | B: The baby ate it; D: Dog ate it
+Useless superpower | any |
+Bad name for a pet | any |
+== trip
+Something in your suitcase | any |
+Souvenir | any |
+== register
+Something {player} would buy | any |
+{player's} secret talent | any |
+== detention
+Hangover cure | any |
+Reason to break up | any |

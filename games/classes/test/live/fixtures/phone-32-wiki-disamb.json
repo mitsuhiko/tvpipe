@@ -1,0 +1,368 @@
+{
+ "about": "A disambiguation page: a list of links",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p1"
+ },
+ "screen": {
+  "lang": "de",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 3,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   },
+   "p3": {
+    "name": "Hildegard-Luise",
+    "hand": 2
+   },
+   "p4": {
+    "name": "Konstantin",
+    "hand": 3
+   },
+   "p5": {
+    "name": "Friederike",
+    "hand": 4
+   },
+   "p6": {
+    "name": "Ben",
+    "hand": 5
+   },
+   "p7": {
+    "name": "Josephine Marie",
+    "hand": 6
+   },
+   "p8": {
+    "name": "Bartholomäus",
+    "hand": 7
+   },
+   "p9": {
+    "name": "Mia",
+    "hand": 8
+   },
+   "p10": {
+    "name": "Karl-Heinz Otto",
+    "hand": 9
+   }
+  },
+  "players": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "p5",
+   "p6",
+   "p7",
+   "p8",
+   "p9",
+   "p10"
+  ],
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "phase": "grade",
+  "letter": "K",
+  "columns": [
+   {
+    "subject": "geo",
+    "text": "Stadt"
+   },
+   {
+    "subject": "bio",
+    "text": "Tier"
+   },
+   {
+    "subject": "break",
+    "text": "Ausrede für fehlende Hausaufgaben"
+   },
+   {
+    "subject": "home",
+    "text": "Etwas, das im Kühlschrank vergammelt"
+   },
+   {
+    "subject": "media",
+    "text": "Märchenfigur"
+   },
+   {
+    "subject": "register",
+    "text": "Etwas, das Hildegard-Luise kaufen würde"
+   },
+   {
+    "subject": "lang",
+    "text": "Wort, das mit dem Buchstaben anfängt und aufhört",
+    "rule": "rule:ends"
+   },
+   {
+    "subject": "sport",
+    "text": "Sportart"
+   },
+   {
+    "subject": "trip",
+    "text": "Was man heimlich in den Reisebus schmuggelt"
+   },
+   {
+    "subject": "social",
+    "text": "Beruf"
+   }
+  ],
+  "col": 2,
+  "stage": "vote",
+  "answers": [
+   {
+    "id": "a1",
+    "who": [
+     "p1",
+     "p4",
+     "p7"
+    ],
+    "texts": [
+     "Katze hat draufgekotzt",
+     "Katze hat drauf gekotzt",
+     "Die Katze hat draufgekotzt"
+    ],
+    "same": "same"
+   },
+   {
+    "id": "a2",
+    "who": [
+     "p2"
+    ],
+    "texts": [
+     "Kein WLAN im Kinderzimmer"
+    ]
+   },
+   {
+    "id": "a3",
+    "who": [
+     "p3"
+    ],
+    "texts": [
+     ""
+    ],
+    "auto": "empty"
+   },
+   {
+    "id": "a4",
+    "who": [
+     "p5"
+    ],
+    "texts": [
+     "Hab sie im Bus vergessen"
+    ],
+    "auto": "letter"
+   },
+   {
+    "id": "a5",
+    "who": [
+     "p6"
+    ],
+    "texts": [
+     "Kumpel hat abgeschrieben, nie zurück"
+    ]
+   },
+   {
+    "id": "a6",
+    "who": [
+     "p8",
+     "p9"
+    ],
+    "texts": [
+     "Klimastreik",
+     "Klimastreick"
+    ],
+    "same": "typo"
+   },
+   {
+    "id": "a7",
+    "who": [
+     "p10"
+    ],
+    "texts": [
+     "Kobold"
+    ]
+   }
+  ],
+  "done": [
+   "p1",
+   "p2",
+   "p5",
+   "p8"
+  ],
+  "deadline": "now+40000",
+  "wiki": {
+   "id": "a7",
+   "by": "p2",
+   "query": "Merkur",
+   "title": "Merkur",
+   "disambiguation": true,
+   "url": "https://de.wikipedia.org/wiki/Merkur",
+   "blocks": [
+    {
+     "t": "p",
+     "c": [
+      {
+       "s": "Merkur",
+       "b": true
+      },
+      " steht für:"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "Merkur",
+       "a": "Merkur (Mythologie)"
+      },
+      ", römischer Gott des Handels"
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "Merkur (Planet)",
+       "a": "Merkur (Planet)"
+      },
+      ", der sonnennächste Planet"
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "Merkur (Zeitschrift)",
+       "a": "Merkur (Zeitschrift)"
+      },
+      ", eine deutsche Kulturzeitschrift"
+     ],
+     "d": 1
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Unternehmen"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "Merkur Bank",
+       "a": "Merkur Bank"
+      },
+      ", eine Privatbank in München"
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Merkur, eine Kaufhauskette"
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "Merkur (Österreich)",
+       "a": "Merkur (Österreich)"
+      },
+      ", Supermärkte in Österreich"
+     ],
+     "d": 2
+    },
+    {
+     "t": "li",
+     "c": [
+      "Merkur Warenhaus, ehemals in Stuttgart"
+     ],
+     "d": 2
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Schiffe"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "Merkur (Schiff, 1938)",
+       "a": "Merkur (Schiff, 1938)"
+      }
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      {
+       "s": "SMS Merkur",
+       "a": "SMS Merkur"
+      }
+     ],
+     "d": 1
+    }
+   ],
+   "trail": [
+    "Merkur"
+   ],
+   "back": false,
+   "results": [
+    {
+     "title": "Merkur",
+     "snippet": "Merkur steht für …"
+    }
+   ],
+   "pick": 0
+  }
+ },
+ "me": {
+  "task": "grade",
+  "answers": [
+   "Kaiserslautern",
+   "Kängurus",
+   "Katze hat draufgekotzt",
+   "Kartoffelsalat",
+   "Kaiser",
+   "Kaffeemaschine",
+   "Kajak",
+   "Kickboxen",
+   "Kaugummi",
+   "Kfz-Mechatronikerin"
+  ],
+  "doubts": [],
+  "star": null,
+  "done": false,
+  "lookups": 12
+ }
+}

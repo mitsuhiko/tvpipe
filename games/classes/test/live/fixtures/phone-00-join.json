@@ -1,0 +1,7 @@
+{
+ "about": "The join form (needs a fake client whose canResume is false: test/live/fake-client.js `resume: false`)",
+ "pages": ["phone"],
+ "resume": false,
+ "screen": { "phase": "lobby", "lang": "de", "langs": ["en", "de"], "people": {} },
+ "me": {}
+}

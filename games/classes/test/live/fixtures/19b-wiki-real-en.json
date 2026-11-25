@@ -1,0 +1,162 @@
+{
+  "about": "Wikipedia, a real article (looked up 2026-11-25): Dachshund",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 6,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "grade",
+    "letter": "D",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "City"
+      },
+      {
+        "subject": "bio",
+        "text": "Animal"
+      },
+      {
+        "subject": "break",
+        "text": "Excuse for missing homework"
+      },
+      {
+        "subject": "music",
+        "text": "Band or singer"
+      },
+      {
+        "subject": "lang",
+        "text": "Word that starts and ends with the letter",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "register",
+        "text": "Something Priya would buy"
+      }
+    ],
+    "col": 4,
+    "stage": "vote",
+    "answers": [
+      {
+        "id": "b1",
+        "who": [
+          "p1"
+        ],
+        "texts": [
+          "Dad"
+        ]
+      },
+      {
+        "id": "b2",
+        "who": [
+          "p2"
+        ],
+        "texts": [
+          "Dread"
+        ]
+      },
+      {
+        "id": "b3",
+        "who": [
+          "p3"
+        ],
+        "texts": [
+          "Dog"
+        ],
+        "auto": "rule:ends"
+      }
+    ],
+    "done": [
+      "p2"
+    ],
+    "deadline": "now+19000",
+    "wiki": {
+      "id": "b3",
+      "by": "p1",
+      "query": "Dachshund",
+      "title": "Dachshund",
+      "description": "German breed of dog",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/be/%EB%8B%A5%EC%8A%A4%ED%9B%88%ED%8A%B8%28%EB%8B%A8%EB%AA%A8%EC%A2%85%29_%28Dachshund_%28Short%29%29.jpg/330px-%EB%8B%A5%EC%8A%A4%ED%9B%88%ED%8A%B8%28%EB%8B%A8%EB%AA%A8%EC%A2%85%29_%28Dachshund_%28Short%29%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "url": "https://en.wikipedia.org/wiki/Dachshund",
+      "results": [
+        {
+          "title": "Dachshund",
+          "snippet": "The Dachshund, also known as the Dackel or Teckel, is a German breed of short-legged, long-bodied dog of hound type. It may be smooth-haired, wire-haired"
+        },
+        {
+          "title": "The Ugly Dachshund",
+          "snippet": "The Ugly Dachshund is a 1966 American comedy film directed by Norman Tokar, written by Albert Aley, and starring Dean Jones and Suzanne Pleshette in a"
+        },
+        {
+          "title": "Dachshund racing",
+          "snippet": "Dachshund racing, or wiener dog racing, is a sporting event primarily found in North America. Typical dachshund races are either 25 or 50 yards (23 or"
+        },
+        {
+          "title": "Dachshund (disambiguation)",
+          "snippet": "Look up Dachshund or dachshund in Wiktionary, the free dictionary. A dachshund is a short-legged, long-bodied, hound-type dog breed. Dachshund may also"
+        },
+        {
+          "title": "Crusoe the Dachshund",
+          "snippet": "Crusoe the Dachshund (born October 28, 2009) is a miniature black and tan Dachshund dog living in Ottawa, Canada who gained internet fame for his homemade"
+        }
+      ],
+      "pick": 0,
+      "blocks": [
+        {
+          "t": "p",
+          "c": [
+            "The ",
+            {
+              "s": "Dachshund",
+              "b": true
+            },
+            ", also known as the Dackel or Teckel, is a German breed of short-legged, long-bodied dog of hound type. It may be smooth-haired, wire-haired, or long-haired, in various colors.It was bred to scent, chase, and flush out badgers and other burrow-dwelling animals. The miniature Dachshund was bred to hunt small animals such as rabbits."
+          ]
+        }
+      ],
+      "trail": [
+        "Dachshund"
+      ],
+      "back": false,
+      "at": 0
+    }
+  },
+  "wait": 1800
+}

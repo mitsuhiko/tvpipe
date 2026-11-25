@@ -1,0 +1,198 @@
+{
+  "about": "Wikipedia (English): a disambiguation page",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 6,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "grade",
+    "letter": "D",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "City"
+      },
+      {
+        "subject": "bio",
+        "text": "Animal"
+      },
+      {
+        "subject": "break",
+        "text": "Excuse for missing homework"
+      },
+      {
+        "subject": "music",
+        "text": "Band or singer"
+      },
+      {
+        "subject": "lang",
+        "text": "Word that starts and ends with the letter",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "register",
+        "text": "Something Priya would buy"
+      }
+    ],
+    "col": 4,
+    "stage": "vote",
+    "answers": [
+      {
+        "id": "b1",
+        "who": [
+          "p1"
+        ],
+        "texts": [
+          "Dad"
+        ]
+      },
+      {
+        "id": "b2",
+        "who": [
+          "p2"
+        ],
+        "texts": [
+          "Dread"
+        ]
+      },
+      {
+        "id": "b3",
+        "who": [
+          "p3"
+        ],
+        "texts": [
+          "Dog"
+        ],
+        "auto": "rule:ends"
+      }
+    ],
+    "done": [
+      "p2"
+    ],
+    "deadline": "now+19000",
+    "wiki": {
+      "id": "b2",
+      "by": "p1",
+      "query": "Dread",
+      "title": "Dread",
+      "disambiguation": true,
+      "url": "https://en.wikipedia.org/wiki/Dread",
+      "blocks": [
+        {
+          "t": "p",
+          "c": [
+            "Dread may refer to:"
+          ]
+        },
+        {
+          "t": "li",
+          "c": [
+            {
+              "s": "Fear",
+              "a": "Fear"
+            },
+            ", an emotion"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            {
+              "s": "Dreadlocks",
+              "a": "Dreadlocks"
+            },
+            ", a hairstyle"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            {
+              "s": "Dread (comics)",
+              "a": "Dread (comics)"
+            },
+            ", a Marvel character"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            {
+              "s": "Dread (film)",
+              "a": "Dread (film)"
+            },
+            ", a 2009 horror film"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            {
+              "s": "Dread (video game)",
+              "a": "Dread (video game)"
+            }
+          ],
+          "d": 1
+        }
+      ],
+      "trail": [
+        "Dread"
+      ],
+      "back": false,
+      "results": [
+        {
+          "title": "Dread",
+          "snippet": ""
+        },
+        {
+          "title": "Dreadlocks",
+          "snippet": ""
+        }
+      ],
+      "pick": 0,
+      "at": 0
+    }
+  },
+  "wait": 1800
+}

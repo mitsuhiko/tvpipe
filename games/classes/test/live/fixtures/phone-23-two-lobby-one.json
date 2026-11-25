@@ -1,0 +1,41 @@
+{
+ "about": "Two-player game: alone in the lobby, one more needed",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p1"
+ },
+ "screen": {
+  "phase": "lobby",
+  "lang": "de",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 2,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   }
+  },
+  "round": 0,
+  "rounds": 4,
+  "used": []
+ },
+ "me": {
+  "task": "lobby"
+ }
+}

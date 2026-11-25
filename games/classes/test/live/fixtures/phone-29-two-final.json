@@ -1,0 +1,116 @@
+{
+ "about": "Two players: the final, last place still promoted",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p2"
+ },
+ "screen": {
+  "phase": "final",
+  "lang": "de",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 2,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   }
+  },
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "scores": [
+   {
+    "id": "p1",
+    "round": 60,
+    "total": 100,
+    "rank": 1,
+    "twenties": 3
+   },
+   {
+    "id": "p2",
+    "round": 35,
+    "total": 70,
+    "rank": 2,
+    "twenties": 1
+   }
+  ],
+  "cards": [
+   {
+    "id": "p1",
+    "rank": 1,
+    "total": 100,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "1"
+     },
+     {
+      "subject": "break",
+      "grade": "2"
+     }
+    ],
+    "remarks": [
+     "top",
+     "twenty"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p2",
+    "rank": 2,
+    "total": 70,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "3"
+     },
+     {
+      "subject": "break",
+      "grade": "4"
+     }
+    ],
+    "remarks": [
+     "copy"
+    ],
+    "stamp": "promoted"
+   }
+  ],
+  "best": [
+   {
+    "id": "p2",
+    "text": "Kein WLAN im Kinderzimmer",
+    "column": "Ausrede für fehlende Hausaufgaben",
+    "subject": "break",
+    "stars": 1
+   }
+  ]
+ },
+ "me": {
+  "task": "final",
+  "total": 70,
+  "rank": 2
+ }
+}

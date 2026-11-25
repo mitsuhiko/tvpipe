@@ -1,0 +1,406 @@
+{
+ "about": "Reader, English, someone else drives, Back",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p2"
+ },
+ "screen": {
+  "lang": "en",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 3,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   },
+   "p3": {
+    "name": "Hildegard-Luise",
+    "hand": 2
+   },
+   "p4": {
+    "name": "Konstantin",
+    "hand": 3
+   },
+   "p5": {
+    "name": "Friederike",
+    "hand": 4
+   },
+   "p6": {
+    "name": "Ben",
+    "hand": 5
+   },
+   "p7": {
+    "name": "Josephine Marie",
+    "hand": 6
+   },
+   "p8": {
+    "name": "Bartholomäus",
+    "hand": 7
+   },
+   "p9": {
+    "name": "Mia",
+    "hand": 8
+   },
+   "p10": {
+    "name": "Karl-Heinz Otto",
+    "hand": 9
+   }
+  },
+  "players": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "p5",
+   "p6",
+   "p7",
+   "p8",
+   "p9",
+   "p10"
+  ],
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "phase": "grade",
+  "letter": "K",
+  "columns": [
+   {
+    "subject": "geo",
+    "text": "City"
+   },
+   {
+    "subject": "bio",
+    "text": "Animal"
+   },
+   {
+    "subject": "break",
+    "text": "Excuse for missing homework"
+   },
+   {
+    "subject": "home",
+    "text": "Something going off in the fridge"
+   },
+   {
+    "subject": "media",
+    "text": "Fairy-tale character"
+   },
+   {
+    "subject": "register",
+    "text": "Something Hildegard-Luise would buy"
+   },
+   {
+    "subject": "lang",
+    "text": "Word that starts and ends with the letter",
+    "rule": "rule:ends"
+   },
+   {
+    "subject": "sport",
+    "text": "Sport"
+   },
+   {
+    "subject": "trip",
+    "text": "Something you'd smuggle onto the coach"
+   },
+   {
+    "subject": "social",
+    "text": "Job"
+   }
+  ],
+  "col": 2,
+  "stage": "vote",
+  "answers": [
+   {
+    "id": "a1",
+    "who": [
+     "p1",
+     "p4",
+     "p7"
+    ],
+    "texts": [
+     "The cat threw up on it",
+     "the cat threw up on it",
+     "Cat threw up on it"
+    ],
+    "same": "same"
+   },
+   {
+    "id": "a2",
+    "who": [
+     "p2"
+    ],
+    "texts": [
+     "Kidnapped by my little brother"
+    ]
+   },
+   {
+    "id": "a3",
+    "who": [
+     "p3"
+    ],
+    "texts": [
+     ""
+    ],
+    "auto": "empty"
+   },
+   {
+    "id": "a4",
+    "who": [
+     "p5"
+    ],
+    "texts": [
+     "Left it on the bus"
+    ],
+    "auto": "letter"
+   },
+   {
+    "id": "a5",
+    "who": [
+     "p6"
+    ],
+    "texts": [
+     "Kevin copied it and never gave it back"
+    ]
+   },
+   {
+    "id": "a6",
+    "who": [
+     "p8",
+     "p9"
+    ],
+    "texts": [
+     "Karate tournament",
+     "Karate turnament"
+    ],
+    "same": "typo"
+   },
+   {
+    "id": "a7",
+    "who": [
+     "p10"
+    ],
+    "texts": [
+     "Knocked over a kettle"
+    ]
+   }
+  ],
+  "done": [
+   "p1",
+   "p2",
+   "p5",
+   "p8"
+  ],
+  "deadline": "now+40000",
+  "wiki": {
+   "id": "a6",
+   "by": "p4",
+   "query": "Newt",
+   "title": "Newt",
+   "description": "Salamander in the subfamily Pleurodelinae",
+   "url": "https://en.wikipedia.org/wiki/Newt",
+   "blocks": [
+    {
+     "t": "p",
+     "c": [
+      "A ",
+      {
+       "s": "newt",
+       "b": true
+      },
+      " is a ",
+      {
+       "s": "salamander",
+       "a": "Salamander"
+      },
+      " in the subfamily ",
+      {
+       "s": "[[Pleurodelinae]]",
+       "i": true
+      },
+      ". The terrestrial juvenile phase is called an ",
+      {
+       "s": "eft",
+       "b": true
+      },
+      ". Unlike other members of the family ",
+      {
+       "s": "Salamandridae",
+       "a": "Salamandridae"
+      },
+      ", newts are semiaquatic, alternating between aquatic and terrestrial habitats."
+     ]
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Etymology"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "The Old English name of the animal was ",
+      {
+       "s": "efte",
+       "i": true
+      },
+      " or ",
+      {
+       "s": "efeta",
+       "i": true
+      },
+      ", which became ",
+      {
+       "s": "ewt",
+       "i": true
+      },
+      "; the ",
+      {
+       "s": "n",
+       "i": true
+      },
+      " moved over from the indefinite article, so ",
+      {
+       "s": "an ewt",
+       "i": true
+      },
+      " became ",
+      {
+       "s": "a newt",
+       "i": true
+      },
+      "."
+     ]
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Life cycle"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Newts go through three distinct developmental life stages:"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      "aquatic ",
+      {
+       "s": "larvae",
+       "a": "Larva"
+      },
+      ","
+     ],
+     "d": 1,
+     "n": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "terrestrial juvenile efts,"
+     ],
+     "d": 1,
+     "n": 2
+    },
+    {
+     "t": "li",
+     "c": [
+      "and adults."
+     ],
+     "d": 1,
+     "n": 3
+    },
+    {
+     "t": "h3",
+     "c": [
+      "Regeneration"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Newts can regrow limbs, eyes, spinal cords, hearts, intestines, and upper and lower jaws."
+     ]
+    },
+    {
+     "t": "quote",
+     "c": [
+      "Newts are the champions of regeneration among vertebrates."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "See also the ",
+      {
+       "s": "Great crested newt",
+       "a": "Great crested newt"
+      },
+      " and the ",
+      {
+       "s": "Smooth newt",
+       "a": "Smooth newt"
+      },
+      ", both common in ",
+      {
+       "s": "Europe",
+       "a": "Europe"
+      },
+      "."
+     ]
+    }
+   ],
+   "trail": [
+    "Karate tournament",
+    "Newt"
+   ],
+   "back": true,
+   "results": [],
+   "pick": -1
+  }
+ },
+ "me": {
+  "task": "grade",
+  "answers": [
+   "Kaiserslautern",
+   "Kängurus",
+   "Katze hat draufgekotzt",
+   "Kartoffelsalat",
+   "Kaiser",
+   "Kaffeemaschine",
+   "Kajak",
+   "Kickboxen",
+   "Kaugummi",
+   "Kfz-Mechatronikerin"
+  ],
+  "doubts": [],
+  "star": null,
+  "done": false,
+  "lookups": 12
+ }
+}

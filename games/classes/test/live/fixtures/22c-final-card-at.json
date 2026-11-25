@@ -1,0 +1,743 @@
+{
+ "about": "Final: an Austrian report card (1–5, Klassenvorstand, Aufstieg gefährdet)",
+ "screen": {
+  "lang": "at",
+  "langs": [
+   "en",
+   "de",
+   "at"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 3,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   },
+   "p3": {
+    "name": "Hildegard-Luise",
+    "hand": 2
+   },
+   "p4": {
+    "name": "Konstantin",
+    "hand": 3
+   },
+   "p5": {
+    "name": "Friederike",
+    "hand": 4
+   },
+   "p6": {
+    "name": "Ben",
+    "hand": 5
+   },
+   "p7": {
+    "name": "Josephine Marie",
+    "hand": 6
+   },
+   "p8": {
+    "name": "Bartholomäus",
+    "hand": 7
+   },
+   "p9": {
+    "name": "Mia",
+    "hand": 8
+   },
+   "p10": {
+    "name": "Karl-Heinz Otto",
+    "hand": 9
+   }
+  },
+  "players": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "p5",
+   "p6",
+   "p7",
+   "p8",
+   "p9",
+   "p10"
+  ],
+  "round": 4,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K",
+   "S",
+   "B"
+  ],
+  "phase": "final",
+  "scores": [
+   {
+    "id": "p8",
+    "round": 0,
+    "total": 155,
+    "rank": 1
+   },
+   {
+    "id": "p1",
+    "round": 0,
+    "total": 150,
+    "rank": 2
+   },
+   {
+    "id": "p10",
+    "round": 0,
+    "total": 130,
+    "rank": 3
+   },
+   {
+    "id": "p3",
+    "round": 0,
+    "total": 130,
+    "rank": 3
+   },
+   {
+    "id": "p5",
+    "round": 0,
+    "total": 95,
+    "rank": 5
+   },
+   {
+    "id": "p2",
+    "round": 0,
+    "total": 80,
+    "rank": 6
+   },
+   {
+    "id": "p7",
+    "round": 0,
+    "total": 75,
+    "rank": 7
+   },
+   {
+    "id": "p4",
+    "round": 0,
+    "total": 60,
+    "rank": 8
+   },
+   {
+    "id": "p6",
+    "round": 0,
+    "total": 45,
+    "rank": 9
+   },
+   {
+    "id": "p9",
+    "round": 0,
+    "total": 20,
+    "rank": 10
+   }
+  ],
+  "cards": [
+   {
+    "id": "p8",
+    "rank": 1,
+    "total": 155,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "1"
+     },
+     {
+      "subject": "bio",
+      "grade": "4"
+     },
+     {
+      "subject": "home",
+      "grade": "1"
+     },
+     {
+      "subject": "media",
+      "grade": "4"
+     },
+     {
+      "subject": "sport",
+      "grade": "1"
+     },
+     {
+      "subject": "social",
+      "grade": "4"
+     },
+     {
+      "subject": "lang",
+      "grade": "1"
+     },
+     {
+      "subject": "break",
+      "grade": "4"
+     },
+     {
+      "subject": "trip",
+      "grade": "1"
+     },
+     {
+      "subject": "register",
+      "grade": "4"
+     }
+    ],
+    "remarks": [
+     "top",
+     "twenty"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p1",
+    "rank": 2,
+    "total": 150,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "2"
+     },
+     {
+      "subject": "bio",
+      "grade": "5"
+     },
+     {
+      "subject": "home",
+      "grade": "2"
+     },
+     {
+      "subject": "media",
+      "grade": "5"
+     },
+     {
+      "subject": "sport",
+      "grade": "2"
+     },
+     {
+      "subject": "social",
+      "grade": "5"
+     },
+     {
+      "subject": "lang",
+      "grade": "2"
+     },
+     {
+      "subject": "break",
+      "grade": "5"
+     },
+     {
+      "subject": "trip",
+      "grade": "2"
+     },
+     {
+      "subject": "register",
+      "grade": "5"
+     },
+     {
+      "subject": "music",
+      "grade": "2"
+     }
+    ],
+    "remarks": [
+     "clown"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p10",
+    "rank": 3,
+    "total": 130,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "3"
+     },
+     {
+      "subject": "bio",
+      "grade": "5"
+     },
+     {
+      "subject": "home",
+      "grade": "3"
+     },
+     {
+      "subject": "media",
+      "grade": "5"
+     },
+     {
+      "subject": "sport",
+      "grade": "3"
+     },
+     {
+      "subject": "social",
+      "grade": "5"
+     },
+     {
+      "subject": "lang",
+      "grade": "3"
+     },
+     {
+      "subject": "break",
+      "grade": "5"
+     },
+     {
+      "subject": "trip",
+      "grade": "3"
+     },
+     {
+      "subject": "register",
+      "grade": "5"
+     },
+     {
+      "subject": "music",
+      "grade": "3"
+     },
+     {
+      "subject": "detention",
+      "grade": "5"
+     }
+    ],
+    "remarks": [
+     "copy"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p3",
+    "rank": 3,
+    "total": 130,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "4"
+     },
+     {
+      "subject": "bio",
+      "grade": "1"
+     },
+     {
+      "subject": "home",
+      "grade": "4"
+     },
+     {
+      "subject": "media",
+      "grade": "1"
+     },
+     {
+      "subject": "sport",
+      "grade": "4"
+     },
+     {
+      "subject": "social",
+      "grade": "1"
+     },
+     {
+      "subject": "lang",
+      "grade": "4"
+     },
+     {
+      "subject": "break",
+      "grade": "1"
+     },
+     {
+      "subject": "trip",
+      "grade": "4"
+     },
+     {
+      "subject": "register",
+      "grade": "1"
+     }
+    ],
+    "remarks": [
+     "facts",
+     "empty"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p5",
+    "rank": 5,
+    "total": 95,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "5"
+     },
+     {
+      "subject": "bio",
+      "grade": "2"
+     },
+     {
+      "subject": "home",
+      "grade": "5"
+     },
+     {
+      "subject": "media",
+      "grade": "2"
+     },
+     {
+      "subject": "sport",
+      "grade": "5"
+     },
+     {
+      "subject": "social",
+      "grade": "2"
+     },
+     {
+      "subject": "lang",
+      "grade": "5"
+     },
+     {
+      "subject": "break",
+      "grade": "2"
+     },
+     {
+      "subject": "trip",
+      "grade": "5"
+     },
+     {
+      "subject": "register",
+      "grade": "2"
+     },
+     {
+      "subject": "music",
+      "grade": "5"
+     }
+    ],
+    "remarks": [
+     "star"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p2",
+    "rank": 6,
+    "total": 80,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "5"
+     },
+     {
+      "subject": "bio",
+      "grade": "3"
+     },
+     {
+      "subject": "home",
+      "grade": "5"
+     },
+     {
+      "subject": "media",
+      "grade": "3"
+     },
+     {
+      "subject": "sport",
+      "grade": "5"
+     },
+     {
+      "subject": "social",
+      "grade": "3"
+     },
+     {
+      "subject": "lang",
+      "grade": "5"
+     },
+     {
+      "subject": "break",
+      "grade": "3"
+     },
+     {
+      "subject": "trip",
+      "grade": "5"
+     },
+     {
+      "subject": "register",
+      "grade": "3"
+     },
+     {
+      "subject": "music",
+      "grade": "5"
+     },
+     {
+      "subject": "detention",
+      "grade": "3"
+     }
+    ],
+    "remarks": [
+     "fine"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p7",
+    "rank": 7,
+    "total": 75,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "1"
+     },
+     {
+      "subject": "bio",
+      "grade": "4"
+     },
+     {
+      "subject": "home",
+      "grade": "1"
+     },
+     {
+      "subject": "media",
+      "grade": "4"
+     },
+     {
+      "subject": "sport",
+      "grade": "1"
+     },
+     {
+      "subject": "social",
+      "grade": "4"
+     },
+     {
+      "subject": "lang",
+      "grade": "1"
+     },
+     {
+      "subject": "break",
+      "grade": "4"
+     },
+     {
+      "subject": "trip",
+      "grade": "1"
+     },
+     {
+      "subject": "register",
+      "grade": "4"
+     }
+    ],
+    "remarks": [
+     "fine"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p4",
+    "rank": 8,
+    "total": 60,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "2"
+     },
+     {
+      "subject": "bio",
+      "grade": "5"
+     },
+     {
+      "subject": "home",
+      "grade": "2"
+     },
+     {
+      "subject": "media",
+      "grade": "5"
+     },
+     {
+      "subject": "sport",
+      "grade": "2"
+     },
+     {
+      "subject": "social",
+      "grade": "5"
+     },
+     {
+      "subject": "lang",
+      "grade": "2"
+     },
+     {
+      "subject": "break",
+      "grade": "5"
+     },
+     {
+      "subject": "trip",
+      "grade": "2"
+     },
+     {
+      "subject": "register",
+      "grade": "5"
+     },
+     {
+      "subject": "music",
+      "grade": "2"
+     }
+    ],
+    "remarks": [
+     "copy"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p6",
+    "rank": 9,
+    "total": 45,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "3"
+     },
+     {
+      "subject": "bio",
+      "grade": "5"
+     },
+     {
+      "subject": "home",
+      "grade": "3"
+     },
+     {
+      "subject": "media",
+      "grade": "5"
+     },
+     {
+      "subject": "sport",
+      "grade": "3"
+     },
+     {
+      "subject": "social",
+      "grade": "5"
+     },
+     {
+      "subject": "lang",
+      "grade": "3"
+     },
+     {
+      "subject": "break",
+      "grade": "5"
+     },
+     {
+      "subject": "trip",
+      "grade": "3"
+     },
+     {
+      "subject": "register",
+      "grade": "5"
+     },
+     {
+      "subject": "music",
+      "grade": "3"
+     },
+     {
+      "subject": "detention",
+      "grade": "5"
+     }
+    ],
+    "remarks": [
+     "empty"
+    ],
+    "stamp": "promoted"
+   },
+   {
+    "id": "p9",
+    "rank": 10,
+    "total": 20,
+    "grades": [
+     {
+      "subject": "geo",
+      "grade": "4"
+     },
+     {
+      "subject": "bio",
+      "grade": "1"
+     },
+     {
+      "subject": "home",
+      "grade": "4"
+     },
+     {
+      "subject": "media",
+      "grade": "1"
+     },
+     {
+      "subject": "sport",
+      "grade": "4"
+     },
+     {
+      "subject": "social",
+      "grade": "1"
+     },
+     {
+      "subject": "lang",
+      "grade": "4"
+     },
+     {
+      "subject": "break",
+      "grade": "1"
+     },
+     {
+      "subject": "trip",
+      "grade": "4"
+     },
+     {
+      "subject": "register",
+      "grade": "1"
+     }
+    ],
+    "remarks": [
+     "fine"
+    ],
+    "stamp": "held"
+   }
+  ],
+  "best": [
+   {
+    "id": "p1",
+    "text": "Katze hat draufgekotzt",
+    "column": "Ausrede für fehlende Hausaufgaben",
+    "subject": "break",
+    "stars": 5
+   },
+   {
+    "id": "p3",
+    "text": "Donaudampfschifffahrtskapitän",
+    "column": "Beruf",
+    "subject": "social",
+    "stars": 4
+   },
+   {
+    "id": "p10",
+    "text": "Ein Kühlschrank für den Kühlschrank",
+    "column": "Etwas, das Hildegard-Luise kaufen würde",
+    "subject": "register",
+    "stars": 3
+   },
+   {
+    "id": "p8",
+    "text": "Opas Gebiss",
+    "column": "Was man heimlich in den Reisebus schmuggelt",
+    "subject": "trip",
+    "stars": 3
+   },
+   {
+    "id": "p5",
+    "text": "Rumpelstilzchen",
+    "column": "Märchenfigur",
+    "subject": "media",
+    "stars": 2
+   },
+   {
+    "id": "p2",
+    "text": "Quarkspeise von 2019",
+    "column": "Etwas, das im Kühlschrank vergammelt",
+    "subject": "home",
+    "stars": 1
+   }
+  ]
+ },
+ "wait": 2600
+}

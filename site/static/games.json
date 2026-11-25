@@ -163,6 +163,25 @@
         { "src": "static/games/worldquiz/phone-card.png", "alt": "The captain's phone: the Czech Republic's card with its flag and capital, the country on a small map, and the five numbers as buttons to compete with, or a challenge", "kind": "phone" },
         { "src": "static/games/worldquiz/phone-where.png", "alt": "A phone answering where the United Arab Emirates are on a cartoon world map, a pin dropped, a Lock in button", "kind": "phone" }
       ]
+    },
+    {
+      "name": "classes",
+      "title": "Classes",
+      "summary": "Stadt, Land, Fluss in a classroom: stop the alphabet, write an answer for every subject before the school bell rings, then the class grades them with the teacher's red pen, settles arguments in Wikipedia on the TV and hands out gold stars and report cards",
+      "players": { "min": 2, "max": 10 },
+      "languages": ["en", "de"],
+      "source": "gh:mitsuhiko/tvpipe/classes@classes-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/classes",
+      "screenshots": [
+        { "src": "static/games/classes/tv-grade.png", "alt": "The teacher's red pen on Excuse for missing homework: Black hole in my backpack scores 10 with three gold stars, two identical The baby ate it bracketed at 5 each, Because crossed out by 4 of 5 and My dog ate it struck: not with B!", "kind": "tv" },
+        { "src": "static/games/classes/tv-write.png", "alt": "Writing with the letter B chalked on the blackboard: Lena: Stop! 10 seconds left!, her hand raised, the wall clock running out and six exercise books on the desks filled with scribbles, from 6/6 down to 1/6", "kind": "tv" },
+        { "src": "static/games/classes/tv-wiki.webp", "alt": "Settling an argument on the TV: Wikipedia's North American beaver in two columns with its links and a photo, reached by following a link from Beaver, as the trail shows, while Sam reads along on the phone", "kind": "tv" },
+        { "src": "static/games/classes/tv-cork.png", "alt": "The best answers of the day pinned on the cork board with their gold stars: Black hole in my backpack, Bermuda Triangle, again, Bagpipes, for the neighbours and Bathtub full of jelly", "kind": "tv" },
+        { "src": "static/games/classes/tv-final.png", "alt": "Sam's report card: 1st of 6 with 45 points, A in Geography, Break, Register and Art & media, D in Biology and F in Music, the remarks Top of the class. Class clown. and a PROMOTED stamp", "kind": "tv" },
+        { "src": "static/games/classes/phone-write.png", "alt": "Writing on a phone like an exercise book with the letter B: Black hole in my backpack, Bangkok, Badger, Bathtub full of jelly and Bee Movie typed in handwriting, Band or singer still blank, 59 seconds left", "kind": "phone" },
+        { "src": "static/games/classes/phone-wiki.png", "alt": "The phone's Wikipedia reader: Back, a search field, the trail Beaver › North American beaver, the article with its photo and blue links to follow", "kind": "phone" },
+        { "src": "static/games/classes/phone-grade.png", "alt": "Grading the excuses on a phone: a gold star on Bermuda Triangle, again, Doesn't count pressed on Because, the pair The baby ate it bracketed as the same answer, and an I'm done button", "kind": "phone" }
+      ]
     }
   ]
 }

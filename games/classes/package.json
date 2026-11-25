@@ -1,0 +1,23 @@
+{
+  "name": "classes",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A school-day word game for tvpipe (tvpipe game play): one letter, a board of subjects, write an answer for each before the bell; the class grades the answers, looks them up in Wikipedia, and everyone gets a report card",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "zip": "node scripts/pack.ts",
+    "check": "tsc -p tsconfig.json && tsc -p tsconfig.pages.json && tsc -p tsconfig.build.json --noEmit",
+    "test": "node --test \"test/*.test.ts\"",
+    "columns": "node scripts/check-columns.ts"
+  },
+  "devDependencies": {
+    "@tvpipe/party": "file:../../npm/party",
+    "@types/node": "^22.19.0",
+    "typescript": "~5.9.3"
+  }
+}

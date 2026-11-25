@@ -1,0 +1,45 @@
+{
+ "about": "Two players: Start enabled",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p1"
+ },
+ "screen": {
+  "phase": "lobby",
+  "lang": "de",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 2,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   }
+  },
+  "round": 0,
+  "rounds": 4,
+  "used": []
+ },
+ "me": {
+  "task": "lobby"
+ }
+}

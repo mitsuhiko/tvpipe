@@ -9,7 +9,7 @@ depends on the list's shape.
 - **The list** (`site/static/games.json`, served at
   `https://tvpipe.party/games.json`) has all of this repository's games
   (Drawbluff, Jinx, Garble, and since then Krakel, Shifty, Landgrab,
-  Crosstalk, Snug, Busted, Pinch and Worldquiz) and screenshots for each.
+  Crosstalk, Snug, Busted, Pinch, Worldquiz and Classes) and screenshots for each.
 - **The site** has a games page, `tvpipe.party/games/`, rendered from the
   list with the screenshots, and a page per game, `tvpipe.party/games/NAME/`.
 - **`tvpipe game play` without a game** opens the window on the list:

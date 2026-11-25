@@ -1,0 +1,140 @@
+{
+ "about": "Someone called Stop!",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p1"
+ },
+ "screen": {
+  "phase": "write",
+  "lang": "en",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 3,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   },
+   "p3": {
+    "name": "Hildegard-Luise",
+    "hand": 2
+   },
+   "p4": {
+    "name": "Konstantin",
+    "hand": 3
+   },
+   "p5": {
+    "name": "Friederike",
+    "hand": 4
+   },
+   "p6": {
+    "name": "Ben",
+    "hand": 5
+   },
+   "p7": {
+    "name": "Josephine Marie",
+    "hand": 6
+   },
+   "p8": {
+    "name": "Bartholomäus",
+    "hand": 7
+   },
+   "p9": {
+    "name": "Mia",
+    "hand": 8
+   },
+   "p10": {
+    "name": "Karl-Heinz Otto",
+    "hand": 9
+   }
+  },
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "letter": "K",
+  "columns": [
+   {
+    "subject": "geo",
+    "text": "City"
+   },
+   {
+    "subject": "bio",
+    "text": "Animal"
+   },
+   {
+    "subject": "break",
+    "text": "Excuse for missing homework"
+   },
+   {
+    "subject": "home",
+    "text": "Something going off in the fridge"
+   },
+   {
+    "subject": "media",
+    "text": "Fairy-tale character"
+   },
+   {
+    "subject": "register",
+    "text": "Something Hildegard-Luise would buy"
+   },
+   {
+    "subject": "lang",
+    "text": "Word that starts and ends with the letter",
+    "rule": "rule:ends"
+   },
+   {
+    "subject": "sport",
+    "text": "Sport"
+   },
+   {
+    "subject": "trip",
+    "text": "Something you'd smuggle onto the coach"
+   },
+   {
+    "subject": "social",
+    "text": "Job"
+   }
+  ],
+  "deadline": "now+8000",
+  "stopBy": "p8"
+ },
+ "me": {
+  "task": "write",
+  "answers": [
+   "Kingston",
+   "Koala",
+   "",
+   "Kale",
+   "King Thrushbeard",
+   "Knitting needles",
+   "Kayak",
+   "",
+   "Kit Kats",
+   ""
+  ],
+  "filled": false,
+  "canStop": false
+ }
+}

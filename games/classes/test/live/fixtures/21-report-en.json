@@ -1,0 +1,69 @@
+{
+  "about": "The report, English, three players",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "report",
+    "letter": "D",
+    "scores": [
+      {
+        "id": "p2",
+        "round": 60,
+        "total": 60,
+        "rank": 1
+      },
+      {
+        "id": "p1",
+        "round": 45,
+        "total": 45,
+        "rank": 2
+      },
+      {
+        "id": "p3",
+        "round": 15,
+        "total": 15,
+        "rank": 3
+      }
+    ]
+  },
+  "wait": 3000
+}

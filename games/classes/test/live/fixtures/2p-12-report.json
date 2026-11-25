@@ -1,0 +1,61 @@
+{
+  "about": "Two players: the report",
+  "screen": {
+    "lang": "de",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 10,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 2,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "Bartholomäus",
+        "hand": 1
+      }
+    },
+    "players": [
+      "p1",
+      "p2"
+    ],
+    "round": 2,
+    "rounds": 4,
+    "used": [
+      "M",
+      "K"
+    ],
+    "phase": "report",
+    "letter": "K",
+    "scores": [
+      {
+        "id": "p2",
+        "round": 45,
+        "total": 120,
+        "rank": 1,
+        "twenties": 2
+      },
+      {
+        "id": "p1",
+        "round": 30,
+        "total": 95,
+        "rank": 2,
+        "twenties": 0
+      }
+    ]
+  },
+  "wait": 4200
+}

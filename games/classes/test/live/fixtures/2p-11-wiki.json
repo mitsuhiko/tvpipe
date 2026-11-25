@@ -1,0 +1,180 @@
+{
+  "about": "Two players: Wikipedia",
+  "screen": {
+    "lang": "de",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 10,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 2,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "Bartholomäus",
+        "hand": 1
+      }
+    },
+    "players": [
+      "p1",
+      "p2"
+    ],
+    "round": 2,
+    "rounds": 4,
+    "used": [
+      "M",
+      "K"
+    ],
+    "phase": "grade",
+    "letter": "K",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "Stadt"
+      },
+      {
+        "subject": "bio",
+        "text": "Tier"
+      },
+      {
+        "subject": "break",
+        "text": "Ausrede für fehlende Hausaufgaben"
+      },
+      {
+        "subject": "home",
+        "text": "Etwas, das im Kühlschrank vergammelt"
+      },
+      {
+        "subject": "media",
+        "text": "Märchenfigur"
+      },
+      {
+        "subject": "register",
+        "text": "Etwas, das Hildegard-Luise kaufen würde"
+      },
+      {
+        "subject": "lang",
+        "text": "Wort, das mit dem Buchstaben anfängt und aufhört",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "sport",
+        "text": "Sportart"
+      },
+      {
+        "subject": "trip",
+        "text": "Was man heimlich in den Reisebus schmuggelt"
+      },
+      {
+        "subject": "social",
+        "text": "Beruf"
+      }
+    ],
+    "col": 2,
+    "stage": "vote",
+    "answers": [
+      {
+        "id": "2-2-1",
+        "who": [
+          "p1"
+        ],
+        "texts": [
+          "Donau"
+        ]
+      },
+      {
+        "id": "2-2-2",
+        "who": [
+          "p2"
+        ],
+        "texts": [
+          "Dortmund"
+        ]
+      }
+    ],
+    "done": [],
+    "deadline": "now+31000",
+    "wiki": {
+      "id": "2-2-1",
+      "by": "p2",
+      "query": "Donau",
+      "title": "Donau",
+      "description": "zweitgrößter Strom und größter Meereszufluss Europas, fließt ins Schwarze Meer",
+      "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Donau_Einzugsgebiet.png/330px-Donau_Einzugsgebiet.png?utm_source=de.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "url": "https://de.wikipedia.org/wiki/Donau",
+      "results": [
+        {
+          "title": "Donau",
+          "snippet": "Die Donau ist mit einem Abfluss (MQ) von rund 6855 m³/s im langjährigen Mittel und einer Gesamtlänge von 2857 Kilometern nach der Wolga der zweitgrößte"
+        },
+        {
+          "title": "Main-Donau-Kanal",
+          "snippet": "Der Main-Donau-Kanal (MDK) ist eine rund 171 Kilometer lange Bundeswasserstraße in Bayern, die den Main bei Bamberg mit der Donau bei Kelheim verbindet"
+        },
+        {
+          "title": "SOKO Donau",
+          "snippet": "SOKO Donau (bzw. SOKO Wien in Deutschland) ist eine österreichische Kriminalserie, die in Zusammenarbeit mit ORF und ZDF entsteht. Der Ableger von SOKO"
+        },
+        {
+          "title": "Dillingen an der Donau",
+          "snippet": "Dillingen an der Donau (amtlich: Dillingen a.d.Donau) ist eine Große Kreisstadt und der Verwaltungssitz des gleichnamigen Landkreises im bayerischen Regierungsbezirk"
+        },
+        {
+          "title": "Krems an der Donau",
+          "snippet": "BW Krems an der Donau ist mit 25.581 Einwohnern (Stand 1. Jänner 2026) die fünftgrößte Stadt Niederösterreichs und liegt an der Donau, 70 km westlich"
+        }
+      ],
+      "pick": 0,
+      "blocks": [
+        {
+          "t": "p",
+          "c": [
+            "Die ",
+            {
+              "s": "Donau",
+              "b": true
+            },
+            " ist mit einem Abfluss (MQ) von rund 6855 m³/s im langjährigen Mittel und einer Gesamtlänge von 2857 Kilometern nach der Wolga der zweitgrößte und zweitlängste Fluss in Europa. Der Strom entwässert weite Teile Mittel- und Südosteuropas. Er durchfließt bzw. berührt dabei zehn Länder (Deutschland, Österreich, Slowakei, Ungarn, Kroatien, Serbien, Bulgarien, Rumänien, Republik Moldau und die Ukraine) – so viele wie kein anderer Fluss auf der Erde."
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Die Donau führt ihren Namen ab der Vereinigung zweier Quellflüsse, der Brigach und der größeren Breg, die beide im Mittleren Schwarzwald entspringen. Sie durchquert drei große Beckenlandschaften: das nördliche Alpenvorland und das Wiener Becken (Oberlauf), die Pannonische Tiefebene (Mittellauf) und das Walachische Tiefland (Unterlauf)."
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Die trennenden Gebirge durchschneidet sie in Engtälern, deren bekannteste Abschnitte der Donaudurchbruch bei Beuron, der Donaudurchbruch bei Weltenburg, die Wachau, die Hainburger Pforte (auch Preßburger Pforte) und das Eiserne Tor sind. Der Strom mündet über das ausgedehnte Donaudelta ins Schwarze Meer.Die Donau ist eine der ältesten und bedeutendsten europäischen Handelsrouten und verbindet dabei unterschiedliche Kulturkreise."
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Politische Spannungen und Kriege bewirkten immer wieder Sperren und Behinderungen der Wasserstraße. Seit dem Fall des Eisernen Vorhanges hat die Donau wieder ihre wirtschaftliche Bedeutung erhalten."
+          ]
+        }
+      ],
+      "trail": [
+        "Donau"
+      ],
+      "back": false,
+      "at": 0
+    }
+  },
+  "wait": 1800
+}

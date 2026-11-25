@@ -1,0 +1,150 @@
+{
+  "about": "Two players: both report cards on the desk",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 8,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 2,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      }
+    },
+    "players": [
+      "p1",
+      "p2"
+    ],
+    "round": 4,
+    "rounds": 4,
+    "used": [
+      "D",
+      "T",
+      "B",
+      "S"
+    ],
+    "phase": "final",
+    "scores": [
+      {
+        "id": "p2",
+        "round": 0,
+        "total": 160,
+        "rank": 1
+      },
+      {
+        "id": "p1",
+        "round": 0,
+        "total": 140,
+        "rank": 2
+      }
+    ],
+    "cards": [
+      {
+        "id": "p2",
+        "rank": 1,
+        "total": 160,
+        "grades": [
+          {
+            "subject": "geo",
+            "grade": "A"
+          },
+          {
+            "subject": "bio",
+            "grade": "B"
+          },
+          {
+            "subject": "break",
+            "grade": "A"
+          },
+          {
+            "subject": "lang",
+            "grade": "C"
+          },
+          {
+            "subject": "register",
+            "grade": "B"
+          },
+          {
+            "subject": "home",
+            "grade": "A"
+          }
+        ],
+        "remarks": [
+          "top",
+          "twenty"
+        ],
+        "stamp": "promoted"
+      },
+      {
+        "id": "p1",
+        "rank": 2,
+        "total": 140,
+        "grades": [
+          {
+            "subject": "geo",
+            "grade": "B"
+          },
+          {
+            "subject": "bio",
+            "grade": "A"
+          },
+          {
+            "subject": "break",
+            "grade": "D"
+          },
+          {
+            "subject": "lang",
+            "grade": "B"
+          },
+          {
+            "subject": "register",
+            "grade": "F"
+          },
+          {
+            "subject": "home",
+            "grade": "C"
+          }
+        ],
+        "remarks": [
+          "clown"
+        ],
+        "stamp": "promoted"
+      }
+    ],
+    "best": [
+      {
+        "id": "p1",
+        "text": "My dog joined a band",
+        "column": "Excuse for missing homework",
+        "subject": "break",
+        "stars": 1
+      },
+      {
+        "id": "p2",
+        "text": "Dracula",
+        "column": "Villain",
+        "subject": "media",
+        "stars": 1
+      }
+    ]
+  },
+  "wait": 2600,
+  "hash": "ago=9000"
+}

@@ -1,0 +1,283 @@
+{
+  "about": "Wikipedia (English): scrolled to the middle (at 7)",
+  "screen": {
+    "lang": "en",
+    "langs": [
+      "en",
+      "de"
+    ],
+    "settings": {
+      "rounds": 4,
+      "columns": 6,
+      "time": 120,
+      "mix": "mixed",
+      "content": "family",
+      "stop": true,
+      "classic": false,
+      "letters": "common",
+      "late": "wait"
+    },
+    "minPlayers": 3,
+    "people": {
+      "p1": {
+        "name": "Anna",
+        "hand": 0
+      },
+      "p2": {
+        "name": "James",
+        "hand": 1
+      },
+      "p3": {
+        "name": "Priya",
+        "hand": 2
+      }
+    },
+    "players": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "round": 1,
+    "rounds": 4,
+    "used": [
+      "D"
+    ],
+    "phase": "grade",
+    "letter": "D",
+    "columns": [
+      {
+        "subject": "geo",
+        "text": "City"
+      },
+      {
+        "subject": "bio",
+        "text": "Animal"
+      },
+      {
+        "subject": "break",
+        "text": "Excuse for missing homework"
+      },
+      {
+        "subject": "music",
+        "text": "Band or singer"
+      },
+      {
+        "subject": "lang",
+        "text": "Word that starts and ends with the letter",
+        "rule": "rule:ends"
+      },
+      {
+        "subject": "register",
+        "text": "Something Priya would buy"
+      }
+    ],
+    "col": 4,
+    "stage": "vote",
+    "answers": [
+      {
+        "id": "b1",
+        "who": [
+          "p1"
+        ],
+        "texts": [
+          "Dad"
+        ]
+      },
+      {
+        "id": "b2",
+        "who": [
+          "p2"
+        ],
+        "texts": [
+          "Dread"
+        ]
+      },
+      {
+        "id": "b3",
+        "who": [
+          "p3"
+        ],
+        "texts": [
+          "Dog"
+        ],
+        "auto": "rule:ends"
+      }
+    ],
+    "done": [
+      "p2"
+    ],
+    "deadline": "now+19000",
+    "wiki": {
+      "id": "b1",
+      "by": "p2",
+      "query": "Dachshund",
+      "title": "Dachshund",
+      "description": "German breed of dog",
+      "image": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Example.jpg",
+      "url": "https://en.wikipedia.org/wiki/Dachshund",
+      "blocks": [
+        {
+          "t": "p",
+          "c": [
+            "The ",
+            {
+              "s": "Dachshund",
+              "b": true
+            },
+            " (also ",
+            {
+              "s": "Dackel",
+              "i": true
+            },
+            " or ",
+            {
+              "s": "Teckel",
+              "i": true
+            },
+            ") is a German breed of short-legged, long-bodied ",
+            {
+              "s": "dog",
+              "a": "Dog"
+            },
+            " of ",
+            {
+              "s": "hound",
+              "a": "Hound"
+            },
+            " type."
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Etymology"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "The name is from the German ",
+            {
+              "s": "Dachs",
+              "i": true
+            },
+            " (badger) and ",
+            {
+              "s": "Hund",
+              "i": true
+            },
+            " (dog). The pronunciation varies in English."
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "History"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "The breed was developed in Germany in the 17th century to scent, chase and flush out badgers and other burrow-dwelling animals. The miniature was bred to hunt smaller animals such as rabbits."
+          ]
+        },
+        {
+          "t": "h3",
+          "c": [
+            "In the United States"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Dachshunds were imported to the United States in the late 19th century, and the ",
+            {
+              "s": "American Kennel Club",
+              "a": "American Kennel Club"
+            },
+            " recognised the breed in 1885."
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Varieties"
+          ]
+        },
+        {
+          "t": "li",
+          "c": [
+            "Smooth-haired"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Wire-haired"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Long-haired"
+          ],
+          "d": 1
+        },
+        {
+          "t": "li",
+          "c": [
+            "Miniature long-haired"
+          ],
+          "d": 2
+        },
+        {
+          "t": "h2",
+          "c": [
+            "Health"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "The breed is prone to spinal problems, especially ",
+            {
+              "s": "intervertebral disk disease",
+              "a": "Intervertebral disc disease"
+            },
+            ", because of its long spine and short rib cage."
+          ]
+        },
+        {
+          "t": "quote",
+          "c": [
+            "A dachshund is a half-dog high and a dog-and-a-half long. – H. L. Mencken"
+          ]
+        },
+        {
+          "t": "h2",
+          "c": [
+            "In popular culture"
+          ]
+        },
+        {
+          "t": "p",
+          "c": [
+            "Waldi, a dachshund, was the first official mascot of the Olympic Games, in Munich in 1972."
+          ]
+        }
+      ],
+      "cut": true,
+      "trail": [
+        "Dad",
+        "Dachshund"
+      ],
+      "back": true,
+      "results": [],
+      "pick": -1,
+      "at": 7
+    }
+  },
+  "wait": 1800
+}

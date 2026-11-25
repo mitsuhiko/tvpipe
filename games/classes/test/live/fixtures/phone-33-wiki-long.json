@@ -1,0 +1,1479 @@
+{
+ "about": "A long article, cut, a long trail",
+ "pages": [
+  "phone"
+ ],
+ "you": {
+  "id": "p1"
+ },
+ "screen": {
+  "lang": "en",
+  "langs": [
+   "en",
+   "de"
+  ],
+  "settings": {
+   "rounds": 4,
+   "columns": 10,
+   "time": 120,
+   "mix": "mixed",
+   "content": "family",
+   "stop": true,
+   "classic": false,
+   "letters": "common",
+   "late": "wait"
+  },
+  "minPlayers": 3,
+  "people": {
+   "p1": {
+    "name": "Anna",
+    "hand": 0
+   },
+   "p2": {
+    "name": "Maximilian",
+    "hand": 1
+   },
+   "p3": {
+    "name": "Hildegard-Luise",
+    "hand": 2
+   },
+   "p4": {
+    "name": "Konstantin",
+    "hand": 3
+   },
+   "p5": {
+    "name": "Friederike",
+    "hand": 4
+   },
+   "p6": {
+    "name": "Ben",
+    "hand": 5
+   },
+   "p7": {
+    "name": "Josephine Marie",
+    "hand": 6
+   },
+   "p8": {
+    "name": "Bartholomäus",
+    "hand": 7
+   },
+   "p9": {
+    "name": "Mia",
+    "hand": 8
+   },
+   "p10": {
+    "name": "Karl-Heinz Otto",
+    "hand": 9
+   }
+  },
+  "players": [
+   "p1",
+   "p2",
+   "p3",
+   "p4",
+   "p5",
+   "p6",
+   "p7",
+   "p8",
+   "p9",
+   "p10"
+  ],
+  "round": 2,
+  "rounds": 4,
+  "used": [
+   "M",
+   "K"
+  ],
+  "phase": "grade",
+  "letter": "K",
+  "columns": [
+   {
+    "subject": "geo",
+    "text": "City"
+   },
+   {
+    "subject": "bio",
+    "text": "Animal"
+   },
+   {
+    "subject": "break",
+    "text": "Excuse for missing homework"
+   },
+   {
+    "subject": "home",
+    "text": "Something going off in the fridge"
+   },
+   {
+    "subject": "media",
+    "text": "Fairy-tale character"
+   },
+   {
+    "subject": "register",
+    "text": "Something Hildegard-Luise would buy"
+   },
+   {
+    "subject": "lang",
+    "text": "Word that starts and ends with the letter",
+    "rule": "rule:ends"
+   },
+   {
+    "subject": "sport",
+    "text": "Sport"
+   },
+   {
+    "subject": "trip",
+    "text": "Something you'd smuggle onto the coach"
+   },
+   {
+    "subject": "social",
+    "text": "Job"
+   }
+  ],
+  "col": 2,
+  "stage": "vote",
+  "answers": [
+   {
+    "id": "a1",
+    "who": [
+     "p1",
+     "p4",
+     "p7"
+    ],
+    "texts": [
+     "The cat threw up on it",
+     "the cat threw up on it",
+     "Cat threw up on it"
+    ],
+    "same": "same"
+   },
+   {
+    "id": "a2",
+    "who": [
+     "p2"
+    ],
+    "texts": [
+     "Kidnapped by my little brother"
+    ]
+   },
+   {
+    "id": "a3",
+    "who": [
+     "p3"
+    ],
+    "texts": [
+     ""
+    ],
+    "auto": "empty"
+   },
+   {
+    "id": "a4",
+    "who": [
+     "p5"
+    ],
+    "texts": [
+     "Left it on the bus"
+    ],
+    "auto": "letter"
+   },
+   {
+    "id": "a5",
+    "who": [
+     "p6"
+    ],
+    "texts": [
+     "Kevin copied it and never gave it back"
+    ]
+   },
+   {
+    "id": "a6",
+    "who": [
+     "p8",
+     "p9"
+    ],
+    "texts": [
+     "Karate tournament",
+     "Karate turnament"
+    ],
+    "same": "typo"
+   },
+   {
+    "id": "a7",
+    "who": [
+     "p10"
+    ],
+    "texts": [
+     "Knocked over a kettle"
+    ]
+   }
+  ],
+  "done": [
+   "p1",
+   "p2",
+   "p5",
+   "p8"
+  ],
+  "deadline": "now+40000",
+  "wiki": {
+   "id": "a2",
+   "by": "p1",
+   "query": "Liechtenstein",
+   "title": "Liechtenstein",
+   "description": "Microstate in Central Europe",
+   "image": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Example.jpg",
+   "url": "https://en.wikipedia.org/wiki/Liechtenstein",
+   "blocks": [
+    {
+     "t": "p",
+     "c": [
+      {
+       "s": "Liechtenstein",
+       "b": true
+      },
+      ", officially the ",
+      {
+       "s": "Principality of Liechtenstein",
+       "b": true
+      },
+      ", is a ",
+      {
+       "s": "doubly landlocked",
+       "a": "Doubly landlocked"
+      },
+      " ",
+      {
+       "s": "German-speaking",
+       "a": "German language"
+      },
+      " ",
+      {
+       "s": "microstate",
+       "a": "Microstate"
+      },
+      " in the ",
+      {
+       "s": "Central European Alps",
+       "a": "Alps"
+      },
+      ", between ",
+      {
+       "s": "Austria",
+       "a": "Austria"
+      },
+      " in the east and north and ",
+      {
+       "s": "Switzerland",
+       "a": "Switzerland"
+      },
+      " in the west and south."
+     ]
+    },
+    {
+     "t": "h2",
+     "c": [
+      "History"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on history: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on history: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on history: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on history: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h3",
+     "c": [
+      "Notable facts about history"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 1: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 2: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 3: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Geography"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on geography: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on geography: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on geography: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on geography: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Politics"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on politics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on politics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on politics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on politics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h3",
+     "c": [
+      "Notable facts about politics"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 1: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 2: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 3: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Economy"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on economy: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on economy: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on economy: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on economy: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Demographics"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on demographics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on demographics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on demographics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on demographics: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h3",
+     "c": [
+      "Notable facts about demographics"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 1: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 2: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 3: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Culture"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on culture: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on culture: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on culture: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on culture: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Sport"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on sport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on sport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on sport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on sport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "h3",
+     "c": [
+      "Notable facts about sport"
+     ]
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 1: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 2: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "li",
+     "c": [
+      "Fact 3: ",
+      {
+       "s": "Rhine",
+       "a": "Rhine"
+      },
+      " valley, ",
+      {
+       "s": "Swiss franc",
+       "a": "Swiss franc"
+      },
+      ", and the ",
+      {
+       "s": "Princely Family of Liechtenstein",
+       "a": "Princely Family of Liechtenstein"
+      },
+      "."
+     ],
+     "d": 1
+    },
+    {
+     "t": "h2",
+     "c": [
+      "Transport"
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 1 of the section on transport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 2 of the section on transport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 3 of the section on transport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    },
+    {
+     "t": "p",
+     "c": [
+      "Paragraph 4 of the section on transport: the principality, with its capital ",
+      {
+       "s": "Vaduz",
+       "a": "Vaduz"
+      },
+      " and largest town ",
+      {
+       "s": "Schaan",
+       "a": "Schaan"
+      },
+      ", has an area of about 160 square kilometres and some 40,000 inhabitants. ",
+      {
+       "s": "Unusually",
+       "i": true
+      },
+      ", it has ",
+      {
+       "s": "more registered companies than citizens",
+       "b": true
+      },
+      ", and it borders only two countries, both of them themselves without a coast."
+     ]
+    }
+   ],
+   "cut": true,
+   "trail": [
+    "Kidnapped by my little brother",
+    "Kidnapping",
+    "Prince of Liechtenstein",
+    "Principality of Liechtenstein",
+    "Liechtenstein"
+   ],
+   "back": true,
+   "results": [],
+   "pick": -1
+  }
+ },
+ "me": {
+  "task": "grade",
+  "answers": [
+   "Kaiserslautern",
+   "Kängurus",
+   "Katze hat draufgekotzt",
+   "Kartoffelsalat",
+   "Kaiser",
+   "Kaffeemaschine",
+   "Kajak",
+   "Kickboxen",
+   "Kaugummi",
+   "Kfz-Mechatronikerin"
+  ],
+  "doubts": [],
+  "star": null,
+  "done": false,
+  "lookups": 12
+ },
+ "steps": [
+  {
+   "at": 300,
+   "me": {
+    "lookups": 3
+   }
+  }
+ ]
+}
