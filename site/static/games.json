@@ -30,20 +30,6 @@
       ]
     },
     {
-      "name": "garble",
-      "title": "Garble",
-      "summary": "One picture each goes round the table: guess what it is now, then draw your word on top of it; nothing is ever erased",
-      "players": { "min": 3, "max": 12 },
-      "languages": ["en", "de"],
-      "source": "gh:mitsuhiko/tvpipe/garble@garble-v*",
-      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/garble",
-      "screenshots": [
-        { "src": "static/games/garble/tv-reveal.webp", "alt": "The TV rebuilding a picture layer by layer, each in its drawer's colour: Mia's sun, Jonas's lion mane and muzzle on top of it, Lena's clock numbers and hands on top of that, each layer's word beside it with the next player's guess (sun, right; lion, right; lion again, wrong)", "kind": "tv" },
-        { "src": "static/games/garble/phone-draw.png", "alt": "Turning someone's cat into a submarine on a phone: the cat's lines a shade lighter, a tower, a periscope, portholes, a propeller and waves drawn on top in black", "kind": "phone" },
-        { "src": "static/games/garble/phone-guess.png", "alt": "Guessing on a phone what the picture is now: a cat, the guess typed below it", "kind": "phone" }
-      ]
-    },
-    {
       "name": "krakel",
       "title": "Krakel",
       "summary": "Everyone draws a word of the same category (or, mixed, of any); the TV redraws each picture stroke by stroke, and the sooner you type what it is, the more you and the artist score",
@@ -58,47 +44,37 @@
       ]
     },
     {
-      "name": "shifty",
-      "title": "Shifty",
-      "summary": "Everyone but the phony knows the secret word on a board of sixteen; one-word clues are typed while the TV shows the typing as a lie detector's needle, then the room accuses someone and the phony can still win by naming the word",
-      "players": { "min": 3, "max": 10 },
+      "name": "worldquiz",
+      "title": "Worldquiz",
+      "summary": "Every country is a card: compete with its numbers (population, area, neighbours, highest point, GDP per person) or answer challenges against the clock: name the capital, name the flag, or pin it on a cartoon map or globe",
+      "players": { "min": 2, "max": 10 },
       "languages": ["en", "de"],
-      "source": "gh:mitsuhiko/tvpipe/shifty@shifty-v*",
-      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/shifty",
+      "source": "gh:mitsuhiko/tvpipe/worldquiz@worldquiz-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/worldquiz",
       "screenshots": [
-        { "src": "static/games/shifty/tv-clue.png", "alt": "The TV in neon: four fedora silhouettes outlined in their colours in front of glowing height lines, Phil red in the searchlight typing his clue as three lit tiles, his oscilloscope kicking where he deleted a false start; Mia's spots and Lena's savanna on glass cards below their traces; sixteen zoo animals on backlit tiles framed as evidence", "kind": "tv" },
-        { "src": "static/games/shifty/tv-verdict.png", "alt": "The verdict: red lasers from every name plate to the accused, three on Lena and one on Jonas, a red neon PHONY sign over Lena in the searchlight; the clues spots, savanna, neck and leaves under the traces", "kind": "tv" },
-        { "src": "static/games/shifty/phone-card.png", "alt": "A phone's card turned up: the word giraffe in amber neon, the category zoo animals, and the board's glowing tiles below", "kind": "phone" },
-        { "src": "static/games/shifty/phone-clue.png", "alt": "Phil's turn on his phone: nec typed in the glowing clue field, the time running out, his card face down (red stripes, cyan eyes) above the board", "kind": "phone" }
+        { "src": "static/games/worldquiz/tv-compete.png", "alt": "Comparing population: four country cards turned over on a cartoon map of the Caribbean, Venezuela's card big on the right with its five numbers and their ranks, and Mia wins", "kind": "tv" },
+        { "src": "static/games/worldquiz/tv-where.png", "alt": "The answer to where the Seychelles are: the players' pins in the Indian Ocean around the islands, their distances listed, the two closest winning", "kind": "tv" },
+        { "src": "static/games/worldquiz/phone-card.png", "alt": "The captain's phone: the Czech Republic's card with its flag and capital, the country on a small map, and the five numbers as buttons to compete with, or a challenge", "kind": "phone" },
+        { "src": "static/games/worldquiz/phone-where.png", "alt": "A phone answering where the United Arab Emirates are on a cartoon world map, a pin dropped, a Lock in button", "kind": "phone" }
       ]
     },
     {
-      "name": "landgrab",
-      "title": "Landgrab",
-      "summary": "Conquer a world of hex tiles: everyone plans their armies' moves on the phone at the same time, then the TV plays out every march and battle with the dice",
-      "players": { "min": 2, "max": 6 },
+      "name": "classes",
+      "title": "Classes",
+      "summary": "Stadt, Land, Fluss in a classroom: stop the alphabet, write an answer for every subject before the school bell rings, then the class grades them with the teacher's red pen, settles arguments in Wikipedia on the TV and hands out gold stars and report cards",
+      "players": { "min": 2, "max": 10 },
       "languages": ["en", "de"],
-      "source": "gh:mitsuhiko/tvpipe/landgrab@landgrab-v*",
-      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/landgrab",
+      "source": "gh:mitsuhiko/tvpipe/classes@classes-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/classes",
       "screenshots": [
-        { "src": "static/games/landgrab/tv-plan.webp", "alt": "The TV while five generals plan: the world as raised hex tiles in their colours and the parchment of the wild lands, every territory named with its army count, the continents' bonuses written in the seas, four of five players ticked ready and 88 seconds left", "kind": "tv" },
-        { "src": "static/games/landgrab/tv-battle.webp", "alt": "A battle on the TV: the camera close on New Guinea and Indonesia, the rest of the map dimmed, the fight card with Lena's three dice against the wild lands' one and a banner: Conquered!", "kind": "tv" },
-        { "src": "static/games/landgrab/phone-plan.png", "alt": "Planning on a phone: the map fills the screen, close on Europe and Africa with the player's two orders drawn as arrows, the Move & attack step with 2 orders, Ready at the bottom", "kind": "phone" },
-        { "src": "static/games/landgrab/phone-attack.png", "alt": "An attack on a phone: tap Western Europe, then Britain, and the bar under the map becomes the amount, 4 armies with a 97 % chance to win, quick amounts Half, Safe and All, a slider and Attack with 4", "kind": "phone" }
-      ]
-    },
-    {
-      "name": "crosstalk",
-      "title": "Crosstalk",
-      "summary": "Two spymasters send secret clues to their teams' phones, both teams guess at once on one board of 25 words, and everyone can hear what the other team says",
-      "players": { "min": 4, "max": 12 },
-      "languages": ["en", "de"],
-      "source": "gh:mitsuhiko/tvpipe/crosstalk@crosstalk-v*",
-      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/crosstalk",
-      "screenshots": [
-        { "src": "static/games/crosstalk/tv-flip.png", "alt": "The TV in round 3: a board of 25 word cards, eight turned in red and blue; Red (spymaster Mia) has 4 of 8 and is still guessing, Blue (spymaster Sara) has 3 of 8 and has locked its card, the clock at 27 seconds", "kind": "tv" },
-        { "src": "static/games/crosstalk/phone-operative.png", "alt": "Guessing on Blue's phone: the secret clue NIGHT 2, Phil's pin on GHOST and Ava's on CASTLE, one more pin needed to lock; below, the team's pad: \"NOT this one: MOON\", \"they whispered 'space', so not ROCKET\", \"left over for later: PIANO\", \"careful with BRIDGE\"", "kind": "phone" },
-        { "src": "static/games/crosstalk/phone-spymaster.png", "alt": "The spymaster's phone: the key with every card in its colour and the assassin SHARK in black, \"Say nothing. Show nothing.\", the clue SAILOR typed for 3 cards and about to be sent", "kind": "phone" }
+        { "src": "static/games/classes/tv-grade.png", "alt": "The teacher's red pen on Excuse for missing homework: Black hole in my backpack scores 10 with three gold stars, two identical The baby ate it bracketed at 5 each, Because crossed out by 4 of 5 and My dog ate it struck: not with B!", "kind": "tv" },
+        { "src": "static/games/classes/tv-write.png", "alt": "Writing with the letter B chalked on the blackboard: Lena: Stop! 10 seconds left!, her hand raised, the wall clock running out and six exercise books on the desks filled with scribbles, from 6/6 down to 1/6", "kind": "tv" },
+        { "src": "static/games/classes/tv-wiki.webp", "alt": "Settling an argument on the TV: Wikipedia's North American beaver in two columns with its links and a photo, reached by following a link from Beaver, as the trail shows, while Sam reads along on the phone", "kind": "tv" },
+        { "src": "static/games/classes/tv-cork.png", "alt": "The best answers of the day pinned on the cork board with their gold stars: Black hole in my backpack, Bermuda Triangle, again, Bagpipes, for the neighbours and Bathtub full of jelly", "kind": "tv" },
+        { "src": "static/games/classes/tv-final.png", "alt": "Sam's report card: 1st of 6 with 45 points, A in Geography, Break, Register and Art & media, D in Biology and F in Music, the remarks Top of the class. Class clown. and a PROMOTED stamp", "kind": "tv" },
+        { "src": "static/games/classes/phone-write.png", "alt": "Writing on a phone like an exercise book with the letter B: Black hole in my backpack, Bangkok, Badger, Bathtub full of jelly and Bee Movie typed in handwriting, Band or singer still blank, 59 seconds left", "kind": "phone" },
+        { "src": "static/games/classes/phone-wiki.png", "alt": "The phone's Wikipedia reader: Back, a search field, the trail Beaver › North American beaver, the article with its photo and blue links to follow", "kind": "phone" },
+        { "src": "static/games/classes/phone-grade.png", "alt": "Grading the excuses on a phone: a gold star on Bermuda Triangle, again, Doesn't count pressed on Because, the pair The baby ate it bracketed as the same answer, and an I'm done button", "kind": "phone" }
       ]
     },
     {
@@ -150,37 +126,61 @@
       ]
     },
     {
-      "name": "worldquiz",
-      "title": "Worldquiz",
-      "summary": "Every country is a card: compete with its numbers (population, area, neighbours, highest point, GDP per person) or answer challenges against the clock: name the capital, name the flag, or pin it on a cartoon map or globe",
-      "players": { "min": 2, "max": 10 },
+      "name": "garble",
+      "title": "Garble",
+      "summary": "One picture each goes round the table: guess what it is now, then draw your word on top of it; nothing is ever erased",
+      "players": { "min": 3, "max": 12 },
       "languages": ["en", "de"],
-      "source": "gh:mitsuhiko/tvpipe/worldquiz@worldquiz-v*",
-      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/worldquiz",
+      "source": "gh:mitsuhiko/tvpipe/garble@garble-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/garble",
       "screenshots": [
-        { "src": "static/games/worldquiz/tv-compete.png", "alt": "Comparing population: four country cards turned over on a cartoon map of the Caribbean, Venezuela's card big on the right with its five numbers and their ranks, and Mia wins", "kind": "tv" },
-        { "src": "static/games/worldquiz/tv-where.png", "alt": "The answer to where the Seychelles are: the players' pins in the Indian Ocean around the islands, their distances listed, the two closest winning", "kind": "tv" },
-        { "src": "static/games/worldquiz/phone-card.png", "alt": "The captain's phone: the Czech Republic's card with its flag and capital, the country on a small map, and the five numbers as buttons to compete with, or a challenge", "kind": "phone" },
-        { "src": "static/games/worldquiz/phone-where.png", "alt": "A phone answering where the United Arab Emirates are on a cartoon world map, a pin dropped, a Lock in button", "kind": "phone" }
+        { "src": "static/games/garble/tv-reveal.webp", "alt": "The TV rebuilding a picture layer by layer, each in its drawer's colour: Mia's sun, Jonas's lion mane and muzzle on top of it, Lena's clock numbers and hands on top of that, each layer's word beside it with the next player's guess (sun, right; lion, right; lion again, wrong)", "kind": "tv" },
+        { "src": "static/games/garble/phone-draw.png", "alt": "Turning someone's cat into a submarine on a phone: the cat's lines a shade lighter, a tower, a periscope, portholes, a propeller and waves drawn on top in black", "kind": "phone" },
+        { "src": "static/games/garble/phone-guess.png", "alt": "Guessing on a phone what the picture is now: a cat, the guess typed below it", "kind": "phone" }
       ]
     },
     {
-      "name": "classes",
-      "title": "Classes",
-      "summary": "Stadt, Land, Fluss in a classroom: stop the alphabet, write an answer for every subject before the school bell rings, then the class grades them with the teacher's red pen, settles arguments in Wikipedia on the TV and hands out gold stars and report cards",
-      "players": { "min": 2, "max": 10 },
+      "name": "shifty",
+      "title": "Shifty",
+      "summary": "Everyone but the phony knows the secret word on a board of sixteen; one-word clues are typed while the TV shows the typing as a lie detector's needle, then the room accuses someone and the phony can still win by naming the word",
+      "players": { "min": 3, "max": 10 },
       "languages": ["en", "de"],
-      "source": "gh:mitsuhiko/tvpipe/classes@classes-v*",
-      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/classes",
+      "source": "gh:mitsuhiko/tvpipe/shifty@shifty-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/shifty",
       "screenshots": [
-        { "src": "static/games/classes/tv-grade.png", "alt": "The teacher's red pen on Excuse for missing homework: Black hole in my backpack scores 10 with three gold stars, two identical The baby ate it bracketed at 5 each, Because crossed out by 4 of 5 and My dog ate it struck: not with B!", "kind": "tv" },
-        { "src": "static/games/classes/tv-write.png", "alt": "Writing with the letter B chalked on the blackboard: Lena: Stop! 10 seconds left!, her hand raised, the wall clock running out and six exercise books on the desks filled with scribbles, from 6/6 down to 1/6", "kind": "tv" },
-        { "src": "static/games/classes/tv-wiki.webp", "alt": "Settling an argument on the TV: Wikipedia's North American beaver in two columns with its links and a photo, reached by following a link from Beaver, as the trail shows, while Sam reads along on the phone", "kind": "tv" },
-        { "src": "static/games/classes/tv-cork.png", "alt": "The best answers of the day pinned on the cork board with their gold stars: Black hole in my backpack, Bermuda Triangle, again, Bagpipes, for the neighbours and Bathtub full of jelly", "kind": "tv" },
-        { "src": "static/games/classes/tv-final.png", "alt": "Sam's report card: 1st of 6 with 45 points, A in Geography, Break, Register and Art & media, D in Biology and F in Music, the remarks Top of the class. Class clown. and a PROMOTED stamp", "kind": "tv" },
-        { "src": "static/games/classes/phone-write.png", "alt": "Writing on a phone like an exercise book with the letter B: Black hole in my backpack, Bangkok, Badger, Bathtub full of jelly and Bee Movie typed in handwriting, Band or singer still blank, 59 seconds left", "kind": "phone" },
-        { "src": "static/games/classes/phone-wiki.png", "alt": "The phone's Wikipedia reader: Back, a search field, the trail Beaver › North American beaver, the article with its photo and blue links to follow", "kind": "phone" },
-        { "src": "static/games/classes/phone-grade.png", "alt": "Grading the excuses on a phone: a gold star on Bermuda Triangle, again, Doesn't count pressed on Because, the pair The baby ate it bracketed as the same answer, and an I'm done button", "kind": "phone" }
+        { "src": "static/games/shifty/tv-clue.png", "alt": "The TV in neon: four fedora silhouettes outlined in their colours in front of glowing height lines, Phil red in the searchlight typing his clue as three lit tiles, his oscilloscope kicking where he deleted a false start; Mia's spots and Lena's savanna on glass cards below their traces; sixteen zoo animals on backlit tiles framed as evidence", "kind": "tv" },
+        { "src": "static/games/shifty/tv-verdict.png", "alt": "The verdict: red lasers from every name plate to the accused, three on Lena and one on Jonas, a red neon PHONY sign over Lena in the searchlight; the clues spots, savanna, neck and leaves under the traces", "kind": "tv" },
+        { "src": "static/games/shifty/phone-card.png", "alt": "A phone's card turned up: the word giraffe in amber neon, the category zoo animals, and the board's glowing tiles below", "kind": "phone" },
+        { "src": "static/games/shifty/phone-clue.png", "alt": "Phil's turn on his phone: nec typed in the glowing clue field, the time running out, his card face down (red stripes, cyan eyes) above the board", "kind": "phone" }
+      ]
+    },
+    {
+      "name": "landgrab",
+      "title": "Landgrab",
+      "summary": "Conquer a world of hex tiles: everyone plans their armies' moves on the phone at the same time, then the TV plays out every march and battle with the dice",
+      "players": { "min": 2, "max": 6 },
+      "languages": ["en", "de"],
+      "source": "gh:mitsuhiko/tvpipe/landgrab@landgrab-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/landgrab",
+      "screenshots": [
+        { "src": "static/games/landgrab/tv-plan.webp", "alt": "The TV while five generals plan: the world as raised hex tiles in their colours and the parchment of the wild lands, every territory named with its army count, the continents' bonuses written in the seas, four of five players ticked ready and 88 seconds left", "kind": "tv" },
+        { "src": "static/games/landgrab/tv-battle.webp", "alt": "A battle on the TV: the camera close on New Guinea and Indonesia, the rest of the map dimmed, the fight card with Lena's three dice against the wild lands' one and a banner: Conquered!", "kind": "tv" },
+        { "src": "static/games/landgrab/phone-plan.png", "alt": "Planning on a phone: the map fills the screen, close on Europe and Africa with the player's two orders drawn as arrows, the Move & attack step with 2 orders, Ready at the bottom", "kind": "phone" },
+        { "src": "static/games/landgrab/phone-attack.png", "alt": "An attack on a phone: tap Western Europe, then Britain, and the bar under the map becomes the amount, 4 armies with a 97 % chance to win, quick amounts Half, Safe and All, a slider and Attack with 4", "kind": "phone" }
+      ]
+    },
+    {
+      "name": "crosstalk",
+      "title": "Crosstalk",
+      "summary": "Two spymasters send secret clues to their teams' phones, both teams guess at once on one board of 25 words, and everyone can hear what the other team says",
+      "players": { "min": 4, "max": 12 },
+      "languages": ["en", "de"],
+      "source": "gh:mitsuhiko/tvpipe/crosstalk@crosstalk-v*",
+      "home": "https://github.com/mitsuhiko/tvpipe/tree/main/games/crosstalk",
+      "screenshots": [
+        { "src": "static/games/crosstalk/tv-flip.png", "alt": "The TV in round 3: a board of 25 word cards, eight turned in red and blue; Red (spymaster Mia) has 4 of 8 and is still guessing, Blue (spymaster Sara) has 3 of 8 and has locked its card, the clock at 27 seconds", "kind": "tv" },
+        { "src": "static/games/crosstalk/phone-operative.png", "alt": "Guessing on Blue's phone: the secret clue NIGHT 2, Phil's pin on GHOST and Ava's on CASTLE, one more pin needed to lock; below, the team's pad: \"NOT this one: MOON\", \"they whispered 'space', so not ROCKET\", \"left over for later: PIANO\", \"careful with BRIDGE\"", "kind": "phone" },
+        { "src": "static/games/crosstalk/phone-spymaster.png", "alt": "The spymaster's phone: the key with every card in its colour and the assassin SHARK in black, \"Say nothing. Show nothing.\", the clue SAILOR typed for 3 cards and about to be sent", "kind": "phone" }
       ]
     }
   ]
