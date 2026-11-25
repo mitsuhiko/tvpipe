@@ -11,10 +11,11 @@
  * authority: phones and the TV only ever get views.
  *
  * Views:
- * - `party.room` (every phone): `{ phase, lang, round, rounds, minPlayers, colors, steps, settings…, stage?,
+ * - `party.room` (every phone): `{ phase, lang, round, rounds, minPlayers, colors, steps, heads, settings…, stage?,
  *   captain?, deadline?, kind?, question?, locked?, gone?, left? }`: `settings` are `mode`, `rounds`,
  *   `difficulty`, `countries`, `kinds`, `disputed`, `map`, `lateJoin` (and `roundsSetting`, the setting's
- *   rounds while `rounds` is the game's); `steps` by player id; `question` what a challenge shows (`name` for a capital or a
+ *   rounds while `rounds` is the game's); `steps` by player id; `heads` the head starts (§2.6) by player id,
+ *   only those above 0; `question` what a challenge shows (`name` for a capital or a
  *   place, `flag` for a flag); `locked` who has locked an answer in; `gone` per number the discarded cards
  *   of its top ten with their ranks (§2.2), `left` the cards left in the deck.
  * - `player.state` (one phone): `{ task, color, steps, … }`; `task` one of `lobby`, `wait` (a late joiner),
@@ -64,6 +65,7 @@ import {
   LEVELS,
   MAPS,
   MODES,
+  MAX_HEAD,
   MAX_TRIES,
   MIN_PLAYERS,
   neighboursIn,
@@ -195,6 +197,8 @@ export interface GameEvents {
   phase: [phase: Phase, stage: Stage | null];
   end: [scores: ScoreLine[]];
   settings: [settings: Settings];
+  /** The head starts changed (by player id, those above 0). */
+  heads: [heads: Record<string, number>];
 }
 
 export type Phase = "lobby" | "round" | "final";
@@ -284,6 +288,8 @@ export class Worldquiz extends Emitter<GameEvents> {
   readonly #names = new Map<string, string>();
   /** Steps per player id (players in the game). */
   readonly steps = new Map<string, number>();
+  /** Head starts (handicaps) per player id, in steps; kept while the party lasts (§2.6). */
+  readonly #heads = new Map<string, number>();
   /** Seat order (captains go round it). */
   #seats: string[] = [];
   #phase: Phase = "lobby";
@@ -412,6 +418,16 @@ export class Worldquiz extends Emitter<GameEvents> {
       this.configure(parseSettings(d));
       return null;
     });
+    party.handle("head", (d, from) => {
+      vipOnly(from);
+      const o = typeof d === "object" && d !== null && !Array.isArray(d) ? (d as Record<string, Json>) : {};
+      const id = o["id"];
+      const steps = o["steps"];
+      if (typeof id !== "string" || !party.player(id)) throw new PartyError("no-player", "No such player");
+      if (typeof steps !== "number" || !Number.isInteger(steps) || steps < 0 || steps > MAX_HEAD) throw new PartyError("bad-head", `steps: 0 to ${MAX_HEAD}`);
+      this.setHead(id, steps);
+      return null;
+    });
     party.handle("choose", (d, from) => this.#choose(d, from));
     party.handle("answer", (d, from) => this.#answer(d, from));
     party.handle("next", (d, from) => this.#pressNext(d, from));
@@ -457,6 +473,27 @@ export class Worldquiz extends Emitter<GameEvents> {
       this.party.screen.set({ ...this.settings, roundsSetting: s.rounds, lang: this.#lang });
     }
     if (JSON.stringify([this.#lang, this.settings]) !== was) this.emit("settings", this.settings);
+  }
+
+  /** A player's head start in steps (§2.6). */
+  headOf(id: string): number {
+    return this.#heads.get(id) ?? 0;
+  }
+
+  /** Sets a player's head start (0 to MAX_HEAD steps) for the next game; the phones and the TV follow. */
+  setHead(id: string, steps: number): void {
+    if (this.#running) throw new PartyError("running", "Not during a game");
+    const n = Math.max(0, Math.min(MAX_HEAD, Math.round(steps) || 0));
+    if (n === this.headOf(id)) return;
+    if (n) this.#heads.set(id, n);
+    else this.#heads.delete(id);
+    this.party.room.set({ heads: this.#headsView() });
+    this.party.screen.set({ heads: this.#headsView(), players: this.#playersView() });
+    this.emit("heads", this.#headsView());
+  }
+
+  #headsView(): Record<string, number> {
+    return Object.fromEntries([...this.#heads].filter(([id]) => this.party.player(id)));
   }
 
   /** Ends a running game (the party stays): the lobby at once, no final screen. */
@@ -505,17 +542,17 @@ export class Worldquiz extends Emitter<GameEvents> {
 
   #colorsChanged(): void {
     const colors = this.#colorMap();
-    this.party.room.set({ colors });
-    this.party.screen.set({ colors, players: this.#playersView() });
+    this.party.room.set({ colors, heads: this.#headsView() });
+    this.party.screen.set({ colors, heads: this.#headsView(), players: this.#playersView() });
   }
 
   #name(id: string): string {
     return this.party.player(id)?.name ?? this.#names.get(id) ?? "?";
   }
 
-  #playersView(): { id: string; name: string; color: string; steps: number; away: boolean }[] {
+  #playersView(): { id: string; name: string; color: string; steps: number; head: number; away: boolean }[] {
     const ids = this.#running ? [...this.steps.keys()].filter((id) => this.party.player(id)) : this.party.players.map((p) => p.id);
-    return ids.map((id) => ({ id, name: this.#name(id), color: COLORS[this.colorOf(id)]!, steps: this.steps.get(id) ?? 0, away: !this.party.player(id)?.connected }));
+    return ids.map((id) => ({ id, name: this.#name(id), color: COLORS[this.colorOf(id)]!, steps: this.steps.get(id) ?? 0, head: this.headOf(id), away: !this.party.player(id)?.connected }));
   }
 
   #stepsView(): Record<string, number> {
@@ -533,7 +570,7 @@ export class Worldquiz extends Emitter<GameEvents> {
   }
 
   #common(): Record<string, unknown> {
-    return { ...this.settings, roundsSetting: this.#settings.rounds, lang: this.#lang, round: this.#roundNo, rounds: this.rounds, minPlayers: this.minPlayers, colors: this.#colorMap(), steps: this.#stepsView() };
+    return { ...this.settings, roundsSetting: this.#settings.rounds, lang: this.#lang, round: this.#roundNo, rounds: this.rounds, minPlayers: this.minPlayers, colors: this.#colorMap(), steps: this.#stepsView(), heads: this.#headsView() };
   }
 
   #room(fields: Record<string, unknown>): void {
@@ -610,7 +647,8 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#seats = start.map((p) => p.id);
     // Cards: everyone captain as often; the quiz has no captain.
     this.#rounds = this.#settings.mode === "quiz" ? this.#settings.rounds : roundsFor(this.#settings.rounds, this.#seats.length);
-    for (const id of this.#seats) this.steps.set(id, 0);
+    // Everyone starts at their head start (§2.6).
+    for (const id of this.#seats) this.steps.set(id, this.headOf(id));
     try {
       for (let r = 1; r <= this.#rounds; r++) {
         this.#roundNo = r;
@@ -638,13 +676,13 @@ export class Worldquiz extends Emitter<GameEvents> {
     this.#names2 = { country: new Matcher(country), capital: new Matcher(capital) };
   }
 
-  /** Waiting players join at the back of the field (the last place's steps) and of the seats. */
+  /** Waiting players join at the back of the field (the last place's steps, or their head start if more) and of the seats. */
   #dealIn(): void {
     const low = Math.min(...[...this.steps.values()], Infinity);
     for (const p of this.party.players) {
       if (p.waiting) this.party.activate(p);
       if (!this.steps.has(p.id) && p.connected) {
-        this.steps.set(p.id, Number.isFinite(low) ? low : 0);
+        this.steps.set(p.id, Math.max(Number.isFinite(low) ? low : 0, this.headOf(p.id)));
         this.#seats.push(p.id);
       }
     }

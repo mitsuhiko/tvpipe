@@ -37,6 +37,8 @@ highest point, GDP per person).
   pile until the deck is empty.
 - **The end**: the furthest plane after 15, 30 or 45 rounds (rounded up
   so everyone is captain as often) wins; a tie is settled with pins.
+- **Head start**: the VIP can give a player 1 to 10 steps to start
+  with (a handicap for younger or newer players), on the phone.
 
 The rules, the data and why: [`docs/worldquiz-design.md`](../../docs/worldquiz-design.md).
 

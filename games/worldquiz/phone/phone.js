@@ -118,6 +118,13 @@ function nameOf(id) {
   return (V().roster ?? []).find((/** @type {any} */ r) => r.id === id)?.name ?? "?";
 }
 const isVip = () => !!(V().roster ?? []).find((/** @type {any} */ r) => r.id === myId())?.vip;
+/** The most a head start can be (game/rules.ts MAX_HEAD). */
+const MAX_HEAD = 10;
+/** A player's head start in steps (the room's `heads`, §2.6). @param {string} id */
+function headOf(id) {
+  const n = V().room?.heads?.[id];
+  return typeof n === "number" && n > 0 ? n : 0;
+}
 /** A short buzz, where phones do that. @param {number | number[]} ms */
 function buzz(ms) {
   try {
@@ -199,7 +206,7 @@ function mapMode() {
  * A map on the screen: not interactive, flown to `box` with `hot` popping
  * up; or interactive (drag, pinch, tap). A flat/globe toggle in the corner
  * (and zoom buttons when interactive).
- * @param {{ lone?: boolean, maxZoom?: number, hot?: string | null, warm?: string[], outline?: LonLat[][] | null, box?: number[] | null, at?: LonLat | null, interactive?: boolean, borders?: boolean, marks?: Mark[], lines?: Line[], onTap?: (ll: LonLat) => void, cls?: string, id?: string, fill?: number, onMap?: (m: WorldMap) => void }} o
+ * @param {{ lone?: boolean, pulse?: boolean, maxZoom?: number, hot?: string | null, warm?: string[], outline?: LonLat[][] | null, box?: number[] | null, at?: LonLat | null, interactive?: boolean, borders?: boolean, marks?: Mark[], lines?: Line[], onTap?: (ll: LonLat) => void, cls?: string, id?: string, fill?: number, onMap?: (m: WorldMap) => void }} o
  */
 function mapView(o) {
   const canvas = /** @type {HTMLCanvasElement} */ (h("canvas", { id: o.id ?? null }));
@@ -257,6 +264,7 @@ function mapView(o) {
       for (const id of o.warm ?? []) map.warm.add(id);
       if (o.outline?.length) map.outline = o.outline;
       map.lone = !!o.lone;
+      map.pulse = !!o.pulse;
       map.marks = o.marks ?? [];
       map.lines = o.lines ?? [];
       if (wrap.clientWidth && wrap.clientHeight) {
@@ -496,9 +504,33 @@ function settings(err) {
   );
   box.append(h("div", { class: "setting" }, h("label", {}, t.kindsLabel), h("div", { class: "kindgrid" }, ...kindButtons), h("p", { class: "line" }, t.kindsLine)));
   add("lateJoin", ["wait", "closed"], [t.lateWait, t.lateClosed], t.lateLabel, (v) => t.lateLine[v === "closed" ? 1 : 0] ?? "");
+  // Head starts (§2.6): a stepper per player.
+  const heads = h("div", { class: "heads" });
+  box.append(h("div", { class: "setting" }, h("label", {}, t.headLabel), heads, h("p", { class: "line" }, t.headLine)));
+  let headsKey = "";
   const update = () => {
     const room = V().room ?? {};
     box.hidden = !isVip();
+    const roster = /** @type {any[]} */ (V()["roster"] ?? []).filter((r) => r.role !== "screen");
+    const key = JSON.stringify([roster.map((r) => [r.id, r.name]), room.heads ?? {}]);
+    if (key !== headsKey) {
+      headsKey = key;
+      heads.replaceChildren(
+        ...roster.map((r) => {
+          const n = headOf(r.id);
+          const step = (/** @type {number} */ d) => act("head", { id: r.id, steps: n + d }, err).catch(() => {});
+          return h(
+            "div",
+            { class: "headrow", style: { "--c": colorOf(r.id) } },
+            h("span", { class: "dot" }),
+            h("span", { class: "nm" }, r.name),
+            h("button", { type: "button", class: "btn sq small white", "aria-label": `− ${r.name}`, disabled: n <= 0, onclick: () => step(-1) }, h("b", {}, "−")),
+            h("b", { class: `hn${n ? " on" : ""}` }, String(n)),
+            h("button", { type: "button", class: "btn sq small white", "aria-label": `+ ${r.name}`, disabled: n >= MAX_HEAD, onclick: () => step(1) }, h("b", {}, "+")),
+          );
+        }),
+      );
+    }
     const on = kindsOn();
     for (const b of kindButtons) {
       const yes = on.includes(/** @type {Kind} */ (b.dataset["kind"]));
@@ -544,6 +576,7 @@ function lobby() {
           h("span", { class: "dot" }),
           h("span", { class: "nm" }, r.name),
           r.vip ? h("small", {}, t.vip) : null,
+          headOf(r.id) ? h("small", { class: "head" }, t.headOf(headOf(r.id))) : null,
           vip && r.id !== myId() ? h("button", { type: "button", class: "kick", "aria-label": `✕ ${r.name}`, onclick: () => act("kick", { id: r.id }, err).catch(() => {}) }, "✕") : null,
         ),
       ),
@@ -1049,7 +1082,7 @@ function answerScreen(me, room) {
       show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.kindLines.shape), tick), map.el, form);
     } else if (kind === "spot") {
       // The easier shape: the outline in its place, the land around it (no names).
-      map = mapView({ outline: decodeRings(q.shape ?? []), box: q.box ?? null, at: q.at ?? null, cls: "shapemap", fill: 0.3, interactive: true, borders: me.borders !== false });
+      map = mapView({ outline: decodeRings(q.shape ?? []), pulse: true, box: q.box ?? null, at: q.at ?? null, cls: "shapemap", fill: 0.3, interactive: true, borders: me.borders !== false });
       show(h("section", { class: "panel pop question where" }, h("p", { class: "ask" }, t.kindLines.spot), tick), map.el, form);
     } else {
       const head =
@@ -1388,7 +1421,7 @@ function fakeView(name) {
   };
   /** @type {Record<string, () => { room?: any, me: any }>} */
   const views = {
-    lobby: () => ({ room: { ...room, phase: "lobby", round: 0, rounds: 15 }, me: { task: "lobby", steps: 0 } }),
+    lobby: () => ({ room: { ...room, phase: "lobby", round: 0, rounds: 15, heads: { p3: 2 } }, me: { task: "lobby", steps: 0 } }),
     wait: () => ({ me: { task: "wait" } }),
     card: () => ({ room: { ...room, stage: "draw", gone }, me: { task: "card", steps: 2, card: germany, captain: false, key: "1:3" } }),
     captain: () => ({ room: { ...room, captain: "me", stage: "draw", gone }, me: { task: "card", steps: 2, card: germany, captain: true, key: "1:3" } }),

@@ -90,6 +90,8 @@ export const HIT_KM = 25;
 export const TIE_SHARE = 0.1;
 /** Challenges without a winner before a round gives up. */
 export const MAX_TRIES = 3;
+/** The most steps a player's head start (handicap) can be (§2.6). */
+export const MAX_HEAD = 10;
 
 // ---------------------------------------------------------------------------
 // Randomness

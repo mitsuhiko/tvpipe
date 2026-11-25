@@ -192,6 +192,36 @@ test("nobody answers: three challenges, then the round ends without steps", asyn
   }
 });
 
+test("head starts: the VIP gives players steps to start with, kept for the next game; nobody else, only 0 to 10, not during a game", async () => {
+  const { g, party, players, close } = await game(2, { silent: 2, timings: { choose: 30, answer: 0.05, next: 5, nextCountdown: 1 }, settings: { rounds: 15, mode: "quiz" } });
+  try {
+    await new Promise((r) => setTimeout(r, 20));
+    const [a, b] = party.players.map((p) => p.id);
+    await assert.rejects(players[1]!.client.act("head", { id: b!, steps: 3 }), /VIP/);
+    await assert.rejects(players[0]!.client.act("head", { id: b!, steps: 11 }), /steps/);
+    await assert.rejects(players[0]!.client.act("head", { id: b!, steps: 1.5 }), /steps/);
+    await assert.rejects(players[0]!.client.act("head", { id: "nobody", steps: 1 }), /player/);
+    await players[0]!.client.act("head", { id: b!, steps: 3 });
+    assert.equal(g.headOf(b!), 3);
+    assert.deepEqual(party.room.peek()["heads"], { [b!]: 3 });
+    assert.equal((party.screenView()["screen"] as any).players.find((p: any) => p.id === b).head, 3);
+    // Nobody answers: everyone ends where they started, the head start wins (no tie-break).
+    const end = new Promise<{ id: string; steps: number; place: number }[]>((r) => g.once("end", r));
+    void g.play();
+    await new Promise((r) => setTimeout(r, 5));
+    await assert.rejects(players[0]!.client.act("head", { id: a!, steps: 1 }), /during a game/);
+    const lines = await end;
+    assert.deepEqual(lines.map((l) => [l.id, l.steps, l.place]), [[b, 3, 1], [a, 0, 2]]);
+    // Kept for the next game; 0 takes it away.
+    assert.equal(g.headOf(b!), 3);
+    await players[0]!.client.act("head", { id: b!, steps: 0 });
+    assert.deepEqual(party.room.peek()["heads"], {});
+  } finally {
+    for (const x of players) x.close();
+    close();
+  }
+});
+
 test("a tie at the top after the last round is settled by pins", async () => {
   const { g, players, phases, close } = await game(2, { sharp: 1, competes: 0, settings: { rounds: 15 } });
   try {

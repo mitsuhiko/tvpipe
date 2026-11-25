@@ -62,6 +62,10 @@ export function strings(lang) {
         all: "Fragen zu allen Ländern, auch den kleinsten.",
       },
       kindsLabel: "Fragen",
+      headLabel: "Vorsprung",
+      headLine: "So viele Schritte startet jemand weiter vorn: für Jüngere oder Neue.",
+      /** @param {number} n */
+      headOf: (n) => `+${n}`,
       kindsLine: "Tippe eine Art an, um sie wegzulassen. Eine bleibt immer.",
       disputedLabel: "Umstrittene Staaten",
       off: "aus",
@@ -246,6 +250,10 @@ export function strings(lang) {
       all: "Questions about every country, the tiniest too.",
     },
     kindsLabel: "Challenges",
+    headLabel: "Head start",
+    headLine: "Steps a player starts ahead with: for younger or newer players.",
+    /** @param {number} n */
+    headOf: (n) => `+${n}`,
     kindsLine: "Tap a kind to leave it out. One always stays.",
     disputedLabel: "Disputed states",
     off: "off",

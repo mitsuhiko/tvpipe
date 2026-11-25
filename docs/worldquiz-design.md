@@ -153,6 +153,19 @@ one when nobody was right, up to three, as after a called challenge),
 then the answer until Next. The rounds are the setting, not rounded up
 (nobody needs to be captain as often).
 
+### 2.6 Head start
+
+A handicap in steps: the VIP gives any player a head start of 0 to 10
+steps on the phone (the settings box, a − and + per player); the plane
+starts that many stops ahead and everything else is as usual. It is
+per player, not a setting: the game's `head` action (`{ id, steps }`,
+the VIP's only, before and between games) and `setHead` on the host
+side; the room's and the TV's `heads` carry those above 0, and the
+lobby shows them as "+2" beside the name on the TV and the phones. It
+stays while the party lasts (also for a player who drops out and comes
+back), so a second game starts with the same; a latecomer joins at the
+last place's steps or the head start, whichever is more.
+
 ## 3. The data
 
 All data is fetched by a script once, curated by hand where the sources
@@ -387,7 +400,8 @@ phone draw the outline over the map. Judged as the flag challenge
 (§4.4). Countries smaller than about 20 km across are never asked.
 
 **Name the country** (`spot`) is its easier form: the same outline in
-the hot colour, but in its place on the map among the land around it
+the hot colour, pulsing (a light wash coming and going, its shape and
+size stay true; a small one's ring breathes), but in its place on the map among the land around it
 (borders as the difficulty says, no names, a ring around a small one);
 any country with land can be asked. The question is the same as the
 shape's (outline and view, no id).

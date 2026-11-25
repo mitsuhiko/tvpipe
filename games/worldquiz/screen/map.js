@@ -11,7 +11,8 @@
  *   atmosphere glow and soft shading.
  * - Highlighted countries in a hot colour with a thick outline, in
  *   place (not lifted or bobbing: shape and size read true); a country
- *   too small to see gets a ring. Pins in players'
+ *   too small to see gets a ring. An outline can pulse (`pulse`: a light
+ *   wash comes and goes, the ring breathes). Pins in players'
  *   colours; a pin's line to where it should have been, growing, with
  *   its distance; a little flag planted where the answer is.
  * - Our own projections: Mercator (the world repeats left and right, so
@@ -180,6 +181,8 @@ export class WorldMap {
     this.outlineCache = null;
     /** Only the outline on the sea: no other land, no graticule (name the shape: nothing around gives it away). */
     this.lone = false;
+    /** The outline pulses (lighter and back, its shape and size stay true): "which country is lit up?". */
+    this.pulse = false;
     /** Countries left out of the game (drawn as nobody's land). @type {Set<string>} */
     this.out = new Set();
     /** @type {Mark[]} */
@@ -607,9 +610,21 @@ export class WorldMap {
         ctx.stroke(o.path);
         ctx.fillStyle = this.hotColor;
         ctx.fill(o.path);
+        this.#glow(o.path, t);
         ctx.restore();
       }
     }
+  }
+
+  /** With `pulse`, a light wash over the outline's fill, coming and going. @param {Path2D} path @param {number} t seconds */
+  #glow(path, t) {
+    if (!this.pulse) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.55 * (0.5 - 0.5 * Math.cos(t * Math.PI * 2 / 1.2));
+    ctx.fillStyle = "#fff6d8";
+    ctx.fill(path);
+    ctx.restore();
   }
 
   /** The outline's extent [w, s, e, n]. @returns {[number, number, number, number]} */
@@ -747,6 +762,7 @@ export class WorldMap {
       ctx.stroke(p);
       ctx.fillStyle = this.hotColor;
       ctx.fill(p);
+      this.#glow(p, t);
     }
     // Shading: light from the upper left.
     const sh = ctx.createRadialGradient(g.cx - g.R * 0.4, g.cy - g.R * 0.45, g.R * 0.1, g.cx, g.cy, g.R * 1.05);
@@ -793,7 +809,8 @@ export class WorldMap {
         ctx.lineWidth = 5;
         ctx.strokeStyle = INK;
         ctx.beginPath();
-        ctx.arc(c[0], c[1], 18, 0, 7);
+        // Pulsing, the ring breathes (it is not the country's size).
+        ctx.arc(c[0], c[1], this.pulse ? 18 + 6 * (0.5 - 0.5 * Math.cos(t * Math.PI * 2 / 1.2)) : 18, 0, 7);
         ctx.stroke();
         ctx.lineWidth = 3;
         ctx.strokeStyle = this.hotColor;

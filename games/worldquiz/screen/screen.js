@@ -304,6 +304,7 @@ function build(sc, key) {
     map.warm = new Set();
     map.outline = null;
     map.lone = false;
+    map.pulse = false;
     map.marks = [];
     map.lines = [];
     map.goal = null;
@@ -368,7 +369,7 @@ function lobbyScene() {
       link.textContent = join ? (joinText(join) ?? t.scan) : "";
       const roster = (client.view?.roster ?? []).filter((/** @type {any} */ r) => r.role !== "screen");
       /** @type {HTMLElement} */ (el.querySelector(".count")).textContent = t.players(roster.length);
-      list.replaceChildren(...roster.map((/** @type {any} */ r) => chip(r.id, r.vip ? h("small", {}, "★") : null)));
+      list.replaceChildren(...roster.map((/** @type {any} */ r) => chip(r.id, r.vip ? h("small", {}, "★") : null, sc.heads?.[r.id] > 0 ? h("small", { class: "head" }, `+${sc.heads[r.id]}`) : null)));
       const min = sc.minPlayers ?? 2;
       const ready = roster.filter((/** @type {any} */ r) => r.connected).length;
       note.textContent = ready < min ? t.needMore(min - ready) : t.vipStarts;
@@ -593,6 +594,7 @@ function challengeScene(sc) {
     ask = h("div", { class: "banner" }, h("span", { class: "fi", html: KIND_ICONS.spot }), t.kindLines.spot);
     if (map) {
       map.outline = decodeRings(q.shape ?? []);
+      map.pulse = true;
       map.top = 16 * rem();
       map.bottom = 20 * rem();
     }
