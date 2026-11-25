@@ -279,12 +279,16 @@ body.task-answer main:has(> .wheremap) > .error { flex: none; margin: -6px 0 0; 
 .reveal { padding: 12px; }
 .reveal .label { margin: 0 0 4px; text-align: center; font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .6; }
 .reveal .gvalue { text-align: center; }
+.reveal .gpeak { display: flex; justify-content: center; align-items: center; gap: 6px; margin: -4px 0 6px; font-weight: 800; font-size: 17px; }
+.reveal .gpeak .ico svg { width: 24px; height: 24px; display: block; }
+.mine .of { font: 700 18px/1 var(--font); opacity: .8; }
+.mine .aflag { margin-left: 6px; }
 .reveal .factname { display: flex; justify-content: center; margin-bottom: 8px; }
 .flaggrid.small { gap: 8px; }
 .flaggrid.small .opt { box-shadow: 0 3px 0 rgba(38,52,80,.3); border-width: 2px; margin: 0; }
 .flaggrid.small .oname { font-size: 13px; text-align: center; }
 .reveal .opt.right, .ranked li.right { background: #e6fbe9; border-color: #17914a; }
-.reveal .opt.mine, .ranked li.mine { outline: 4px solid var(--c); outline-offset: 2px; }
+.reveal .opt.mine, .ranked li.mine, .nchip.mine { outline: 4px solid var(--c); outline-offset: 2px; }
 .reveal .tick { position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #22c55e; color: #fff; border: 2.5px solid var(--ink); font: 900 16px/1 var(--font); }
 .ranked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ranked li { display: flex; align-items: center; gap: 10px; background: #fff; border: 2.5px solid rgba(38,52,80,.25); border-radius: 12px; padding: 6px 10px; font-weight: 800; }

@@ -667,7 +667,10 @@ function answerScene(sc) {
         else what.push(h("span", { class: "said" }, f.fact(rv.fact, a.value)), typeof a.off === "number" ? h("span", { class: "as" }, a.off < 1.005 ? "✓" : t.offBy(times(a.off))) : h("span"));
       } else {
         what.push(h("span", { class: "said" }, a.text || t.noAnswer));
-        if (a.text && a.as && a.as !== a.text) what.push(h("span", { class: "as" }, `→ ${a.as}`));
+        // How it was read, whose capital a wrong one is, and the flag of the country a wrong answer named.
+        const read = [a.text && a.as && a.as !== a.text ? `→ ${a.as}` : "", a.of ? `(${a.of})` : ""].filter(Boolean).join(" ");
+        if (read) what.push(h("span", { class: "as" }, read));
+        if (a.flag) what.push(h("img", { class: "aflag", src: flagSrc(a.flag), alt: "" }));
       }
       return h("div", { class: `ans${right ? " right" : ""}` }, chip(a.pid), ...what, h("span", { class: "mark" }, right ? "✓" : "✗"));
     }),
@@ -731,7 +734,7 @@ function answerScene(sc) {
 }
 
 /** About how tall the reveal panel is (rem), for the map's bottom inset. @type {Record<string, number>} */
-const REVEAL_REM = { bigger: 23, odd: 23, guess: 16, neighbour: 12 };
+const REVEAL_REM = { bigger: 23, odd: 23, guess: 18, neighbour: 12 };
 
 /** A ratio as "1.4" or "12". @param {number} x */
 function times(x) {
@@ -819,6 +822,8 @@ function revealPanel(sc) {
       "div",
       { class: "panel reveal guessline" },
       h("div", { class: "gvalue" }, f.fact(rv.fact, rv.value)),
+      // The highest point: which mountain it is.
+      rv.fact === "highest" && sc.solution?.highest ? h("div", { class: "gpeak" }, h("span", { class: "mi", html: ICONS.highest }), sc.solution.highest) : null,
       h(
         "div",
         { class: "gline" },
@@ -830,7 +835,9 @@ function revealPanel(sc) {
     );
   }
   if (sc.kind === "neighbour") {
-    return h("div", { class: "panel reveal" }, h("div", { class: "nhead" }, t.neighbours), h("div", { class: "nlist" }, ...(rv.neighbours ?? []).map((/** @type {any} */ o) => h("span", { class: "nchip" }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), o.name ?? ""))));
+    // Each neighbour with the dots of those who named it.
+    const named = (/** @type {string} */ id) => answers.filter((a) => a.nb === id).map((a) => h("b", { class: "pdot", style: { "--c": colorOf(a.pid) } }, initial(nameOf(a.pid))));
+    return h("div", { class: "panel reveal" }, h("div", { class: "nhead" }, t.neighbours), h("div", { class: "nlist" }, ...(rv.neighbours ?? []).map((/** @type {any} */ o) => h("span", { class: "nchip" }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), o.name ?? "", ...named(o.id)))));
   }
   return null;
 }

@@ -374,7 +374,11 @@ Slovenia/Slovakia, Gambia/Zambia, Guinea/Guyana/Guinea-Bissau,
 Mali/Malta, Dominica/Dominican Republic, Sudan/South Sudan,
 Congo (ambiguous: wrong for both unless §10 says otherwise),
 Korea (ambiguous). The reveal shows how an answer was read ("Nigera →
-Nigeria ✓").
+Nigeria ✓"), and what a wrong one named, so it teaches something: the
+flag of the country it was read as ("Chile" beside Chile's flag, Chad's
+look-alike beside Romania's), and for a capital also whose it is
+("Mali → Malé (Maldives)"). Only when the answer was read as one
+country.
 
 ### 4.5 Pick the flag
 
@@ -429,7 +433,8 @@ way (log); never the country asked nor one with its very number. The closest by 
 guess/answer|), with everyone within 10 % of the best ratio; a guess
 off by more than the level's factor never wins (easy ×3, normal ×2,
 hard ×1.5). The reveal: a number line (log) with every guess as a dot
-in the player's colour and the answer, then the card.
+in the player's colour and the answer (for the highest point with the
+mountain's name under it: "5,137 m, Mount Ararat"), then the card.
 
 ### 4.9 Name a neighbour
 
@@ -437,7 +442,8 @@ A country with land neighbours (§3.2; with the disputed states as set);
 type any one of them. Every right neighbour counts (judged as §4.4,
 against every country; the answer must be one of the neighbours). The
 reveal: the country and all its neighbours highlighted on the map, the
-neighbours listed, each player's answer read back.
+neighbours listed with the dots of those who named each (one's own
+outlined on the phone), each player's answer read back.
 
 ### 4.10 Odd one out
 

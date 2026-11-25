@@ -13,7 +13,7 @@
  * capital, flag, where, locked, right, wrong, result-where, again,
  * final, wait; the newer kinds pickflag, pickflag9, shape, bigger, guess,
  * neighbour, odd and their result-pickflag, result-bigger, result-guess,
- * result-neighbour, result-odd.
+ * result-peak, result-neighbour, result-odd; wrong-capital.
  */
 
 import { blockEmoji, PartyClient } from "/_tvpipe/lib/client.js";
@@ -1155,7 +1155,17 @@ function result(me, room) {
   } else {
     const text = mine?.text ?? "";
     answer = text
-      ? h("p", { class: "mine" }, h("span", { class: "typed" }, `“${text}”`), mine?.as && mine.as !== text ? h("span", {}, ` → ${mine.as}`) : null, " ", right ? "✓" : "✗")
+      ? h(
+          "p",
+          { class: "mine" },
+          h("span", { class: "typed" }, `“${text}”`),
+          mine?.as && mine.as !== text ? h("span", {}, ` → ${mine.as}`) : null,
+          // Whose capital a wrong one is, and the flag of the country a wrong answer named.
+          mine?.of ? h("span", { class: "of" }, ` (${mine.of})`) : null,
+          mine?.flag ? h("img", { class: "qflag small aflag", src: flagSrc(mine.flag), alt: "" }) : null,
+          " ",
+          right ? "✓" : "✗",
+        )
       : h("p", { class: "mine" }, t.noAnswer);
   }
   const pinned = me.kind === "where" && mine && typeof mine.lon === "number" && typeof mine.lat === "number";
@@ -1305,6 +1315,8 @@ function revealPanel(me) {
       { class: "panel reveal" },
       h("p", { class: "label" }, t.answerIs),
       h("p", { class: "gvalue" }, f.fact(rv.fact, rv.value)),
+      // The highest point: which mountain it is.
+      rv.fact === "highest" && me.solution?.highest ? h("p", { class: "gpeak" }, h("span", { class: "ico", html: ICONS.highest }), me.solution.highest) : null,
       h(
         "div",
         { class: "gline" },
@@ -1316,7 +1328,7 @@ function revealPanel(me) {
     );
   }
   if (me.kind === "neighbour") {
-    return h("section", { class: "panel reveal" }, h("p", { class: "label" }, t.neighbours), h("div", { class: "nlist" }, ...(rv.neighbours ?? []).map((/** @type {any} */ o) => h("span", { class: "nchip" }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), o.name ?? ""))));
+    return h("section", { class: "panel reveal" }, h("p", { class: "label" }, t.neighbours), h("div", { class: "nlist" }, ...(rv.neighbours ?? []).map((/** @type {any} */ o) => h("span", { class: `nchip${mine?.nb === o.id ? " mine" : ""}`, style: { "--c": color } }, h("img", { src: flagSrc(o.flag ?? ""), alt: "" }), o.name ?? ""))));
   }
   return null;
 }
@@ -1441,7 +1453,8 @@ function fakeView(name) {
       return { room: { ...room, stage: "challenge", kind: "where", deadline: now + 9000 }, me: { task: "answer", key: "c4", kind: "where", question: { name: "Nigeria" }, deadline: now + 9000, borders: true, locked: true, steps: 2 } };
     },
     right: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], nextBy: now + 12000, stage: "answer", kind: "capital" }, me: { task: "result", kind: "capital", right: true, solution: nigeria, mine: { pid: "me", text: "abuya", as: "Abuja", right: true }, winners: ["Phil", "Ada"], steps: 3, again: false, next: "k" } }),
-    wrong: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "flag" }, me: { task: "result", kind: "flag", right: false, solution: nigeria, mine: { pid: "me", text: "Niger", as: "Niger", right: false }, winners: [], steps: 2, again: true, next: "k" } }),
+    wrong: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "flag" }, me: { task: "result", kind: "flag", right: false, solution: nigeria, mine: { pid: "me", text: "Niger", as: "Niger", right: false, flag: fl("NE") }, winners: [], steps: 2, again: true, next: "k" } }),
+    "wrong-capital": () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "capital" }, me: { task: "result", kind: "capital", right: false, solution: { ...nigeria, ...place("IS"), capitals: ["Reykjavík"] }, mine: { pid: "me", text: "Mali", as: "Malé", right: false, of: nm("MV"), flag: fl("MV") }, winners: ["Ada"], steps: 2, again: false, next: "k" } }),
     "result-where": () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: { pid: "me", lon: 1.5, lat: 12.4, km: 310, to: [3.6, 11.7], right: false }, winners: ["Bartholomew"], steps: 2, again: false, next: "k" } }),
     again: () => ({ room: { ...room, next: "k", nextFor: ["me", "p2", "p3"], ready: ["p2"], stage: "answer", kind: "where" }, me: { task: "result", kind: "where", right: false, solution: nigeria, mine: null, winners: [], steps: 2, again: true, next: "k" } }),
     final: () => ({ room: { ...room, phase: "final", rounds: 15 }, me: { task: "final", steps: 9, place: 1, of: 4, won: true } }),
@@ -1484,9 +1497,13 @@ function fakeView(name) {
       room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "guess" },
       me: { task: "result", kind: "guess", right: true, solution: { ...nigeria, ...place("PE"), facts: { ...nigeria.facts, population: 34_350_000 } }, reveal: { fact: "population", value: 34_350_000, min: 1000, max: 2e9, factor: 2 }, mine: { pid: "me", value: 25_000_000, off: 1.374, right: true }, winners: ["Phil"], steps: 3, next: "k" },
     }),
+    "result-peak": () => ({
+      room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "guess" },
+      me: { task: "result", kind: "guess", right: false, solution: { ...nigeria, ...place("TR"), highest: de ? "Ararat" : "Mount Ararat", facts: { ...nigeria.facts, highest: 5137 } }, reveal: { fact: "highest", value: 5137, min: 10, max: 9000, factor: 2 }, mine: { pid: "me", value: 680, off: 7.554, right: false }, winners: ["Ada"], steps: 3, next: "k" },
+    }),
     "result-neighbour": () => ({
       room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "neighbour" },
-      me: { task: "result", kind: "neighbour", right: true, solution: { ...nigeria, ...place("HU") }, reveal: { neighbours: ["AT", "SK", "UA", "RO", "RS", "HR", "SI"].map(place) }, mine: { pid: "me", text: "Österreich", as: nm("AT"), right: true }, winners: ["Phil", "Ada"], steps: 3, next: "k" },
+      me: { task: "result", kind: "neighbour", right: true, solution: { ...nigeria, ...place("HU") }, reveal: { neighbours: ["AT", "SK", "UA", "RO", "RS", "HR", "SI"].map(place) }, mine: { pid: "me", text: "Österreich", as: nm("AT"), right: true, nb: "AT" }, winners: ["Phil", "Ada"], steps: 3, next: "k" },
     }),
     "result-odd": () => ({
       room: { ...room, next: "k", nextFor: ["me", "p2"], ready: [], stage: "answer", kind: "odd" },

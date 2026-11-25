@@ -601,3 +601,47 @@ test("answers of the new kinds are checked: an option of the question, a number 
     close();
   }
 });
+
+test("the reveal says what a wrong answer named: its flag, a capital's country; which neighbour a right one named", async () => {
+  const { g, party, players, screens, close } = await game(2, { silent: 2, settings: { mode: "quiz", kinds: ["capital", "flag", "neighbour"] }, timings: { answer: 0.6, next: 20, nextCountdown: 20 } });
+  const until = async (what: () => boolean, ms = 5000) => {
+    const end = Date.now() + ms;
+    while (!what()) {
+      if (Date.now() > end) throw new Error("timed out");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  };
+  const others: Record<string, { name: string; capital: string; flag: string }> = Object.fromEntries(COUNTRIES.map((c) => [c.name.en, { name: c.name.en, capital: c.capitals.en[0]!, flag: c.flag }]));
+  try {
+    void g.play();
+    const p = players[0]!;
+    const seen = new Set<string>();
+    for (let i = 0; i < 6 && seen.size < 3; i++) {
+      await until(() => g.stage === "challenge" && (p.client.view as any)?.me?.task === "answer");
+      const me = (p.client.view as any).me;
+      const truth = g.truth()!;
+      // Another country of the deck (Xenia is not in it without the disputed states).
+      const other = Object.values(others).find((o) => o.name !== truth.name && o.name !== "Xenia" && !(truth.neighbours ?? []).includes(o.name))!;
+      const text = me.kind === "capital" ? other.capital : me.kind === "flag" ? other.name : truth.neighbours![0]!;
+      await p.client.act("answer", { key: me.key, text, lock: true });
+      await until(() => screens.at(-1)?.["stage"] === "answer");
+      const pid = party.players.find((x) => x.name === p.name)!.id;
+      const a = screens.at(-1)!["answers"].find((x: any) => x.pid === pid);
+      seen.add(me.kind);
+      if (me.kind === "capital") assert.deepEqual([a.right, a.as, a.of, a.flag], [false, other.capital, other.name, other.flag]);
+      if (me.kind === "flag") assert.deepEqual([a.right, a.as, a.of, a.flag], [false, other.name, undefined, other.flag]);
+      if (me.kind === "neighbour") {
+        assert.equal(a.right, true);
+        assert.equal(a.flag, undefined);
+        assert.equal(COUNTRIES.find((c) => c.id === a.nb)?.name.en, text);
+      }
+      const key = me.key;
+      await until(() => (p.client.view as any)?.me?.key !== key);
+    }
+    assert.equal(seen.size, 3, [...seen].join());
+  } finally {
+    g.close();
+    for (const b of players) b.close();
+    close();
+  }
+});

@@ -1061,7 +1061,11 @@ export class Worldquiz extends Emitter<GameEvents> {
         const right = ch.kind === "neighbour" ? rightNeighbour(r.ids, c.id, t.neighbours ?? []) : r.ids.includes(c.id);
         if (right) winners.push(id);
         const as = r.ids.length ? (ch.kind === "capital" ? this.#capitalName(r.ids[0]!, r.name) : this.#byId.get(r.ids[0]!)?.name[this.#lang]) : null;
-        answers.push({ pid: id, text, as: as ?? null, right });
+        // A wrong answer read as one other country: its flag (and a capital's country), so the reveal says what was named.
+        const other = !right && r.ids.length === 1 && r.ids[0] !== c.id ? this.#byId.get(r.ids[0]!) : undefined;
+        // A right neighbour: which one, for the dots on the reveal's list.
+        const nb = right && ch.kind === "neighbour" ? (r.ids.find((n) => t.neighbours?.includes(n)) ?? null) : null;
+        answers.push({ pid: id, text, as: as ?? null, right, ...(other ? { flag: other.flag, ...(ch.kind === "capital" ? { of: other.name[this.#lang] } : {}) } : {}), ...(nb ? { nb } : {}) });
       }
     }
     if (!only) for (const w of winners) this.steps.set(w, (this.steps.get(w) ?? 0) + 1);

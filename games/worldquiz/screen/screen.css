@@ -176,7 +176,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .ans .chip { box-shadow: none; padding-right: .4rem; font-size: 1.7rem; background: transparent; }
 .ans .chip .dot { width: 2.8rem; height: 2.8rem; }
 .ans .said { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.ans .as { font: 600 1.5rem/1 var(--font); opacity: .75; white-space: nowrap; }
+.ans .as { font: 600 1.5rem/1 var(--font); opacity: .75; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ans .mark { margin-left: auto; font: 900 2.6rem/1 var(--font); color: #ef4444; }
 .ans.right { background: #e6fbe9; box-shadow: 0 .3rem 0 #9bdcaa; }
 .ans.right .mark { color: #22c55e; }
@@ -209,6 +209,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .reveal .ranked .oval { font-weight: 900; white-space: nowrap; }
 .guessline { gap: .4rem; }
 .guessline .gvalue { font: 900 4.4rem/1 var(--font); color: var(--hot); -webkit-text-stroke: .25rem var(--ink); paint-order: stroke fill; }
+.guessline .gpeak { display: flex; align-items: center; gap: .5rem; margin-bottom: 2.2rem; font: 800 1.8rem/1 var(--font); }
+.guessline .gpeak .mi svg { display: block; width: 2.2rem; height: 2.2rem; }
 .gline { position: relative; width: 100%; height: 3rem; margin: 3.2rem 0 .4rem; border-radius: 1.5rem; background: #fff; border: .3rem solid var(--ink); }
 .gband { position: absolute; top: 0; bottom: 0; background: #bdf0c8; border-radius: 1.2rem; }
 .gmark.answer { position: absolute; top: 50%; width: .9rem; height: 4.6rem; margin: -2.3rem 0 0 -.45rem; border-radius: .45rem; background: #22c55e; border: .25rem solid var(--ink); }
@@ -217,6 +219,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #6cc7e8; col
 .nhead { font: 900 2rem/1 var(--font); margin-bottom: .8rem; }
 .nlist { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; }
 .nchip { display: inline-flex; align-items: center; gap: .6rem; background: #fff; border-radius: 3rem; padding: .3rem 1rem .3rem .3rem; font: 800 1.8rem/1 var(--font); box-shadow: 0 .2rem 0 #e8dcc0; }
+.nchip .pdot { margin-left: -.2rem; }
 .nchip img { width: 3.6rem; height: 2.4rem; object-fit: cover; border-radius: .3rem; border: .15rem solid var(--ink); }
 
 .nobody { position: absolute; left: calc(50% - 2rem); top: 42%; transform: translate(-50%, -50%); text-align: center; }
