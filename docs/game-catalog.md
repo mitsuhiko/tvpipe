@@ -161,4 +161,6 @@ tags on a later commit of the same series, tvpipe unchanged. After
 0.4.1 all eleven were, for the VIP's phone having every setting and one
 language per room: busted, crosstalk, pinch, shifty, snug and worldquiz
 0.2.0, krakel and landgrab 0.3.0, garble and jinx 0.4.0, drawbluff
-0.5.0.
+0.5.0. Classes 0.1.0 followed (its first release), then worldquiz 0.3.0
+(name the country, head starts, answers that teach) and busted 0.2.1,
+classes 0.1.1 and snug 0.2.1 (the TV page scaled to the window).

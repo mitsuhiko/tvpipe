@@ -1,7 +1,7 @@
 {
   "name": "classes",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A school-day word game for tvpipe (tvpipe game play): one letter, a board of subjects, write an answer for each before the bell; the class grades the answers, looks them up in Wikipedia, and everyone gets a report card",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,7 +1,7 @@
 {
   "name": "worldquiz",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A geography card game for tvpipe (tvpipe game play): every country is a card with its flag, capital and five numbers; compete with the cards or answer challenges against the clock: capitals, flags, and pins on a cartoon map or globe",
   "license": "Apache-2.0",
   "type": "module",
