@@ -106,6 +106,9 @@ pub struct Behaviour {
     /// decoder-maximum pixels and `maxFPS` (default: the dev Apple TV's
     /// 1280x720, 3840x2160 max, 60 fps).
     pub display: Display,
+    /// An audio-only speaker (like a Devialet Phantom): no screen
+    /// mirroring bit, and a video SETUP answered without `dataPort`.
+    pub speaker: bool,
 }
 
 /// A display in `/info` (`displays[0]`).
@@ -145,6 +148,7 @@ impl Default for Behaviour {
             fairplay_bit: false,
             manufacturer: None,
             display: Display::default(),
+            speaker: false,
         }
     }
 }
@@ -259,6 +263,11 @@ fn info(display: Option<Display>, behaviour: &Behaviour) -> Plist {
         FEATURES | 1 << 14
     } else {
         FEATURES
+    };
+    let features = if behaviour.speaker {
+        features & !(1 << 7)
+    } else {
+        features
     };
     let mut p = Plist::dict()
         .with("model", "AppleTV6,2")
@@ -442,6 +451,12 @@ fn handle(req: &Request, ctx: &Arc<Ctx>) -> Response {
                                         Plist::dict().with("streamConnectionKeyPort", rtcp as i64),
                                     ),
                             )]),
+                    );
+                }
+                Some(110) if ctx.behaviour.speaker => {
+                    out = out.with(
+                        "streams",
+                        Plist::array([Plist::dict().with("type", 110i64)]),
                     );
                 }
                 Some(110) => {

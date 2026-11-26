@@ -2106,6 +2106,15 @@ fn latency(d: &Desired, caps: &[&Capabilities]) -> u32 {
         .fold(d.latency_ms, u32::max)
 }
 
+/// How long the tail plays out after a clean EOF: the session's delay,
+/// raised to the longest delay a receiver prefers (an AirPlay speaker
+/// buffers 2 s).
+fn tail_ms(latency_ms: u32, caps: &[&Capabilities]) -> u32 {
+    caps.iter()
+        .filter_map(|c| c.preferred_latency_ms)
+        .fold(latency_ms, u32::max)
+}
+
 #[cfg(feature = "ffmpeg")]
 /// Raw SLRW for ffmpeg: the bound listeners and the game's stream.
 type RawFeed = (rawin::RawInput, Box<dyn std::io::Read + Send>);
@@ -2185,6 +2194,10 @@ fn stream(
             ))
             .collect::<String>()
     );
+    let tail = {
+        let caps: Vec<&Capabilities> = sinks.iter().map(|s| s.capabilities()).collect();
+        tail_ms(latency_ms, &caps)
+    };
     // On failure the sinks are dropped, which stops them.
     let config = FanoutConfig {
         events: ctx.events.clone(),
@@ -2271,7 +2284,7 @@ fn stream(
     let clean_eof = end == EndReason::Eof && input_error.is_none();
     if clean_eof {
         // Let the last frames play out before STOP.
-        std::thread::sleep(Duration::from_millis(latency_ms as u64 + 100));
+        std::thread::sleep(Duration::from_millis(tail as u64 + 100));
     }
     let stats = fanout.stats();
     let ends = fanout.close(end == EndReason::Eof);
@@ -2589,6 +2602,15 @@ mod tests {
         );
     }
     use crate::media::ffmpeg::Output;
+
+    #[test]
+    fn eof_tail_covers_the_longest_receiver_delay() {
+        let tv = caps(1920, 1080, 60, 10_000);
+        let mut speaker = caps(1280, 720, 60, 10_000);
+        speaker.preferred_latency_ms = Some(2000);
+        assert_eq!(tail_ms(300, &[&tv]), 300);
+        assert_eq!(tail_ms(300, &[&tv, &speaker]), 2000);
+    }
 
     fn caps(w: u32, h: u32, fps: u32, kbps: u32) -> Capabilities {
         Capabilities {

@@ -34,7 +34,7 @@ Also found 2 speakers that play audio only (tvpipe streams video):
 Stream to one: tvpipe play FILE --to "Living Room"
 ```
 
-Speakers that only play sound are listed apart, because tvpipe streams video. You do not need to run `discover` before streaming. `--to` with a name finds the receiver by itself.
+Speakers that only play sound are listed apart, because tvpipe streams video. An AirPlay speaker still plays the sound of a stream: `--to Office` sends it the audio only, about 2 s behind the source. You do not need to run `discover` before streaming. `--to` with a name finds the receiver by itself.
 
 ## Choosing with `--to`
 

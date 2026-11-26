@@ -351,6 +351,7 @@ is the same everywhere:
 | Cast present, no `--latency` | 300 ms | 300 / 300 ms | 300 ms |
 | An LG TV with sound, no `--latency` | 300 ms | 300 / 300 ms | 300 ms |
 | AirPlay only, no `--latency` | — | automatic, 100 / 170 ms | 100 ms |
+| AirPlay speaker (no feature 7), no `--latency` | — | 2000 / 2000 ms | — |
 | Browser only, no `--latency` | — | — | 100 ms |
 
 `L` is clamped to 5–2000 ms, which both protocols accept. Mixed with Cast,
@@ -360,6 +361,12 @@ runs with the automatic leads). An LG TV's sound needs 300 ms and
 `latencyMin` set to the lead (spec §2.7); its advertisement says LG, so
 the whole session takes 300 ms. An LG given by address is known only
 after `/info`: it takes 300 ms, the others keep theirs.
+
+An AirPlay receiver whose `/info` has no screen mirroring bit (feature 7) is
+a speaker: it gets the audio stream only, with no video SETUP, and a 2000 ms
+lead without `--latency`. A Devialet Phantom II played choppy audio at the
+automatic 170 ms. The sink also sends up to 1.5 s of silence that plays right
+before the first frame, while the speaker's NTP clock settles.
 
 **Partial failures.** A `--to` that cannot be resolved or connected is
 logged and left out; the session goes on with the others and fails only
