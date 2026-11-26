@@ -132,14 +132,21 @@ pub fn parse_version(text: &str) -> Option<(u32, u32)> {
     Some((major, minor))
 }
 
-/// Parses `-encoders` / `-filters` output: after the `------` line, each
-/// line is `FLAGS NAME ...`.
+/// Parses `-encoders` / `-filters` output: a heading (`Filters:`), a
+/// legend (`FLAGS = meaning`), then each line `FLAGS NAME ...`. The legend
+/// ends in a `------` line, except for `-filters` before ffmpeg 7, so the
+/// legend's lines are told apart by their `=`, not by their place.
 pub fn parse_listing(text: &str) -> BTreeSet<String> {
     text.lines()
-        .skip_while(|l| !l.trim_start().starts_with("---"))
-        .skip(1)
-        .filter_map(|l| l.split_whitespace().nth(1))
-        .map(str::to_owned)
+        .filter_map(|l| {
+            let mut words = l.split_whitespace();
+            let flags = words.next()?;
+            let name = words.next()?;
+            let is_flags = flags
+                .chars()
+                .all(|c| c.is_ascii_alphabetic() || c == '.' || c == '|');
+            (is_flags && name != "=").then(|| name.to_owned())
+        })
         .collect()
 }
 
@@ -1050,6 +1057,38 @@ pub(crate) mod tests {
         assert_eq!(set.into_iter().collect::<Vec<_>>(), ["alac", "libx264"]);
         let filters = "Filters:\n  T.. = Timeline support\n  ------\n TS aap  AA->A  x\n .. drawtext V->V y\n";
         assert!(parse_listing(filters).contains("drawtext"));
+    }
+
+    /// The start of `ffmpeg -filters` from real builds: 6.1 (Ubuntu
+    /// 24.04) has no `------` line after the legend, 8.1 has one.
+    #[test]
+    fn listing_parse_real_filters() {
+        let v6 = "Filters:\n  T.. = Timeline support\n  .S. = Slice threading\n  ..C = Command support\n  A = Audio input/output\n  V = Video input/output\n  N = Dynamic number and/or type of input/output\n  | = Source or sink filter\n ... abench            A->A       Benchmark part of a filtergraph.\n ..C acompressor       A->A       Audio compressor.\n T.C volume            A->A       Change input volume.\n ... freezeframes      VV->V      Freeze video frames.\n ... split             V->N       Pass on the input to N video outputs.\n ... abuffer           |->A       Buffer audio frames, and make them accessible to the filterchain.\n";
+        let v8 = "Filters:\n  T.. = Timeline support\n  .S. = Slice threading\n  A = Audio input/output\n  V = Video input/output\n  N = Dynamic number and/or type of input/output\n  | = Source or sink filter\n  ------\n TS aap               AA->A      Apply Affine Projection algorithm to first audio stream.\n .. abench            A->A       Benchmark part of a filtergraph.\n T. volume            A->A       Change input volume.\n .. freezeframes      VV->V      Freeze video frames.\n .. split             V->N       Pass on the input to N video outputs.\n";
+        let six = parse_listing(v6);
+        assert_eq!(
+            six.iter().map(String::as_str).collect::<Vec<_>>(),
+            [
+                "abench",
+                "abuffer",
+                "acompressor",
+                "freezeframes",
+                "split",
+                "volume"
+            ]
+        );
+        let eight = parse_listing(v8);
+        assert_eq!(
+            eight.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["aap", "abench", "freezeframes", "split", "volume"]
+        );
+        for set in [six, eight] {
+            let p = Probe {
+                filters: set,
+                ..Probe::default()
+            };
+            assert!(p.can_freeze());
+        }
     }
 
     #[test]
